@@ -74,6 +74,8 @@ export type MessageView = {
   /** R-MSG-14, the dispatcher's only: whether the driver has read it, and when; null when unknown or not for the driver. */
   seenByDriver?: boolean | null;
   seenByDriverAt?: IsoInstant | null;
+  /** FF-05: a voice note's machine transcript; absent for a typed message. */
+  transcript?: TranscriptView | null;
 };
 
 /** Newest first; nextCursor reads older messages. */
@@ -121,3 +123,15 @@ export type ResolveReportPayload = { messageId: Uuid; note?: string };
 
 /** message:Redirect: the post leaves the channel; the other stores stop seeing it. Reason 3 to 500 characters. */
 export type RedirectMessagePayload = { messageId: Uuid; reason: string };
+
+/**
+ * FF-05: what a transcription engine heard in a voice note, mirrored from
+ * MessagingViews.TranscriptView. `pending` while it is being written down;
+ * `none` when there is no transcript (no engine, a failure, or cleared with
+ * the audio): play the audio.
+ */
+export type TranscriptView = {
+  status: "pending" | "done" | "none";
+  text: string | null;
+  language: "en" | "si" | "ta" | null;
+};

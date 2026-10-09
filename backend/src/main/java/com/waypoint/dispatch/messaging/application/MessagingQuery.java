@@ -6,11 +6,13 @@ import com.waypoint.dispatch.messaging.contract.MessagingCommands;
 import com.waypoint.dispatch.messaging.contract.MessagingViews.MemberView;
 import com.waypoint.dispatch.messaging.contract.MessagingViews.MessagePage;
 import com.waypoint.dispatch.messaging.contract.MessagingViews.MessageView;
+import com.waypoint.dispatch.messaging.contract.MessagingViews.TranscriptView;
 import com.waypoint.dispatch.messaging.contract.MessagingViews.ReportMarkView;
 import com.waypoint.dispatch.messaging.contract.MessagingViews.ThreadView;
 import com.waypoint.dispatch.messaging.domain.MessagePolicy;
 import com.waypoint.dispatch.messaging.domain.MessagePolicy.Role;
 import com.waypoint.dispatch.messaging.infrastructure.JdbcThreadRepository;
+import com.waypoint.dispatch.messaging.infrastructure.JdbcTranscripts;
 import com.waypoint.dispatch.notification.contract.NotificationQuery;
 import com.waypoint.dispatch.messaging.infrastructure.JdbcThreadRepository.Belonging;
 import com.waypoint.dispatch.messaging.infrastructure.JdbcThreadRepository.Message;
@@ -54,10 +56,12 @@ public class MessagingQuery {
   private final AuditLog audit;
   private final Clock clock;
   private final NotificationQuery notifications;
+  private final JdbcTranscripts transcripts;
 
   public MessagingQuery(
       Database database, JdbcThreadRepository threads, PersonQuery people, IdentityQuery identity, AuditLog audit,
-      Clock clock, NotificationQuery notifications) {
+      Clock clock, NotificationQuery notifications, JdbcTranscripts transcripts) {
+    this.transcripts = transcripts;
     this.notifications = notifications;
     this.database = database;
     this.threads = threads;
@@ -87,6 +91,14 @@ public class MessagingQuery {
       return Map.of();
     }
     return notifications.driverReads(toDriver);
+  }
+
+  /** FF-05: the reader's view of a note's transcript; anything but words or work in progress is "none". */
+  private static TranscriptView transcript(JdbcTranscripts.Transcript t) {
+    if (t == null) return new TranscriptView("none", Optional.empty(), Optional.empty());
+    if ("pending".equals(t.status())) return new TranscriptView("pending", Optional.empty(), Optional.empty());
+    if ("done".equals(t.status()) && t.text().isPresent()) return new TranscriptView("done", t.text(), t.language());
+    return new TranscriptView("none", Optional.empty(), Optional.empty());
   }
 
   /** The thread of a subject, for a screen that knows the trip, not the thread. */
@@ -123,6 +135,9 @@ public class MessagingQuery {
         Page.fromOverfetch(rows, size, m -> Cursor.encode(m.createdAt().toString(), m.messageId().toString()));
     Map<UUID, String> names = new HashMap<>();
     Map<UUID, Optional<Instant>> seen = driverReads(actor, threadId, page.items());
+    List<UUID> voices = page.items().stream().flatMap(m -> m.voiceNoteId().stream()).toList();
+    Map<UUID, JdbcTranscripts.Transcript> heard =
+        voices.isEmpty() ? Map.of() : database.readAs(ModuleRole.MESSAGING, actor.userId(), () -> transcripts.of(voices));
     List<MessageView> items = new ArrayList<>();
     for (Message m : page.items()) {
       Optional<Optional<Instant>> read = Optional.ofNullable(seen.get(m.messageId()));
@@ -132,7 +147,8 @@ public class MessagingQuery {
               m.audienceOutlet(), m.body(), m.voiceNoteId(), m.voiceDurationMs(), m.createdAt(),
               m.authorUserId().equals(actor.userId()), m.voicePeaks(), m.resolvedAt(),
               m.resolvedBy().map(by -> resolver(by, names)), m.resolutionNote(), m.redirectedAt(),
-              m.redirectReason(), read.map(Optional::isPresent), read.flatMap(r -> r)));
+              m.redirectReason(), read.map(Optional::isPresent), read.flatMap(r -> r),
+              m.voiceNoteId().map(v -> transcript(heard.get(v)))));
     }
     return new MessagePage(items, page.nextCursor());
   }

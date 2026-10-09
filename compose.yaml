@@ -135,6 +135,7 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
       # Roadmap FF-05: voice note transcription, off while TRANSCRIBE_ENGINE is empty.
       TRANSCRIBE_ENGINE: ${TRANSCRIBE_ENGINE:-}
+      TRANSCRIBE_MODEL: ${TRANSCRIBE_MODEL:-gemini-3.8-flash}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY:-}
       AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION:-}

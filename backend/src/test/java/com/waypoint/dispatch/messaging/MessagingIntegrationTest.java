@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.messaging;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -95,6 +96,7 @@ class MessagingIntegrationTest {
   @Autowired OutboxRelay relay;
   @Autowired OperatorRegistry operators;
   @Autowired com.waypoint.dispatch.messaging.application.VoiceRetentionJob voiceRetention;
+  @Autowired com.waypoint.dispatch.messaging.application.VoiceTranscripts.Job transcribe;
   @Autowired com.waypoint.dispatch.messaging.application.MessageSpeech.Job speechJob;
 
   String depot;
@@ -439,6 +441,70 @@ class MessagingIntegrationTest {
     assertEquals(true, row.get("cleared"));
     assertEquals(true, row.get("purged"));
     assertTrue(String.valueOf(row.get("sha256")).length() == 64, "the checksum stays as the record");
+  }
+
+  /** FF-05: a voice note is written down by the engine, shown to who may read it, and cleared with its audio. */
+  @Test
+  void aVoiceNoteIsWrittenDownForItsReadersAndItsWordsGoWithItsAudio() throws Exception {
+    MessagingTestConfig.FAIL_TRANSCRIBE.set(false);
+    UUID voiceId = UUID.randomUUID();
+    upload(driver, voiceId, "audio/webm", new byte[] {0x1a, 0x45, (byte) 0xdf, (byte) 0xa3, 4, 5, 6}, 200);
+    say(driver, "{\"to\":\"dispatch\",\"body\":\"\",\"voiceNoteId\":\"" + voiceId + "\"}", 200);
+    drain();
+    assertEquals("pending", voiceMessage(dispatcher, voiceId).get("transcript").get("status").asText());
+
+    // Notes queued by earlier tests come first; a few runs reach this one.
+    for (int i = 0; i < 20 && !"done".equals(transcriptStatus(voiceId)); i++) transcribe.runAt(clock.now());
+    JsonNode transcript = voiceMessage(dispatcher, voiceId).get("transcript");
+    assertEquals("done", transcript.get("status").asText());
+    assertEquals("ටයරය පැලුණා, මහනුවර පාරේ", transcript.get("text").asText());
+    assertEquals("si", transcript.get("language").asText());
+    // The store does not read the driver's note to the dispatcher, so neither its words.
+    for (JsonNode m : json(read(manager, "/api/threads/" + threadId + "/messages", 200)).get("items")) {
+      assertFalse(voiceId.toString().equals(m.path("voiceNoteId").asText()), "a store never reads the crew's notes");
+    }
+
+    // The words go with the recording (P-33).
+    java.time.Instant later = clock.now().plus(java.time.Duration.ofDays(401));
+    voiceRetention.runAt(later);
+    transcribe.runAt(later);
+    assertEquals("none", voiceMessage(dispatcher, voiceId).get("transcript").get("status").asText());
+    Map<String, Object> row = database.asSystem(ModuleRole.MESSAGING, () -> database.queryOne(
+        "SELECT transcript, purged_at FROM messaging.voice_transcripts WHERE voice_note_id = ?", voiceId));
+    assertNull(row.get("transcript"));
+    assertTrue(row.get("purged_at") != null);
+  }
+
+  /** FF-05: an engine that keeps failing is tried three times, then the screen says to play the audio. */
+  @Test
+  void aNoteTheEngineCannotWriteDownIsTriedThreeTimesThenPlayed() throws Exception {
+    MessagingTestConfig.FAIL_TRANSCRIBE.set(true);
+    try {
+      UUID voiceId = UUID.randomUUID();
+      upload(driver, voiceId, "audio/webm", new byte[] {0x1a, 0x45, (byte) 0xdf, (byte) 0xa3, 7, 7, 7}, 200);
+      say(driver, "{\"to\":\"dispatch\",\"body\":\"\",\"voiceNoteId\":\"" + voiceId + "\"}", 200);
+      drain();
+      for (int i = 0; i < 60 && !"failed".equals(transcriptStatus(voiceId)); i++) transcribe.runAt(clock.now());
+      assertEquals("none", voiceMessage(dispatcher, voiceId).get("transcript").get("status").asText());
+      Map<String, Object> row = database.asSystem(ModuleRole.MESSAGING, () -> database.queryOne(
+          "SELECT status, attempts FROM messaging.voice_transcripts WHERE voice_note_id = ?", voiceId));
+      assertEquals("failed", row.get("status"));
+      assertEquals(3, ((Number) row.get("attempts")).intValue());
+    } finally {
+      MessagingTestConfig.FAIL_TRANSCRIBE.set(false);
+    }
+  }
+
+  private String transcriptStatus(UUID voiceId) {
+    return (String) database.asSystem(ModuleRole.MESSAGING, () -> database.queryOne(
+        "SELECT status FROM messaging.voice_transcripts WHERE voice_note_id = ?", voiceId)).get("status");
+  }
+
+  private JsonNode voiceMessage(String who, UUID voiceId) throws Exception {
+    for (JsonNode m : json(read(who, "/api/threads/" + threadId + "/messages", 200)).get("items")) {
+      if (voiceId.toString().equals(m.path("voiceNoteId").asText())) return m;
+    }
+    throw new AssertionError("no message with voice note " + voiceId);
   }
 
   @Test

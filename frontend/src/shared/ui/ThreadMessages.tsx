@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { MessageView } from "../domain/messaging.ts";
+import type { MessageView, TranscriptView } from "../domain/messaging.ts";
 import { audienceLabel, byDay, plain, REPORT_LABEL, ROLE_LABEL, voiceLength, type Translate } from "../messaging/thread.ts";
 import { voiceUrl } from "../messaging/useThread.ts";
 import { clock, dayLabel } from "../wording/time.ts";
@@ -97,6 +97,26 @@ export function ThreadMessages({
   );
 }
 
+const LANGUAGE_NAME = { en: "English", si: "Sinhala", ta: "Tamil" } as const;
+
+function Transcript({ transcript }: { transcript: TranscriptView | null }): React.JSX.Element {
+  if (transcript?.status === "done" && transcript.text) {
+    return (
+      <div data-testid="transcript" className="flex flex-col gap-0.5">
+        <span className="text-[11px] font-medium text-go-secondary">
+          Machine transcript, check audio{transcript.language ? ` · ${LANGUAGE_NAME[transcript.language]}` : ""}
+        </span>
+        <p lang={transcript.language ?? undefined} className="whitespace-pre-wrap break-words italic">{transcript.text}</p>
+      </div>
+    );
+  }
+  return (
+    <span data-testid="transcript" className="text-[11px] text-go-secondary">
+      {transcript?.status === "pending" ? "Writing down the voice note…" : "No transcript, play audio"}
+    </span>
+  );
+}
+
 function Message({
   message: m,
   focused,
@@ -184,6 +204,8 @@ function Message({
             tr={tr}
           />
         )}
+        {/* FF-05: the dispatcher reads what was said without playing every note; the phone screens are unchanged. */}
+        {m.voiceNoteId && !compact && <Transcript transcript={m.transcript ?? null} />}
         {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
         {m.body && !m.voiceNoteId && !m.mine && <ListenButton text={m.body} threadId={m.threadId} messageId={m.messageId} {...(accountId ? { accountId } : {})} tr={tr} className="-ml-2 -mb-1" />}
         {resolved && (

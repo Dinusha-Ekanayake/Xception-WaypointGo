@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-09 - feat: voice notes written down by Gemini for the dispatcher (FF-05)
+
+`dev` · @Oxshadha
+
+- A posted voice note is queued (`messaging.voice_transcripts`) when `TRANSCRIBE_ENGINE=gemini`; a job on its own bulkhead sends the audio with no transaction open (`GeminiTranscription`, key in a header, nothing logged), three tries, and the words are cleared with the audio. Off by default; production waits for the DPA (P-PD-1).
+- The dispatcher's thread shows "Machine transcript, check audio · Sinhala" and the words, or "No transcript, play audio". Phone screens unchanged. R-MSG-15, MSG-26; roadmap 04 FF-05 updated.
+- Default model `gemini-3.8-flash` (`TRANSCRIBE_MODEL`): exact on a synthetic note in about 70 s, where the lite models were 2.5 s but misheard a town; `gemini-2.5-flash` is retired for new keys.
+
+---
+
 ## 2026-10-09 - feat: the ready replies' order learned from what dispatchers take (AI-J5)
 
 `dev` · @Oxshadha

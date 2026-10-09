@@ -77,11 +77,24 @@ public final class MessagingViews {
        * not for the driver.
        */
       Optional<Boolean> seenByDriver,
-      Optional<Instant> seenByDriverAt) {
+      Optional<Instant> seenByDriverAt,
+      /** FF-05: a voice note's machine transcript; empty for a typed message. */
+      Optional<TranscriptView> transcript) {
     public MessageView {
       voicePeaks = List.copyOf(voicePeaks);
     }
   }
+
+  /**
+   * FF-05: what a transcription engine heard in a voice note, labelled as a
+   * machine transcript on screen.
+   *
+   * @param status {@code pending} while it is being written down, {@code done}
+   *     with the words, or {@code none} when there is no transcript (no engine,
+   *     the engine failed, or the words were cleared with the audio): play the audio
+   * @param language en, si or ta, as the engine named it
+   */
+  public record TranscriptView(String status, Optional<String> text, Optional<String> language) {}
 
   /** A page of messages, newest first; {@code nextCursor} reads older ones. */
   public record MessagePage(List<MessageView> items, Optional<String> nextCursor) {

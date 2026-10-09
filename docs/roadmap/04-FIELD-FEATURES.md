@@ -227,7 +227,9 @@ Order inside the phase:
 
 ## FF-05 Voice transcription
 
-**Status.** Spike in Phase 3. Build only after the pilot shows enough voice volume and the data processing agreement is signed.
+**Status.** Built 2026-10-09 with Gemini, off unless `TRANSCRIBE_ENGINE=gemini` and `GEMINI_API_KEY` are set; production stays off until the data processing agreement is signed. The dispatcher's thread shows each voice note's machine transcript (R-MSG-15, MSG-26); the driver's, loader's and store's screens are unchanged. Trial on a synthetic English note: `gemini-3.8-flash` (the default) wrote it exactly in about 70 s; the lite models took 2.5 s but heard "Kandy" as "candy". `gemini-2.5-flash` is no longer offered to new keys. The spike below (200 real Sinhala and Tamil notes, character error rate) is still to run before anyone relies on the words.
+
+**As planned:**
 
 **Goal.** Every voice note can be read as well as heard, and every text message can be heard as well as read.
 
