@@ -665,6 +665,11 @@ export const STRINGS: Record<string, [string, string]> = {
   "With dispatch": ["යැවීම් අංශය සතුව", "அனுப்புதல் பிரிவிடம்"],
   "You confirm what arrived": ["පැමිණි දේ ඔබ තහවුරු කරන්න", "வந்ததை நீங்கள் உறுதிசெய்யுங்கள்"],
   "You see what is written to your store or to everyone on the trip. Replies go to the dispatcher alone, unless you choose the stores still waiting once the truck has left.": ["ඔබේ වෙළඳසැලට හෝ ගමනේ සියලු දෙනාට ලියන දේ ඔබට පෙනේ. ට්‍රක් රථය පිටත් වූ පසු තවම රැඳී සිටින වෙළඳසැල් ඔබ තෝරා නොගන්නේ නම්, පිළිතුරු යන්නේ යැවීම් නිලධාරීට පමණි.", "உங்கள் கடைக்கோ பயணத்தில் உள்ள அனைவருக்கோ எழுதப்படுவதை நீங்கள் பார்க்கிறீர்கள். லாரி புறப்பட்ட பின் இன்னும் காத்திருக்கும் கடைகளை நீங்கள் தேர்வு செய்யாவிட்டால், பதில்கள் அனுப்புநருக்கு மட்டுமே செல்லும்."],
+  // Not yet reviewed by a native speaker (2026-10-09).
+  "You see what is written to your store or to everyone on the trip. Write to the dispatcher, to your driver while your delivery is on the way, or to the stores still waiting once the truck has left.": [
+    "ඔබේ වෙළඳසැලට හෝ ගමනේ සියලු දෙනාට ලියන දේ ඔබට පෙනේ. යැවීම් භාරකරුට, ඔබේ බෙදාහැරීම පැමිණෙමින් ඇති විට ඔබේ රියදුරුට, හෝ ට්‍රක් රථය පිටත් වූ පසු තවම බලාසිටින වෙළඳසැල් වෙත ලියන්න.",
+    "உங்கள் கடைக்கு அல்லது பயணத்தில் உள்ள அனைவருக்கும் எழுதப்படுவதை நீங்கள் பார்க்கிறீர்கள். அனுப்புநருக்கு, உங்கள் விநியோகம் வரும்போது உங்கள் ஓட்டுநருக்கு, அல்லது லாரி புறப்பட்ட பின் இன்னும் காத்திருக்கும் கடைகளுக்கு எழுதுங்கள்.",
+  ],
   "Your account has no outlet in scope. Ask an administrator to grant one.": ["ඔබේ ගිණුමට වෙළඳසැලක් පවරා නැත. එකක් ලබා දෙන ලෙස පරිපාලකයෙකුගෙන් ඉල්ලන්න.", "உங்கள் கணக்குக்குக் கடை எதுவும் ஒதுக்கப்படவில்லை. ஒன்றை வழங்க நிர்வாகியிடம் கேளுங்கள்."],
   "Your count is already on record. The PIN only shows the driver handed over here; you can close this at any time.": ["ඔබේ ගණනය දැනටමත් සටහන් වී ඇත. PIN අංකයෙන් පෙන්වන්නේ රියදුරු මෙහි භාර දුන් බව පමණි; ඔබට ඕනෑම වේලාවක මෙය වැසිය හැක.", "உங்கள் எண்ணிக்கை ஏற்கனவே பதிவில் உள்ளது. ஓட்டுநர் இங்கே ஒப்படைத்ததை மட்டுமே PIN காட்டுகிறது; இதை எப்போது வேண்டுமானாலும் மூடலாம்."],
   "Your count is on record": ["ඔබේ ගණනය සටහන් වී ඇත", "உங்கள் எண்ணிக்கை பதிவில் உள்ளது"],

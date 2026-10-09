@@ -17,7 +17,7 @@ export const VIEWS: Array<{ id: ViewId; label: string; icon: IconName }> = [
   { id: "vehicles", label: "Vehicles", icon: "truck" },
   { id: "forecast", label: "Forecast", icon: "chart-line" },
   { id: "issues", label: "Issues", icon: "alert" },
-  { id: "kpis", label: "Pilot KPIs", icon: "board" },
+  { id: "kpis", label: "Pilot KPIs", icon: "table-columns" },
 ];
 
 function fromHash(): ViewId {

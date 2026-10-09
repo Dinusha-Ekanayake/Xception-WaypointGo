@@ -38,7 +38,7 @@ export default function TripMessages({
       <header className="flex items-start justify-between gap-3 pr-11">
         <div className="flex flex-col gap-1">
           <h2 className="text-[20px] font-medium text-go-ink">{title}</h2>
-          <p className="text-[13px] text-go-secondary">{t("You see what is written to your store or to everyone on the trip. Replies go to the dispatcher alone, unless you choose the stores still waiting once the truck has left.")}</p>
+          <p className="text-[13px] text-go-secondary">{t("You see what is written to your store or to everyone on the trip. Write to the dispatcher, to your driver while your delivery is on the way, or to the stores still waiting once the truck has left.")}</p>
         </div>
         <button type="button" onClick={onClose} className="min-h-11 shrink-0 rounded-full bg-go-surface px-4 text-sm font-medium text-go-teal">
           {t("Close")}
