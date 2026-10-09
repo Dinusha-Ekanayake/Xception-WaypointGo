@@ -108,7 +108,19 @@ class MessagePolicyTest {
       refused(role, post(To.ALL), "R-MSG-02");
       refused(role, toOutlet("OUT061"), "R-MSG-02");
     }
-    refused(Role.STORE_MANAGER, post(To.DRIVER), "R-MSG-02");
+  }
+
+  /** R-MSG-16: a store writes to its own driver while it still has a delivery on the trip, never after. */
+  @Test
+  void aStoreWritesToItsDriverOnlyWhileItsDeliveryIsStillToCome() {
+    assertEquals("Running late",
+        MessagePolicy.check(Role.STORE_MANAGER, post(To.DRIVER), OUTLETS, true, false, true, DAY, DAY));
+    DomainException done = assertThrows(DomainException.class,
+        () -> MessagePolicy.check(Role.STORE_MANAGER, post(To.DRIVER), OUTLETS, true, false, false, DAY, DAY));
+    assertEquals(ErrorCode.CONFLICT, done.code());
+    assertThrows(DomainException.class,
+        () -> MessagePolicy.check(Role.STORE_MANAGER, post(To.DRIVER), OUTLETS, false, false, true, DAY, DAY),
+        "no vehicle on the trip, no driver to write to");
   }
 
   @Test

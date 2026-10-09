@@ -122,7 +122,7 @@ public class PostMessageHandler implements CommandHandler {
     String body =
         MessagePolicy.check(
             role, post, thread.outletIds(), thread.vehicleId().isPresent(), thread.channelOpen(),
-            role == Role.STORE_MANAGER && post.to() == To.CHANNEL && threads.inChannel(threadId),
+            role == Role.STORE_MANAGER && (post.to() == To.CHANNEL || post.to() == To.DRIVER) && threads.inChannel(threadId),
             thread.serviceDate().orElse(today), today);
 
     Optional<MessagePolicy.ReplyUse> reply =

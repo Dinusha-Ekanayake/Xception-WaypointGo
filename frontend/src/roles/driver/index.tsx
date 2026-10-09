@@ -16,7 +16,6 @@ import { metres } from "@shared/ui/map/geo";
 import { chime, unlockSoundOnFirstTap } from "./data/chime.ts";
 import { mayChime, OFF, onMotion, openByHand, remindDue, slideOut, type DrivingState } from "./data/drivingMode.ts";
 import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
-import Messages from "./screens/Messages.tsx";
 import { unreadMessages } from "./data/messages.ts";
 import { useKeptTripAudio } from "@shared/messaging/audioCache";
 import RefusedUploads from "./screens/RefusedUploads.tsx";
@@ -88,7 +87,6 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
   // Stable, because the PIN popup closes itself on a timer that restarts whenever this changes.
   const closePin = useCallback(() => setPinFor(null), []);
   const [revised, setRevised] = useState<NotificationView | null>(null);
-  const [talking, setTalking] = useState(false);
   // The stop row last tapped on the route, one shared element with the stop's header (UX polish 4).
   const [movingStop, setMovingStop] = useState<string | null>(null);
   const unread = unreadMessages(inbox.items);
@@ -112,9 +110,11 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
   }, [oldestUnread]);
   // R-MSG-11: the trip's messages can be heard later with no signal.
   useKeptTripAudio(userId, d.tripId, online, unread.map((n) => n.notificationId).join(","));
-  const openMessages = () => {
-    setTalking(true);
-    if (unread.length > 0 && online) void inbox.markRead(unread.map((n) => n.notificationId)).catch(() => undefined);
+  // The bell: messages are heard on Home, not in a chat (decision 2026-10-09).
+  const openNotifications = () => {
+    if (view.name !== "home") d.go({ name: "home" });
+    const fresh = inbox.items.filter((n) => n.readAt === null);
+    if (fresh.length > 0 && online) void inbox.markRead(fresh.map((n) => n.notificationId)).catch(() => undefined);
   };
   const seen = useRef<Set<string> | null>(null);
 
@@ -225,7 +225,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
                 onSignOut={d.askSignOut}
                 onToggleTheme={d.theme}
                 isNight={d.dark}
-                {...(d.tripId ? { onMessages: openMessages, unreadMessages: unread.length } : {})}
+                onMessages={openNotifications}
+                unreadMessages={inbox.items.filter((n) => n.readAt === null).length}
               />
             </div>
           )}
@@ -248,7 +249,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             >
               {screen === "home" && (
                 <HomeNoVehicle
-                  {...(d.tripId ? { onOpenMessages: openMessages } : {})}
+                  accountId={userId}
                   driverName={displayName}
                   loadFuelPass={d.fuelPass}
                   depotName={depot}
@@ -364,18 +365,6 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             </div>
           )}
 
-          {talking && (
-            <Messages
-              accountId={userId}
-              tripId={d.tripId}
-              vehicleId={run.vehicle?.vehicleId ?? null}
-              online={online}
-              dark={d.dark}
-              sender={d.postMessage}
-              motion={d.location.motion}
-              onBack={() => setTalking(false)}
-            />
-          )}
 
           {/* What is degraded, said on screen (rule 9): an expired session, a saved copy, location, a refused file. */}
           <div className={cx("absolute inset-x-0 z-40 flex flex-col gap-2 px-5 pointer-events-none", header ? "top-[78px]" : "top-[84px]")}>

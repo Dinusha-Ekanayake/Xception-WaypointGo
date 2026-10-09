@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import type { CheckStatus, FlagShortfall, ItemView, OutletView } from "@shared/domain/types";
-import { Notice, cx } from "@shared/ui";
+import { MicIcon, Notice, VoiceNote, cx } from "@shared/ui";
+import { useRecorder, type Recording } from "@shared/messaging/recorder";
 import { ISSUE_KIND_LABEL, isFlagged, orderLabel, placeName, productName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
 import { BigButton, Sheet } from "../ui.tsx";
@@ -76,8 +77,11 @@ export default function IssueSheet({
   initial: { line: Line; item: ItemView | null } | null;
   outlets: Map<string, OutletView>;
   busy: boolean;
-  /** @param photo FF-02: an optional photo of the line, the "left the dock" evidence. */
-  onSend: (payload: Omit<FlagShortfall, "tripId">, photo: Blob | null) => Promise<boolean>;
+  /**
+   * @param photo FF-02: an optional photo of the line, the "left the dock" evidence.
+   * @param voice an optional voice note, heard by the dispatcher beside the report.
+   */
+  onSend: (payload: Omit<FlagShortfall, "tripId">, photo: Blob | null, voice: Recording | null) => Promise<boolean>;
   onClose: () => void;
 }): React.JSX.Element {
   const tr = useT();
@@ -93,6 +97,10 @@ export default function IssueSheet({
   const photoError = taken.error;
   const camera = useRef<HTMLInputElement>(null);
   const takePhoto = (file: File | undefined) => taken.add(file);
+  // An optional voice note: what is easier said than typed at the dock.
+  const recorder = useRecorder();
+  const voice = recorder.state.status === "ready" ? recorder.state : null;
+  const recordingNow = recorder.state.status === "recording";
   const line = lines.find((l) => l.orderId === orderId);
   const item = line?.items.find((i) => i.lineNo === lineNo) ?? null;
   // The whole order flags every item not already flagged, in full (the server's rule).
@@ -121,7 +129,7 @@ export default function IssueSheet({
       missingUnits: missing,
       reason: reason.trim(),
       photoAttachmentId: null,
-    }, photo?.blob ?? null);
+    }, photo?.blob ?? null, voice?.recording ?? null);
     if (ok) onClose();
   };
 
@@ -268,6 +276,32 @@ export default function IssueSheet({
               e.target.value = "";
             }}
           />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          {voice ? (
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <VoiceNote src={voice.url} durationMs={voice.recording.durationMs} peaks={voice.recording.peaks} seed="issue-voice" tone="mine" label={tr("Voice note")} tr={tr} />
+              </div>
+              <button type="button" onClick={() => recorder.discard()} className="min-h-12 rounded-full bg-go-surface px-4 text-[15px]">
+                {tr("Remove voice note")}
+              </button>
+            </div>
+          ) : recorder.state.status === "unavailable" ? null : (
+            <button
+              type="button"
+              onClick={() => void (recordingNow ? recorder.stop() : recorder.start())}
+              aria-pressed={recordingNow}
+              className={cx(
+                "flex min-h-12 items-center justify-center gap-2 rounded-[16px] border border-dashed px-4 text-[15px]",
+                recordingNow ? "border-go-danger text-go-danger" : "border-go-rule text-go-muted",
+              )}
+            >
+              <MicIcon className="size-[20px]" />
+              {tr(recordingNow ? "Recording · tap to stop" : "Add voice note (optional)")}
+            </button>
+          )}
         </div>
 
         {item !== null && isFlagged(item.status) && (

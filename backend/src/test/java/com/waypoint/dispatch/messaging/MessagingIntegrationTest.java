@@ -694,6 +694,28 @@ class MessagingIntegrationTest {
     assertTrue(members(manager).contains("channel"));
   }
 
+  /** R-MSG-16: a store writes to its own driver while its delivery is to come; it is the driver's, not the other stores'. */
+  @Test
+  void aStoreWritesToItsDriverUntilItsDeliveryIsDone() throws Exception {
+    assertTrue(members(manager).contains("driver"), "its own driver, while its goods are on the trip");
+    say(manager, "{\"to\":\"driver\",\"body\":\"Use the side gate, the front is blocked\"}", 200);
+    assertTrue(bodies(driver).contains("Use the side gate, the front is blocked"), "the driver hears it");
+    assertTrue(bodies(manager).contains("Use the side gate, the front is blocked"), "the store sees what it sent");
+    assertFalse(bodies(secondManager).contains("Use the side gate, the front is blocked"), "another store never reads it");
+    assertTrue(bodies(dispatcher).contains("Use the side gate, the front is blocked"), "the dispatcher oversees the trip");
+
+    at("11:00");
+    publish(
+        ModuleRole.EXECUTION,
+        new DeliveryCompleted(
+            UUID.randomUUID(), orders.get(OUTLET), tripId, OUTLET, DeliveryOutcome.DELIVERED, Optional.of(10),
+            clock.now(), Optional.empty()));
+    drain();
+    at("11:05");
+    assertFalse(members(manager).contains("driver"), "its deliveries are done");
+    say(manager, "{\"to\":\"driver\",\"body\":\"One more thing\"}", 409);
+  }
+
   @Test
   void aStoreReadsTheChannelWhileItsGoodsAreOnTheTripAndTheDriverNever() throws Exception {
     startTrip();

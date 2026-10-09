@@ -219,7 +219,7 @@ function LoaderWorkspace({
         onSync={syncNow}
         syncing={sync.syncing || trips.loading}
       />}
-      {notificationsOpen && <Notifications inbox={inbox} onClose={() => setNotificationsOpen(false)} />}
+      {notificationsOpen && <Notifications inbox={inbox} accountId={userId} onClose={() => setNotificationsOpen(false)} />}
       {lockError && (
         <div className="px-5 pb-3">
           <Notice

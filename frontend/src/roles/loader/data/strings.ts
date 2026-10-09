@@ -466,6 +466,10 @@ export const STRINGS: Record<string, [string, string]> = {
   "Show earlier messages": ["පෙර පණිවිඩ පෙන්වන්න", "முந்தைய செய்திகளைக் காட்டு"],
   "Problem": ["ගැටලුව", "சிக்கல்"],
   "Voice note": ["හඬ සටහන", "குரல் குறிப்பு"],
+  // Not yet reviewed by a native speaker (2026-10-09).
+  "Add voice note (optional)": ["හඬ සටහනක් එක් කරන්න (අවශ්‍ය නම්)", "குரல் குறிப்பைச் சேர் (விரும்பினால்)"],
+  "Recording · tap to stop": ["පටිගත වෙමින් · නවත්වන්න ඔබන්න", "பதிவாகிறது · நிறுத்த தட்டவும்"],
+  "Remove voice note": ["හඬ සටහන ඉවත් කරන්න", "குரல் குறிப்பை நீக்கு"],
   "To the dispatcher": ["යැවීම් භාරකරුට", "அனுப்புநருக்கு"],
   "To the driver": ["රියදුරුට", "ஓட்டுநருக்கு"],
   "To the loaders": ["පටවන්නන්ට", "ஏற்றுபவர்களுக்கு"],

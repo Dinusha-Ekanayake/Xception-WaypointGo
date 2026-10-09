@@ -39,6 +39,7 @@ export { VoiceNote } from "./VoiceNote.tsx";
 export type { Draft as ThreadDraft } from "./ThreadComposer.tsx";
 export { APP_LANGS, SettingsPanel, initialsOf, useDeviceLang, type AppLang } from "./SettingsPanel.tsx";
 export { PersonPhoto } from "./PersonPhoto.tsx";
+export { VoiceNotice } from "./VoiceNotice.tsx";
 export { Switch } from "./Switch.tsx";
 export { useMedia } from "./useMedia.ts";
 export { UNDO_MS, useUndo } from "./useUndo.ts";

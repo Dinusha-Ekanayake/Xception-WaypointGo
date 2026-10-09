@@ -26,50 +26,6 @@ async function open(page: import("@playwright/test").Page) {
   return server;
 }
 
-test("the driver reads the dispatcher's message, replies, and reports a problem to the dispatcher", async ({ page }) => {
-  const server = await open(page);
-  await page.getByRole("button", { name: "Messages, 1 new" }).click();
-  const screen = page.getByRole("region", { name: "Messages" });
-  await expect(screen.getByText("Take the bypass at Akuressa")).toBeVisible();
-  await expect(screen.getByText("To the driver")).toBeVisible();
-
-  await screen.getByRole("textbox", { name: "Message" }).fill("On it, about 20 minutes more");
-  await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await expect(screen.getByText("On it, about 20 minutes more")).toBeVisible();
-
-  await screen.getByRole("checkbox", { name: /Report a problem to the dispatcher/ }).check();
-  await screen.getByRole("combobox", { name: "Problem" }).selectOption("road_disruption");
-  await screen.getByRole("textbox", { name: "Message" }).fill("Road closed after the bridge");
-  await screen.getByRole("button", { name: "Report", exact: true }).click();
-  await expect(screen.getByText("Report · Road disruption")).toBeVisible();
-
-  const posts = server.commands.filter((c) => c.kind === "message:Post").map((c) => c.payload);
-  expect(posts[0]).toMatchObject({ threadId: `thread-${TRIP}`, to: "dispatch", body: "On it, about 20 minutes more" });
-  expect(posts[1]).toMatchObject({ to: "dispatch", report: "road_disruption", body: "Road closed after the bridge" });
-  // Opening the thread reads its notification.
-  expect(server.commands.some((c) => c.kind === "notification:MarkRead")).toBe(true);
-});
-
-test("with no signal a typed message is kept on the phone and sent when the signal returns", async ({ page, context }) => {
-  const server = await open(page);
-  await page.getByRole("button", { name: /^Messages/ }).click();
-  const screen = page.getByRole("region", { name: "Messages" });
-  await expect(screen.getByText("Take the bypass at Akuressa")).toBeVisible();
-
-  await server.goOffline(context);
-  await expect(screen.getByText(/No signal\. What you write or record is kept on this phone/)).toBeVisible();
-  // A voice note is kept with no signal too (voice.spec.ts).
-  await expect(screen.getByRole("button", { name: "Hold to record a voice note" })).toBeEnabled();
-  await screen.getByRole("textbox", { name: "Message" }).fill("Signal gone near Deniyaya");
-  await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await expect(screen.getByText("Saved on this device. It sends when the connection returns.")).toBeVisible();
-  await expect(screen.getByTestId("waiting-message")).toContainText("Signal gone near Deniyaya");
-  expect(server.commands.some((c) => c.kind === "message:Post")).toBe(false);
-
-  await server.goOnline(context);
-  await expect.poll(() => server.commands.find((c) => c.kind === "message:Post")?.payload.body).toBe("Signal gone near Deniyaya");
-});
-
 /** Half a second of a quiet tone, as a WAV file the browser can play and decode. */
 function wav(): Buffer {
   const rate = 8000, n = 4000, data = Buffer.alloc(n * 2);
@@ -95,8 +51,8 @@ test("a voice message under the driver's notifications plays the voice itself, n
   await page.route(`**/api/threads/thread-${TRIP}/voice/voice-1`, (route) => route.fulfill({ status: 200, contentType: "audio/wav", body: wav() }));
   await page.goto("/");
 
-  // The top bar carries Messages as an icon, with the count of new ones.
-  await expect(page.getByRole("button", { name: "Messages, 1 new" })).toBeVisible();
+  // The top bar carries a bell, with the count of new notifications; there is no chat screen.
+  await expect(page.getByRole("button", { name: "Notifications, 1 new" })).toBeVisible();
 
   const note = page.getByRole("group", { name: /^Voice message from/ });
   await expect(note).toBeVisible();

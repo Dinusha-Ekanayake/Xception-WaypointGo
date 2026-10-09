@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ItemView, OutletView, ReadyTripView, ReleaseTrip } from "@shared/domain/types";
 import { ApiError, friendlyError } from "@shared/api/problem";
 import { Notice, SkeletonRows } from "@shared/ui";
@@ -13,6 +13,8 @@ import ManifestList from "./ManifestList.tsx";
 import TruckCard from "./TruckCard.tsx";
 import ReleaseSheet from "./ReleaseSheet.tsx";
 import TripMessages from "./TripMessages.tsx";
+import { queuedSender } from "@shared/messaging/senders";
+import { postCommand, useTripThread } from "@shared/messaging/useThread";
 import { useT } from "../i18n.tsx";
 import { businessNow } from "@shared/wording";
 
@@ -48,6 +50,13 @@ export default function LoadSheet({
 }): React.JSX.Element {
   const tr = useT();
   const t = useTrip(gateway, trip.tripId, online, waiting, onQueued, actingUserId);
+  // An issue's optional voice note is posted on the trip's thread as the loader who entered their PIN.
+  const tripThread = useTripThread(trip.tripId, accountId);
+  const threadId = tripThread.data?.threadId ?? null;
+  const voiceSender = useMemo(
+    () => queuedSender({ accountId, role: "loader", online, onQueued, actingUserId }),
+    [accountId, online, onQueued, actingUserId],
+  );
   const [issueFor, setIssueFor] = useState<{ line: Line; item: ItemView | null } | null | undefined>(undefined);
   const [handingBack, setHandingBack] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -232,8 +241,16 @@ export default function LoadSheet({
           initial={issueFor}
           outlets={outlets}
           busy={t.busy}
-          onSend={async (payload, photo) => {
+          onSend={async (payload, photo, voice) => {
             const outcome = await t.flag(payload, photo);
+            // The voice note goes on the trip's thread, to the dispatcher, kept on the device with no signal.
+            if (outcome.ok && voice && threadId) {
+              const voiceNoteId = globalThis.crypto.randomUUID();
+              await voiceSender(
+                postCommand({ threadId, body: "Voice note", to: "dispatch", voiceNoteId, clientMessageId: globalThis.crypto.randomUUID() }),
+                { threadId, voiceNoteId, blob: voice.blob, durationMs: voice.durationMs, peaks: voice.peaks },
+              ).catch(() => undefined);
+            }
             if (outcome.ok && outcome.queued) {
               setToast({
                 kind: "saved",

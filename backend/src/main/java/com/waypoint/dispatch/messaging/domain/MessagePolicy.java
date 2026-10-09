@@ -147,11 +147,17 @@ public final class MessagePolicy {
           case DISPATCHER -> post.to() != To.DISPATCH && (post.to() != To.DRIVER || hasVehicle);
           case DRIVER -> post.to() == To.DISPATCH || post.to() == To.OUTLET;
           case LOADER -> post.to() == To.DISPATCH || (post.to() == To.DRIVER && hasVehicle);
-          case STORE_MANAGER -> post.to() == To.DISPATCH || post.to() == To.CHANNEL;
+          // R-MSG-16: a store writes to the dispatcher, the common room, or its own driver.
+          case STORE_MANAGER -> post.to() == To.DISPATCH || post.to() == To.CHANNEL || (post.to() == To.DRIVER && hasVehicle);
         };
     if (allowed && post.to() == To.CHANNEL && !channelOpen) {
       throw new DomainException(
           ErrorCode.CONFLICT, "the trip's channel opens when the driver starts the trip", List.of("R-MSG-08"));
+    }
+    if (allowed && role == Role.STORE_MANAGER && post.to() == To.DRIVER && !inChannel) {
+      throw new DomainException(
+          ErrorCode.CONFLICT, "your deliveries on this trip are done, so you no longer write to its driver",
+          List.of("R-MSG-16"));
     }
     if (allowed && role == Role.STORE_MANAGER && post.to() == To.CHANNEL && !inChannel) {
       throw new DomainException(

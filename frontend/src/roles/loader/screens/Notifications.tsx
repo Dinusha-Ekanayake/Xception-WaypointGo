@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cx } from "@shared/ui";
+import { cx, VoiceNotice } from "@shared/ui";
 import type { Inbox } from "@shared/notifications/useInbox";
 import { ago, isUnread, kindOf, noteColor } from "@shared/notifications/inbox";
 import type { NotificationView } from "@shared/domain/types";
@@ -22,9 +22,12 @@ import { clock, businessNow } from "@shared/wording";
 
 export default function Notifications({
   inbox,
+  accountId,
   onClose,
 }: {
   inbox: Inbox;
+  /** Whose saved copies of voice messages play with no signal (R-MSG-11). */
+  accountId?: string;
   onClose: () => void;
 }): React.JSX.Element {
   const tr = useT();
@@ -90,6 +93,25 @@ export default function Notifications({
                 const text = localized(n, tr);
                 // One look for every role (Figma): the canvas tint, one accent, red only for an alarm, grey once read.
                 const color = noteColor(n);
+                // A voice message plays here, with its words (FF-05); a play button cannot sit inside a row button.
+                if (n.eventType === "message.posted" && n.facts?.voiceNoteId) {
+                  return (
+                    <li key={n.notificationId}>
+                      <ScrollRevealCard scrollContainerRef={feed.scrollRef} pullY={feed.pullY}>
+                        <div onPointerDown={() => open(n)} className="flex w-full flex-col gap-2 rounded-[22px] bg-go-canvas px-[18px] py-4 text-left">
+                          <span className="flex items-center justify-between gap-2 text-[13px]">
+                            <span className="flex items-center gap-1.5 font-medium" style={{ color }}>
+                              <span aria-hidden className="size-2 rounded-full" style={{ background: color }} />
+                              {tr(kind.label)}
+                            </span>
+                            <span className="text-go-muted">{ago(n.createdAt, now)}</span>
+                          </span>
+                          <VoiceNotice item={n} tr={tr} {...(accountId ? { accountId } : {})} />
+                        </div>
+                      </ScrollRevealCard>
+                    </li>
+                  );
+                }
                 return (
                   <li key={n.notificationId}>
                     <ScrollRevealCard scrollContainerRef={feed.scrollRef} pullY={feed.pullY}>

@@ -182,7 +182,12 @@ public class MessagingQuery {
       }
       case "store_manager" -> {
         out.add(new MemberView("dispatch", Optional.empty(), "Dispatcher"));
-        if (t.channelOpen() && read(actor, () -> Optional.of(threads.inChannel(threadId))).orElse(false)) {
+        boolean waiting = read(actor, () -> Optional.of(threads.inChannel(threadId))).orElse(false);
+        // R-MSG-16: its own driver, while the store still has a delivery on this trip; it arrives on the driver's Home.
+        if (waiting && t.vehicleId().isPresent()) {
+          out.add(new MemberView("driver", Optional.empty(), "Your driver"));
+        }
+        if (t.channelOpen() && waiting) {
           out.add(new MemberView("channel", Optional.empty(), "Dispatcher and stores still waiting"));
         }
       }

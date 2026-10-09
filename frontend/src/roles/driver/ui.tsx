@@ -292,11 +292,16 @@ export function DriverMorphHeader({
                 ? "bg-[#292929] border-[#383838] text-white hover:bg-[#333333]"
                 : "bg-white border-[#dfe7e6] text-black hover:bg-slate-50"
             )}
-            title={t("Messages")}
-            aria-label={unreadMessages ? t("Messages, {n} new", { n: unreadMessages }) : t("Messages")}
+            title={t("Show notifications")}
+            aria-label={unreadMessages ? t("Notifications, {n} new", { n: unreadMessages }) : t("Show notifications")}
           >
-            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12Z" />
+            {/* A bell, not a chat: the driver hears what is sent to them on Home and reports a problem; there is no chat. */}
+            <svg width="21" height="21" viewBox="0 0 20 20" fill="none" aria-hidden>
+              <path
+                d="M4.4 14.2H15.6C16.2 14.2 16.5 13.5 16.1 12.9L14.7 8.7V8.2C14.7 5.6 12.6 3.5 10 3.5C7.4 3.5 5.3 5.6 5.3 8.2V8.7L3.9 12.9C3.5 13.5 3.8 14.2 4.4 14.2Z"
+                stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
+              />
+              <path d="M8.3 16.2C8.3 17.1 9.1 17.8 10 17.8C10.9 17.8 11.7 17.1 11.7 16.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             {unreadMessages ? (
               <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#e5484d] text-white text-[11px] font-semibold leading-[18px] text-center" aria-hidden>

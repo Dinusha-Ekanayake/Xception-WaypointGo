@@ -4,8 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { type ReportedVehicleStatus, type VehicleView } from "@shared/domain/types";
 import { isUnread, kindOf, noteColor } from "@shared/notifications/inbox";
 import type { Inbox } from "@shared/notifications/useInbox";
-import { cx, useDeviceLang, useScrollMemory } from "@shared/ui";
-import VoiceNotice from "./VoiceNotice.tsx";
+import { cx, useDeviceLang, useScrollMemory, VoiceNotice } from "@shared/ui";
 import { ScrollRevealCard, useRubberBandScroll } from "@shared/ui/scrollReveal";
 import { clock, countdown, dayLabel, hhmm } from "../../../shared/wording/index.ts";
 import type { TripStatus } from "../data/stopView.ts";
@@ -44,7 +43,8 @@ export type DriverHomeProps = {
   onToggleTheme?: () => void;
   hideHeader?: boolean;
   /** Opens the trip's thread, for a message notification (issue #136). */
-  onOpenMessages?: () => void;
+  /** Whose saved copies of voice messages play with no signal (R-MSG-11). */
+  accountId?: string;
   /** Reads the vehicle's Fuel Pass, or the copy kept on this phone (FF-06b). */
   loadFuelPass: (vehicleId: string) => Promise<FuelPassState>;
 };
@@ -76,7 +76,7 @@ export default function HomeNoVehicle({
   isNight = false,
   onToggleTheme,
   hideHeader = false,
-  onOpenMessages,
+  accountId,
   loadFuelPass,
 }: DriverHomeProps): React.JSX.Element {
   const [lang, setLang] = useDeviceLang();
@@ -398,7 +398,7 @@ export default function HomeNoVehicle({
                     {item.eventType === "message.posted" && item.facts?.voiceNoteId && item.subjectId ? (
                       // A voice message plays the person's own voice, never text to speech (issue #136).
                       <div className={cx("mt-1 rounded-[16px] px-2 py-1", isNight ? "bg-[#1f1f1f]" : "bg-[#F1F6F5]")}>
-                        <VoiceNotice item={item} />
+                        <VoiceNotice item={item} tr={t} {...(accountId ? { accountId } : {})} />
                       </div>
                     ) : (
                       <VoiceMessagePlayer

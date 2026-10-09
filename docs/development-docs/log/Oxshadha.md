@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-09 - feat: the driver has no chat, a store writes to its driver (R-MSG-16)
+
+`dev` · @Oxshadha
+
+- Decision with @Oxshadha: the driver app stays simple. The Messages screen is gone; the top bar's bell opens Home, where every message plays (voice with its transcript, text read aloud), from the phone's copy with no signal. The driver writes only reports, typed or by voice.
+- A store manager writes to the dispatcher, the trip's common room, or its own driver while its delivery is to come ("Your driver"); never privately to another store. R-MSG-02 amended, R-MSG-16, MSG-27.
+- The loader hears a voice message in Notifications (play button and transcript, `VoiceNotice` now in `shared/ui`), and a reported issue can carry an optional voice note, posted on the trip's thread to the dispatcher after the report.
+
+---
+
 ## 2026-10-09 - feat: transcripts and listening for every reader of a voice note; the driver hears messages on Home
 
 `dev` · @Oxshadha
