@@ -113,8 +113,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
   // The bell: messages are heard on Home, not in a chat (decision 2026-10-09).
   const openNotifications = () => {
     if (view.name !== "home") d.go({ name: "home" });
-    const fresh = inbox.items.filter((n) => n.readAt === null);
-    if (fresh.length > 0 && online) void inbox.markRead(fresh.map((n) => n.notificationId)).catch(() => undefined);
+    // Everything up to now, the same number the bell and the Home heading show.
+    if ((inbox.unread ?? 0) > 0 && online) void inbox.markAllRead(new Date()).catch(() => undefined);
   };
   const seen = useRef<Set<string> | null>(null);
 
@@ -226,7 +226,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
                 onToggleTheme={d.theme}
                 isNight={d.dark}
                 onMessages={openNotifications}
-                unreadMessages={inbox.items.filter((n) => n.readAt === null).length}
+                unreadMessages={inbox.unread ?? inbox.items.filter((n) => n.readAt === null).length}
               />
             </div>
           )}
