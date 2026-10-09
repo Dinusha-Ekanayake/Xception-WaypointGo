@@ -39,7 +39,7 @@ test("a reported item carries the loader's photo to the issue", async ({ page })
   await sheet.getByRole("textbox").fill("Carton crushed on the pallet");
   await sheet.getByLabel("Take a photo of the item").setInputFiles({ name: "item.png", mimeType: "image/png", buffer: PNG });
   await expect(sheet.getByText("Photo added")).toBeVisible();
-  await sheet.getByRole("button", { name: "Send to dispatcher" }).click();
+  await sheet.getByRole("button", { name: "Send", exact: true }).click();
 
   await expect.poll(() => commands.filter((c) => c.kind === "loading:Shortfall").length).toBe(1);
   const shortfall = commands.find((c) => c.kind === "loading:Shortfall")!;

@@ -208,7 +208,7 @@ export default function ReportIssue({
               {t("Cancel")}
             </Button>
             <Button tone="danger" large busy={commands.busy} onClick={() => void send()}>
-              {t(commands.busy ? "Sending…" : "Send to dispatcher")}
+              {t(commands.busy ? "Sending…" : "Send")}
             </Button>
           </div>
         </>

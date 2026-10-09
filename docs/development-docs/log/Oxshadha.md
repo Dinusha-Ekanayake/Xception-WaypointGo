@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-09 - decision: FF-01 done as two screens; the report button says Send
+
+`dev` · @Oxshadha
+
+- @jv-ransika chose to keep the loader's and the store's report screens apart, sharing the photo flow (roadmap 04 FF-01, done). A report always goes to the dispatcher, so both buttons say "Send" instead of "Send to dispatcher", which also stops the store's button wrapping on a phone.
+
+---
+
 ## 2026-10-09 - feat: the driver has no chat, a store writes to its driver (R-MSG-16)
 
 `dev` · @Oxshadha

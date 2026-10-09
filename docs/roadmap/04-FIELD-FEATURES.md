@@ -30,7 +30,7 @@ Order inside the phase:
 
 ## FF-01 Shared report sheet
 
-**Status.** Built 2026-10-09 as a shared core, not one screen. The loader's shortfall sheet and the store's report and receive screens take photos through one flow, `shared/media/useTakenPhotos.ts` (M-02 encoding, the blur and darkness check, previews released on close; the store's report sheet leaked them), and each keeps its own command. One visual sheet was not built: the loader's tablet sheet and the store's phone sheet differ in look and in what they pick (manifest items by line against product lines), and changing the loader's look needs J.V.'s agreement under the role rule.
+**Status.** Built 2026-10-09 as a shared core, not one screen. The loader's shortfall sheet and the store's report and receive screens take photos through one flow, `shared/media/useTakenPhotos.ts` (M-02 encoding, the blur and darkness check, previews released on close; the store's report sheet leaked them), and each keeps its own command. One visual sheet was not built: the loader's tablet sheet and the store's phone sheet differ in look and in what they pick (manifest items by line against product lines), and changing the loader's look needs J.V.'s agreement under the role rule. **Decided 2026-10-09 by @jv-ransika: keep the two screens with the shared photo flow; FF-01 is done.** Both report buttons now say "Send": a report always goes to the dispatcher.
 
 **As planned:**
 

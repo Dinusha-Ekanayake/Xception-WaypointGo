@@ -77,7 +77,7 @@ test("an issue can carry an optional voice note to the dispatcher", async ({ pag
   await page.waitForTimeout(1500);
   await sheet.getByRole("button", { name: "Recording · tap to stop" }).click();
   await expect(sheet.getByRole("button", { name: "Remove voice note" })).toBeVisible();
-  await sheet.getByRole("button", { name: "Send to dispatcher" }).click();
+  await sheet.getByRole("button", { name: "Send", exact: true }).click();
 
   await expect.poll(() => commands.map((c) => c.kind)).toContain("message:Post");
   const post = commands.find((c) => c.kind === "message:Post")!.payload;
