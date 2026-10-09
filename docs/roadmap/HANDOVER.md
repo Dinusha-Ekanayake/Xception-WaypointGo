@@ -31,7 +31,7 @@ Use Java 17 locally: under Java 25 Mockito cannot mock and 41 tests fail before 
 | H-05 | Off-server backup and a timed restore drill (RPO 24 h, RTO 4 h) | [02 Phase 0](02-FOUNDATION-FIXES.md) |
 | Alerts | Make a Slack-compatible incoming webhook for the team's channel, put it in `.env` as `ALERT_WEBHOOK_URL` on the server, then `docker compose --profile observability up -d alertmanager`. Until then alerts show in Prometheus and on Grafana's Alerting page only | [deployment.md, Logs](../deployment.md#logs) |
 | B-04 production figures | Command p95, plan generation time and rows per day from the server's Prometheus; the dev-stack figures are recorded | [01 B-04](01-FOUNDATION-FLOWS.md#phase-1-verify-and-baseline) |
-| M-01 | The object store needs a cloud account (R2) | [02 Phase 2b](02-FOUNDATION-FIXES.md) |
+| M-01 | Built for proofs and checked live on the team's S3-compatible account (bucket `storage`). To turn it on: `S3_BUCKET=storage` and `OBJECT_STORE=s3` in the server's `.env`. The other media and the backfill are still to do | [02 M-01](02-FOUNDATION-FIXES.md#m-01-object-store) |
 
 ## 4. Waiting for your agreement (driver UI)
 
@@ -47,12 +47,12 @@ One driver change was made without asking, as a fix: a driver with nothing relea
 
 - **B-03, the fresh-install walk, is not done.** It stopped because the development machine's disk is full (Docker could not unpack a layer). The walk found one real problem on the way, fixed in `1600978`: the model service image pulled NVIDIA's GPU library (352 MB) through `xgboost`; Linux now installs `xgboost-cpu` of the same version. Building that image has not been verified yet. Run on a machine with 10 GB free: a clean clone, `git lfs pull`, `cp .env.example .env`, `docker compose -p judge up --build`, then the [README walkthrough](../../README.md#judge-walkthrough) as the four named accounts.
 - **Native-speaker review:** done 2026-10-09 for the driver, loader and store (FF-00).
-- **B-05**: the depot managers start the 4-week KPI baseline (on-time Fresh, deferrals, disputes, write-offs, calls per trip, stops recorded in the app).
+- **B-05**: the screen is built (dispatcher, Pilot KPIs); the depot managers now record four weeks of the baseline from run sheets, phone logs and Finance's write-off sheet, and the app's own counts appear beside them.
 - **D-00**: the team's Datathon package (notebook, video, AI disclosure). The Task 2B write-up and its evidence are done: [TASK-2B-POLICY.md](../datathon/TASK-2B-POLICY.md).
 
 ## 6. Built and waiting for pilot data, by design
 
-No model is on by default until the trust gates pass on four weeks of labelled live stops ([05](05-DATATHON-MODELS.md)). The reply ranker (AI-J5) trains on the reply logs being collected now. Voice transcription (FF-05) is a spike after the pilot and needs the data processing agreement. Profile photos (FF-07) come after the pilot. The pool split (F-09b) waits for evidence; the pool shows nothing waiting.
+No model is on by default until the trust gates pass on four weeks of labelled live stops ([05](05-DATATHON-MODELS.md)). The reply ranker (AI-J5) is built and turns itself on after 200 replies with the shown list; until then the chips say "Suggestions: rules only". Voice transcription (FF-05) is built on Gemini and off unless `TRANSCRIBE_ENGINE=gemini`: production waits for the data processing agreement, and 200 real Sinhala and Tamil notes should be checked before anyone relies on the words. Profile photos (FF-07) are built: the administrator adds them with the consent note from a member's Edit sheet, and the store sees its driver's photo on the day. The pool split (F-09b) waits for evidence; the pool shows nothing waiting.
 
 ## 7. Decided against, with a trigger to reopen
 
