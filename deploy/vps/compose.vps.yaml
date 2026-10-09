@@ -25,6 +25,12 @@ services:
   db:
     ports: !reset []
 
+  # Started by deploy.sh only where .env sets SPEECH_URL=http://speech:8090. No
+  # host port: preview and production would both claim 8090, and the backend
+  # reaches it on the stack's own network.
+  speech:
+    ports: !reset []
+
   # On the edge network so preview's Prometheus can scrape both environments'
   # /prometheus. nginx never routes to it; the frontend stays the only way in.
   backend:

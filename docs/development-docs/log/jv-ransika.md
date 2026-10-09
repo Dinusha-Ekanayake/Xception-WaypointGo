@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-09 - deploy: spoken messages run on the VPS
+
+`dev` · @jv-ransika
+
+The speech service (R-MSG-10) only ran on a laptop: `deploy.sh` never started it and its published port 8090 would collide between preview and production. `deploy.sh` now builds and starts `speech` where that checkout's `.env` sets `SPEECH_URL=http://speech:8090`, and the VPS overlay drops its host port. Without the line nothing changes. See Speech in [deployment.md](../../deployment.md).
+Verified: `bash -n`, the compose config with the overlay, and a preview deploy speaking a message.
+
 ## 2026-10-05 - fix: a live walk of every role, and what it found
 
 `claude/role-ui-intelligence` · @jv-ransika
