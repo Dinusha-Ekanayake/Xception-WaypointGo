@@ -65,7 +65,7 @@ class DemoSignInIntegrationTest {
 
     AtomicBoolean demoOn = new AtomicBoolean(true);
     var query = new DemoSignInQuery(db, hasher,
-        new DemoSignInProperties(List.of(dispatcher, admin, dock, "nobody-" + s + "@test.local"), PASSWORD, "2468", ""),
+        new DemoSignInProperties(List.of(dispatcher, admin, dock, "nobody-" + s + "@test.local"), PASSWORD, "2468", false, ""),
         () -> new DemoView(demoOn.get(), Instant.now(), 0, true, 2000, 60000, 1, 1), Clock.system());
 
     var offered = query.view().orElseThrow();
@@ -76,24 +76,28 @@ class DemoSignInIntegrationTest {
     assertEquals(PASSWORD, offered.password());
     assertEquals(Optional.of("2468"), offered.pin());
 
-    var wrongPin = new DemoSignInQuery(db, hasher, new DemoSignInProperties(List.of(dock), PASSWORD, "1357", ""),
+    var wrongPin = new DemoSignInQuery(db, hasher, new DemoSignInProperties(List.of(dock), PASSWORD, "1357", false, ""),
         () -> new DemoView(true, Instant.now(), 0, true, 2000, 60000, 1, 1), Clock.system());
     assertEquals(Optional.empty(), wrongPin.view().orElseThrow().pin(), "a PIN that opens no loader is never offered");
 
     String seededAdmin = "ds-admin-seeded-" + s + "@test.local";
     accounts.createAccount(seededAdmin, "Seeded admin", PASSWORD, "admin");
-    var adminListed = new DemoSignInQuery(db, hasher, new DemoSignInProperties(List.of(seededAdmin), PASSWORD, "", ""),
+    var adminListed = new DemoSignInQuery(db, hasher, new DemoSignInProperties(List.of(seededAdmin), PASSWORD, "", false, ""),
         () -> new DemoView(true, Instant.now(), 0, true, 2000, 60000, 1, 1), Clock.system());
-    assertTrue(adminListed.view().isEmpty(), "an administrator whose seed password still works is never offered");
+    assertTrue(adminListed.view().isEmpty(), "an administrator is not offered unless asked for");
+    var adminAsked = new DemoSignInQuery(db, hasher, new DemoSignInProperties(List.of(seededAdmin, admin), PASSWORD, "", true, ""),
+        () -> new DemoView(true, Instant.now(), 0, true, 2000, 60000, 1, 1), Clock.system());
+    assertEquals(List.of(seededAdmin), adminAsked.view().orElseThrow().accounts().stream().map(DemoSignInQuery.Account::email).toList(),
+        "asked for, the administrator is offered while the demo password opens it, never once it was changed");
 
-    var ended = new DemoSignInQuery(db, hasher, new DemoSignInProperties(List.of(dispatcher), PASSWORD, "", "2020-01-01"),
+    var ended = new DemoSignInQuery(db, hasher, new DemoSignInProperties(List.of(dispatcher), PASSWORD, "", false, "2020-01-01"),
         () -> new DemoView(true, Instant.now(), 0, true, 2000, 60000, 1, 1), Clock.system());
     assertTrue(ended.view().isEmpty(), "nothing is offered after DEMO_SIGN_IN_UNTIL");
-    assertThrows(IllegalArgumentException.class, () -> new DemoSignInProperties(List.of(dispatcher), PASSWORD, "", "31/10/2026"));
+    assertThrows(IllegalArgumentException.class, () -> new DemoSignInProperties(List.of(dispatcher), PASSWORD, "", false, "31/10/2026"));
 
     demoOn.set(false);
     assertTrue(query.view().isEmpty(), "nothing is offered once demo mode is off");
-    var unconfigured = new DemoSignInQuery(db, hasher, new DemoSignInProperties(List.of(), "", "", ""),
+    var unconfigured = new DemoSignInQuery(db, hasher, new DemoSignInProperties(List.of(), "", "", false, ""),
         () -> new DemoView(true, Instant.now(), 0, true, 2000, 60000, 1, 1), Clock.system());
     assertTrue(unconfigured.view().isEmpty(), "off unless configured");
   }

@@ -28,4 +28,5 @@ export const DEMO_DEVICE: Partial<Record<ShellRole, string>> = {
   driver: "phone",
   store_manager: "desktop or phone",
   loader: "phone or tablet",
+  admin: "desktop",
 };

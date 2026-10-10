@@ -22,10 +22,9 @@ import org.springframework.stereotype.Component;
  * is on. The only secrets that can leave are the configured demo password and
  * PIN, and only while they work, never a password the server does not hold.
  *
- * <p>Only field roles are ever offered. An account holding any other role
- * (administrator, auditor, operations) is never listed whatever the
- * configuration says, so a production administrator whose seed password was
- * never rotated cannot be handed to whoever opens the sign-in page.
+ * <p>Field roles are offered; an administrator only when {@code DEMO_SIGN_IN_ADMIN}
+ * is on, because it changes accounts and policies and the list is public. An
+ * auditor or operations account, or one holding several roles, is never offered.
  *
  * <p>Checking a password costs an Argon2 verification, and the read is public,
  * so the answer is kept for {@link #KEEP} rather than worked out per request.
@@ -85,8 +84,9 @@ public class DemoSignInQuery {
             email);
         if (user == null || user.get("roles") == null) continue;
         List<String> roles = List.of(String.valueOf(user.get("roles")).replaceAll("[{}]", "").split(","));
-        // One role, and a field one: anything that administers or audits is never offered.
-        if (roles.size() != 1 || !OFFERED_ROLES.contains(roles.get(0))) continue;
+        // One role, a field one, or an administrator when asked for; nothing that audits.
+        boolean offeredRole = OFFERED_ROLES.contains(roles.get(0)) || (properties.admin() && "admin".equals(roles.get(0)));
+        if (roles.size() != 1 || !offeredRole) continue;
         if (!hasher.matches(properties.password(), String.valueOf(user.get("password_hash")))) continue;
         offered.add(new Account(email, String.valueOf(user.get("display_name")), roles.get(0)));
       }
