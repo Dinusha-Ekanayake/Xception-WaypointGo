@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { McpAuthorizationView } from "@shared/domain/identity";
 import { scopeWords } from "@shared/ui";
+import PasswordInput from "./PasswordInput.tsx";
 
 const field = "min-h-12 w-full rounded-xl border border-gray-300 px-3 text-black focus:outline-2 focus:outline-teal-700";
 export default function OAuthAuthorize() {
@@ -41,7 +42,7 @@ export default function OAuthAuthorize() {
       <p className="my-4 text-sm">Only records your account permissions and scope already allow. It cannot cancel, publish or confirm anything, and every change it proposes waits for your confirmation. Sign in with your personal account to approve.</p>
       <form onSubmit={approve} className="space-y-4">
         <label className="block">Email<input className={field} type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} disabled={busy} /></label>
-        <label className="block">Password<input className={field} type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} disabled={busy} /></label>
+        <label className="block">Password<PasswordInput className={field} value={password} onChange={setPassword} disabled={busy} /></label>
         <button className="min-h-12 w-full rounded-xl bg-teal-800 px-3 font-semibold text-white disabled:opacity-60" disabled={busy}>{busy ? "Authorizing..." : "Approve access"}</button>
         <button type="button" className="min-h-12 w-full rounded-xl border border-gray-300" disabled={busy} onClick={() => { setPassword(""); setCancelled(true); }}>Cancel</button>
       </form>

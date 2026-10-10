@@ -164,6 +164,27 @@ test("an order that has left the day still shows by its ref in Compare, never by
   await expect(differ).not.toContainText("order-gone");
 });
 
+test("a deferred order from another day shows by its ref in Decide, read in one batch, never by its internal id", async ({ page }) => {
+  const plan = draftPlan();
+  const left = plan.allocations[2]!;
+  plan.allocations = [...plan.allocations, { ...left, orderId: "order-carried" }, { ...left, orderId: "order-gone" }];
+  const desk = await serve(page, { draft: plan });
+  desk.elsewhere = [order(9, "DEFERRED", { orderId: "order-carried", orderRef: "ORD0099999" })];
+  const reads: string[] = [];
+  page.on("request", (r) => {
+    const path = new URL(r.url()).pathname;
+    if (path.startsWith("/api/orders/") && path !== "/api/orders/day") reads.push(path);
+  });
+  await page.goto("/#/plan");
+
+  const list = page.getByRole("region", { name: "Orders needing a decision" });
+  await expect(list).toContainText("ORD0099999");
+  await expect(list).toContainText("Order not found");
+  await expect(list).not.toContainText("order-carried");
+  await expect(list).not.toContainText("order-gone");
+  expect(reads.every((path) => path === "/api/orders/by-id")).toBe(true);
+});
+
 test("a stop order that breaks a rule shows the rule in words and cannot be saved", async ({ page }) => {
   const desk = await serve(page, { draft: draftPlan(1, true) });
   desk.preview = {

@@ -8,7 +8,7 @@ test.skip(!ready, "Requires an isolated seeded Loader database and LOADER_LIVE_*
 test("a real shared-device loader signs in, saves offline, syncs and releases", async ({ page, context }, testInfo) => {
   await page.goto("/");
   await page.getByRole("textbox", { name: "Email" }).fill(process.env.LOADER_LIVE_EMAIL!);
-  await page.getByLabel("Password").fill(process.env.LOADER_LIVE_PASSWORD!);
+  await page.getByLabel("Password", { exact: true }).fill(process.env.LOADER_LIVE_PASSWORD!);
   await page.getByRole("button", { name: "Sign in" }).click();
 
   await expect(page.getByRole("heading", { name: "Who's loading?" })).toBeVisible();

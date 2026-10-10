@@ -91,6 +91,22 @@ public class OrderDataQuery implements OrderQuery {
         .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No order " + orderId));
   }
 
+  /** At most this many orders in one read by id. */
+  public static final int MAX_BY_ID = 200;
+
+  /**
+   * The orders of these ids in one read, such as those a plan names from other
+   * days (R-ORD-16). Row-level security leaves out any outside the actor's
+   * scope, as it does for a single read; an id that matches nothing is absent.
+   */
+  public List<OrderView> orders(Actor actor, List<UUID> orderIds) {
+    if (orderIds.size() > MAX_BY_ID) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "At most " + MAX_BY_ID + " orders in one read");
+    }
+    return read(actor.userId(), () -> withStops(
+        orders.findStored(new java.util.LinkedHashSet<>(orderIds)).stream().map(OrderDataQuery::toView).toList()));
+  }
+
   /** Planned, loading or on the road: the stop on the published plan still holds (issue #224). */
   private static final java.util.Set<OrderStatus> ON_PLAN =
       java.util.Set.of(OrderStatus.ALLOCATED, OrderStatus.LOADING, OrderStatus.IN_TRANSIT);

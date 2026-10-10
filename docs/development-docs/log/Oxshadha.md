@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-10 - feat: demo sign-in for judges; Decide never shows an order id
+
+`dev` · @Oxshadha
+
+- The sign-in page offers "Use a demo account" (dispatcher, driver, store, loader) and a pick fills the form; the loader's PIN screen offers "Use demo PIN". It is read from `GET /api/session/demo` (identity `DemoSignInQuery`), which offers nothing unless `DEMO_SIGN_IN_ACCOUNTS` and `DEMO_SIGN_IN_PASSWORD` are set and demo mode is on, and ends on its own after `DEMO_SIGN_IN_UNTIL`. An account is offered only while the password still signs it in, and only a single field role, or an administrator when `DEMO_SIGN_IN_ADMIN=true` (off by default, as it changes accounts and policies and the list is public); an auditor or operations account never. Each serve is counted (`waypoint.demo.signin.served`); the answer is `no-store` and the service worker keeps nothing under `/api/`.
+- Both password fields in the shell have a show/hide button.
+- Decide showed some deferred orders as raw ids: orders of other days were read one request each, and on a large plan the browser queued them past the 8 s read timeout and dropped them. They are now read in batches of 200 (`GET /api/orders/by-id`, scope by row-level security as for a single read), and an order that still cannot be read says "Order not found".
+- Open: "Use demo PIN" needs native review in si and ta.
+
+---
+
 ## 2026-10-09 - fix: the pilot KPIs are a card on Overview, not a sidebar tab (B-05)
 
 `dev` · @Oxshadha

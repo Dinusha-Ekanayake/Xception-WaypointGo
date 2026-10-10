@@ -6,6 +6,7 @@ import { Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
 import { ruleLabel } from "@shared/wording";
 import { largestVehicleM3, unservable } from "../data/planViews.ts";
 import type { PlanActions } from "./planActions.ts";
+import { orderRefText } from "../data/orders.ts";
 
 // Figma "Plan · 1e Decide · too big" and "1p store manager contacted": the orders
 // no vehicle of the depot can carry, drawn apart because nobody can place them.
@@ -48,7 +49,7 @@ export default function TooBigCard({
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="min-w-[200px] flex-1">
                 <span className="flex flex-wrap items-center gap-2 text-[14px] font-medium text-go-ink">
-                  {order?.orderRef ?? allocation.orderId}
+                  {orderRefText(order)}
                   {order && <span className="font-normal">{`${order.outletId} ${order.districtName}`}</span>}
                   {order && <Pill tone="info">{order.brandCode}</Pill>}
                 </span>

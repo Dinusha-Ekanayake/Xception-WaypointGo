@@ -73,8 +73,9 @@ export function SettingsPanel({
 }: {
   displayName: string;
   roleLabel: string;
-  lang: AppLang;
-  onLang: (lang: AppLang) => void;
+  /** Absent for a role that is English only by design (dispatcher), so no picker is shown. */
+  lang?: AppLang;
+  onLang?: (lang: AppLang) => void;
   /** False while this role's screens are still English only. */
   translated?: boolean;
   /** "frame" is a bottom sheet inside the nearest positioned ancestor (the driver's phone frame), with the sign-out sheet's look. */
@@ -144,6 +145,7 @@ export function SettingsPanel({
         {framed && children}
       </div>
       <h2 className="text-[18px] font-medium">Settings</h2>
+      {lang && onLang && (
       <fieldset className={cx("flex flex-col gap-2", !framed && "rounded-[14px] bg-go-canvas p-3")}>
         <legend className="sr-only">Language</legend>
         <span className="text-[14px] font-medium">Language</span>
@@ -164,6 +166,7 @@ export function SettingsPanel({
         </div>
         {!translated && <span className="w-full text-[12px] text-go-muted">These screens are in English for now; your choice is kept on this device.</span>}
       </fieldset>
+      )}
       {showInstall && (
         <InstallApp
           {...(installT ? { t: installT } : {})}

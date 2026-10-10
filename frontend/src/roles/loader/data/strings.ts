@@ -270,6 +270,8 @@ export const STRINGS: Record<string, [string, string]> = {
   "Role": ["භූමිකාව", "பங்கு"],
   "Sign out this device": ["මෙම උපාංගයෙන් ඉවත් වන්න", "இந்தச் சாதனத்திலிருந்து வெளியேறு"],
   "Enter your PIN": ["ඔබේ PIN අංකය ඇතුළත් කරන්න", "உங்கள் PIN ஐ உள்ளிடவும்"],
+  // Demo sign-in: the demo PIN, offered only in a configured demo (pending native review).
+  "Use demo PIN": ["ආදර්ශන PIN අංකය භාවිත කරන්න", "டெமோ PIN ஐப் பயன்படுத்து"],
   "Enter PIN to unlock": ["අගුළු හැරීමට PIN ඇතුළත් කරන්න", "திறக்க PIN ஐ உள்ளிடவும்"],
   "Confirm": ["තහවුරු කරන්න", "உறுதிசெய்"],
   "Unlock": ["අගුළු හරින්න", "திற"],

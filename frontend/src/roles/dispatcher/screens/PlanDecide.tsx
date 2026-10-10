@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { OrderView, PlacementView, PlanView, VehicleView } from "@shared/domain/types";
 import { Icon, Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
 import { temperatureLabel } from "@shared/wording";
-import { size } from "../data/orders.ts";
+import { size, orderRefText } from "../data/orders.ts";
 import { decidedCount, lastServedText, type DecisionRow } from "../data/planViews.ts";
 import { usePlacements } from "../data/usePlanReads.ts";
 import DecisionPanel from "./DecisionPanel.tsx";
@@ -193,7 +193,7 @@ function DecisionRowButton({
       <span aria-hidden className={`size-2 shrink-0 rounded-full ${row.state === "open" && (order?.deferralCount ?? 0) > 0 ? "bg-go-warning" : "bg-go-placeholder"}`} />
       <span className="min-w-[200px] flex-1">
         <span className="flex items-center gap-2">
-          <span className="text-[15px] font-medium text-go-ink">{order?.orderRef ?? allocation.orderId}</span>
+          <span className="text-[15px] font-medium text-go-ink">{orderRefText(order)}</span>
           {order && <Pill tone="success">{order.brandCode}</Pill>}
         </span>
         {order && (

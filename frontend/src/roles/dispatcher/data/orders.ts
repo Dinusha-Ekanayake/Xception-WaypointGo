@@ -77,6 +77,14 @@ export function matches(order: OrderView, filter: { status: StatusFilter; brand:
 const one = new Intl.NumberFormat("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
+/**
+ * The order's reference, or words when its order could not be read: an order
+ * id is never shown on screen (GLOSSARY: no raw codes).
+ */
+export function orderRefText(order: Pick<OrderView, "orderRef"> | null | undefined): string {
+  return order?.orderRef ?? "Order not found";
+}
+
 /** "7.9 m³ · 520 kg", display only. */
 export function size(order: Pick<OrderView, "volumeM3" | "weightKg">): string {
   return `${one.format(Number(order.volumeM3))} m³ · ${whole.format(Number(order.weightKg))} kg`;

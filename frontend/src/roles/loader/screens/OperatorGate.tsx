@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ApiError } from "@shared/api/problem";
 import { Notice, cx } from "@shared/ui";
 import { crew, switchOperator, type CrewMember } from "@app-shell/operators";
+import { demoSignIn } from "@app-shell/demoSignIn";
 import { checkOffline, keptCrew, logOfflineSwitch, pausedFor } from "@app-shell/offlinePin";
 import type { Operator } from "@app-shell/session";
 import { useT } from "../i18n.tsx";
@@ -55,6 +56,14 @@ export default function OperatorGate({
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A configured demo offers its loaders' PIN, so a judge need not type it.
+  const [demoPin, setDemoPin] = useState<string | null>(null);
+  useEffect(() => {
+    if (!online) return;
+    const abort = new AbortController();
+    void demoSignIn(abort.signal).then((read) => !abort.signal.aborted && setDemoPin(read.pin));
+    return () => abort.abort();
+  }, [online]);
 
   useEffect(() => {
     if (!online) {
@@ -141,6 +150,20 @@ export default function OperatorGate({
     if (state.kind === "wrong") setState({ kind: "entering" });
   };
 
+  const useDemoPin = demoPin && selected && online && state.kind !== "paused" && (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() => {
+        typed(demoPin);
+        void submit(demoPin);
+      }}
+      className="min-h-12 w-full rounded-[16px] border border-go-rule bg-go-card px-4 text-[15px] font-medium text-go-ink hover:bg-go-surface disabled:opacity-50"
+    >
+      {tr("Use demo PIN")}
+    </button>
+  );
+
   if (selected && !wide) {
     return (
       <PinEntry
@@ -153,20 +176,28 @@ export default function OperatorGate({
         submitLabel={unlock ? tr("Unlock") : tr("Confirm")}
         onSubmit={() => void submit(pin)}
         onBack={back}
-        notice={error && <Notice tone="danger" live title={error} />}
+        notice={(error || useDemoPin) && (
+          <>
+            {error && <Notice tone="danger" live title={error} />}
+            {useDemoPin}
+          </>
+        )}
       />
     );
   }
 
   const pad = wide && (
-    <PinPad
-      title={selected ? (unlock ? tr("Enter PIN to unlock") : tr("Enter PIN")) : null}
-      pin={pin}
-      onPin={typed}
-      onComplete={(value) => void submit(value)}
-      state={state}
-      busy={busy}
-    />
+    <div className="flex flex-col gap-3">
+      <PinPad
+        title={selected ? (unlock ? tr("Enter PIN to unlock") : tr("Enter PIN")) : null}
+        pin={pin}
+        onPin={typed}
+        onComplete={(value) => void submit(value)}
+        state={state}
+        busy={busy}
+      />
+      {useDemoPin}
+    </div>
   );
   const columns = "w-full px-4 pt-2 pb-8 md:grid md:grid-cols-[minmax(0,1fr)_minmax(300px,0.75fr)] md:gap-8 md:px-8 lg:gap-16 lg:px-[42px]";
 
