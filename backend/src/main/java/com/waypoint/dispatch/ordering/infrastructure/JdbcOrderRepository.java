@@ -210,6 +210,17 @@ public class JdbcOrderRepository {
     return found.isEmpty() ? Optional.empty() : Optional.of(found.get(0));
   }
 
+  /** The orders of these ids that the actor's scope lets it see, in order_ref order; the rest are left out. */
+  public List<Stored> findStored(java.util.Collection<UUID> orderIds) {
+    if (orderIds.isEmpty()) {
+      return List.of();
+    }
+    String marks = String.join(", ", java.util.Collections.nCopies(orderIds.size(), "?"));
+    return stored(
+        "SELECT " + COLUMNS + " FROM ordering.orders WHERE order_id IN (" + marks + ") ORDER BY order_ref",
+        orderIds.toArray());
+  }
+
   /** Newest first, on the keyset {@code (placed_at, order_id)}; never OFFSET. */
   public List<Stored> pageForOutlet(
       String outletId, Optional<Instant> beforePlacedAt, Optional<UUID> beforeId, int limit) {

@@ -78,19 +78,29 @@ export function useOrders(depots: string[], date: string): Resource<OrderView[]>
   return useResource(load, `orders|${depots.join(",")}|${date}`, POLL_MS, { depots, topics: ["order", "plan"] });
 }
 
+/** The most ids the backend reads in one request. */
+const BY_ID_BATCH = 200;
+
 /**
  * Orders named by id that the day's list does not hold, such as an order a
- * saved plan still places but that has since moved to another day. Read one by
- * one; one that cannot be read is left out, so the screen falls back to words.
+ * saved plan still places but that has since moved to another day. Read in
+ * batches of up to 200, not one request each: a request per order queued in the
+ * browser and timed out on a large plan, and every order it dropped showed as a
+ * bare id. One that cannot be read is left out, so the screen falls back to words.
  */
 export function useOrdersById(ids: string[]): Resource<OrderView[]> {
-  const key = [...ids].sort().join(",");
+  const sorted = [...ids].sort();
+  const key = sorted.join(",");
   const load =
     ids.length === 0
       ? null
       : async (signal: AbortSignal) => {
-          const read = await Promise.allSettled(ids.map((id) => request<OrderView>(`/api/orders/${q(id)}`, { signal })));
-          return read.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+          const batches: string[][] = [];
+          for (let i = 0; i < sorted.length; i += BY_ID_BATCH) batches.push(sorted.slice(i, i + BY_ID_BATCH));
+          const read = await Promise.allSettled(
+            batches.map((batch) => request<OrderView[]>(`/api/orders/by-id?ids=${batch.map(q).join(",")}`, { signal })),
+          );
+          return read.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
         };
   return useResource(load, `orders-by-id|${key}`);
 }

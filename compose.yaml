@@ -135,6 +135,11 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
       S3_ENCRYPTION_KEY: ${S3_ENCRYPTION_KEY:-}
       PUBLISH_RISK_REVIEW: ${PUBLISH_RISK_REVIEW:-true}
+      # Demo sign-in for judges: off unless accounts and password are set, shown only in demo mode.
+      DEMO_SIGN_IN_ACCOUNTS: ${DEMO_SIGN_IN_ACCOUNTS:-}
+      DEMO_SIGN_IN_PASSWORD: ${DEMO_SIGN_IN_PASSWORD:-}
+      DEMO_SIGN_IN_PIN: ${DEMO_SIGN_IN_PIN:-}
+      DEMO_SIGN_IN_UNTIL: ${DEMO_SIGN_IN_UNTIL:-}
       # Roadmap FF-05: voice note transcription, off while TRANSCRIBE_ENGINE is empty.
       TRANSCRIBE_ENGINE: ${TRANSCRIBE_ENGINE:-}
       TRANSCRIBE_MODEL: ${TRANSCRIBE_MODEL:-gemini-3.8-flash}

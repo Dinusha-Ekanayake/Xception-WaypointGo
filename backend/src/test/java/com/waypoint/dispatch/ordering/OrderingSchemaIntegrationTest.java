@@ -116,6 +116,25 @@ class OrderingSchemaIntegrationTest {
   }
 
   @Test
+  void ordersReadByIdInOneBatchKeepTheSameScope() {
+    Order first = saved(freshDate(), true);
+    Order second = saved(freshDate(), true);
+    UUID absent = UUID.randomUUID();
+    List<UUID> ids = List.of(first.orderId(), second.orderId(), absent);
+
+    assertEquals(
+        java.util.Set.of(first.orderRef(), second.orderRef()),
+        query.orders(dispatcher, ids).stream().map(OrderView::orderRef).collect(java.util.stream.Collectors.toSet()),
+        "depot scope reads both; an id that matches nothing is left out");
+    assertTrue(query.orders(stranger, ids).isEmpty(), "row-level security leaves out what is outside scope");
+    DomainException tooMany =
+        assertThrows(
+            DomainException.class,
+            () -> query.orders(dispatcher, java.util.Collections.nCopies(OrderDataQuery.MAX_BY_ID + 1, absent)));
+    assertEquals(ErrorCode.VALIDATION_FAILED, tooMany.code());
+  }
+
+  @Test
   void aListOutsideScopeIsForbiddenAndAuditedNeverEmpty() {
     long before = deniedReads(stranger);
     DomainException denied =

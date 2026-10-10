@@ -270,6 +270,10 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo" }).format(new Date());
       return route.fulfill(json(url.searchParams.get("date") === nextRun(today) ? desk.orders : []));
     }
+    if (pathname === "/api/orders/by-id") {
+      const ids = new Set((url.searchParams.get("ids") ?? "").split(","));
+      return route.fulfill(json([...desk.orders, ...(desk.elsewhere ?? [])].filter((o) => ids.has(o.orderId))));
+    }
     const byId = /^\/api\/orders\/(order-[^/]+)$/.exec(pathname);
     if (byId) {
       const found = [...desk.orders, ...(desk.elsewhere ?? [])].find((o) => o.orderId === byId[1]);

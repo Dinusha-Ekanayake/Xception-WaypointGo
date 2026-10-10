@@ -11,6 +11,7 @@ import com.waypoint.dispatch.ordering.domain.DeliveryDate;
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
+import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.domain.Page;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
@@ -68,6 +69,19 @@ public class OrderController {
       HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:order:outlet:" + outlet);
     return orders.ordersForOutlet(actor, outlet, Optional.ofNullable(cursor), limit);
+  }
+
+  /** Several orders by id in one read: {@code ?ids=a,b,c}, at most {@value OrderDataQuery#MAX_BY_ID}. */
+  @GetMapping("/by-id")
+  public List<OrderView> ordersById(@RequestParam List<UUID> ids, HttpServletRequest request) {
+    if (ids.size() > OrderDataQuery.MAX_BY_ID) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "At most " + OrderDataQuery.MAX_BY_ID + " orders in one read");
+    }
+    Actor actor = null;
+    for (UUID id : ids) {
+      actor = authorizer.require(request, READ, "wpt:order:order:" + id);
+    }
+    return actor == null ? List.of() : orders.orders(actor, ids);
   }
 
   @GetMapping("/{orderId}")

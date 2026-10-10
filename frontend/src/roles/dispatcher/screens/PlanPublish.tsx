@@ -11,6 +11,7 @@ import PublishAudience from "./PublishAudience.tsx";
 import PublishRiskReview from "./PublishRiskReview.tsx";
 import Row from "./PublishRow.tsx";
 import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
+import { orderRefText } from "../data/orders.ts";
 
 // Figma "Plan · 3 Publish" (3a blocked, 3b ready, 3c published, 3d send
 // update). Publishing is a deliberate second step with two gates: every order
@@ -142,7 +143,7 @@ export default function PlanPublish({
                 const order = orders.get(allocation.orderId);
                 return (
                   <p key={allocation.orderId} className="flex flex-wrap gap-x-3 border-t border-go-rule py-1.5 text-xs text-go-ink">
-                    <span className="w-[100px] font-medium">{order?.orderRef ?? allocation.orderId}</span>
+                    <span className="w-[100px] font-medium">{orderRefText(order)}</span>
                     <span className="flex-1 text-go-secondary">{order ? `${order.outletId} · ${order.districtName}` : ""}</span>
                     <span className={allocation.decision === "UNSERVABLE" ? "text-go-danger-strong" : "text-go-warning-text"}>
                       {`${allocation.decision === "UNSERVABLE" ? "Cannot be served" : "Deferred"} · ${ruleLabel(allocation.bindingRule)}`}

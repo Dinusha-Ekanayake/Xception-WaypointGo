@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { PlacementView, PlanView, TripView } from "@shared/domain/types";
 import { Pill, PrimaryButton, SecondaryButton, Switch } from "@shared/ui";
 import { dayLabel, ruleLabel, temperatureLabel } from "@shared/wording";
-import { STATUS, size } from "../data/orders.ts";
+import { STATUS, size, orderRefText } from "../data/orders.ts";
 import { daysBetween, lastServedText, type DecisionRow } from "../data/planViews.ts";
 import { useNextDelivery } from "../data/usePlanReads.ts";
 import { explainDeferral } from "../data/explain.ts";
@@ -86,7 +86,7 @@ export default function DecisionPanel({
     <section aria-label="Decision" className="flex w-full flex-col rounded-[24px] bg-go-card shadow-go-card lg:max-h-[calc(100dvh-240px)] lg:max-w-[380px]">
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-5 pb-3">
         <div>
-          <h2 className="text-[19px] font-medium text-go-ink">{order?.orderRef ?? allocation.orderId}</h2>
+          <h2 className="text-[19px] font-medium text-go-ink">{orderRefText(order)}</h2>
           {order && (
             <p className="text-xs text-go-secondary">
               {order.outletId} · {order.districtName} · {order.brandCode} · {temperatureLabel(order.temperature)} · {size(order)}

@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { ApiError } from "@shared/api/problem";
 import { useOnline } from "@shared/api/useResource";
-import { Notice } from "@shared/ui";
+import { Notice, Popover } from "@shared/ui";
+import PasswordInput from "./PasswordInput.tsx";
+import { DEMO_DEVICE, demoSignIn, type DemoAccount, type DemoSignIn } from "./demoSignIn.ts";
 import { ROLE_LABEL, signIn, type Session, type ShellRole } from "./session.ts";
 
 // Sign in. Three failures read differently, because the person does something
@@ -63,8 +65,24 @@ export default function SignIn({
   const [failure, setFailure] = useState<Failure | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [dark, setDark] = useState(false);
+  const [demo, setDemo] = useState<DemoSignIn | null>(null);
 
   useEffect(() => setDark(storedDark()), []);
+  // A demo offers its accounts to pick, so a judge does not copy credentials.
+  useEffect(() => {
+    const abort = new AbortController();
+    void demoSignIn(abort.signal).then((read) => {
+      if (!abort.signal.aborted) setDemo(read);
+    });
+    return () => abort.abort();
+  }, []);
+  // On a role address, that role's account comes first.
+  const demoAccounts = demo && demo.password ? [...demo.accounts].sort((a, b) => Number(b.role === role) - Number(a.role === role)) : [];
+  const fill = (account: DemoAccount) => {
+    setEmail(account.email);
+    setPassword(demo?.password ?? "");
+    setFailure(null);
+  };
   const toggleTheme = () => {
     const next = !dark;
     setDark(next);
@@ -156,13 +174,46 @@ export default function SignIn({
           )}
 
           <input className={field} type="email" aria-label="Email" placeholder="Enter your email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          <input className={field} type="password" aria-label="Password" placeholder="Enter your password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <PasswordInput className={field} label="Password" placeholder="Enter your password" value={password} onChange={setPassword} />
           <p className="px-1 text-[13px] text-go-muted">Forgot password? Ask your administrator to reset it.</p>
 
           <button type="submit" disabled={blocked} className="min-h-14 rounded-[16px] bg-go-action text-[17px] font-medium text-go-on-action disabled:cursor-not-allowed disabled:opacity-50">
             {busy ? "Signing in…" : "Sign in"}
           </button>
         </form>
+
+        {demoAccounts.length > 0 && (
+          <Popover
+            label="Demo accounts"
+            side="top"
+            className="min-h-12 w-full rounded-[16px] border border-go-rule bg-go-card text-[15px] font-medium text-go-ink shadow-[0_5px_20px_rgba(0,0,0,0.09)] hover:bg-go-surface"
+            panelClassName="w-full"
+            trigger="Use a demo account"
+          >
+            {(close) => (
+              <div className="flex flex-col gap-1">
+                <p className="px-2 pb-1 text-[13px] text-go-muted">Demo only. Pick a role and its account fills the sign-in.</p>
+                {demoAccounts.map((account) => (
+                  <button
+                    key={account.email}
+                    type="button"
+                    onClick={() => {
+                      fill(account);
+                      close();
+                    }}
+                    className="flex min-h-12 flex-col items-start rounded-[12px] px-3 py-2 text-left hover:bg-go-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-go-teal"
+                  >
+                    <span className="text-[15px] font-medium text-go-ink">{ROLE_LABEL[account.role] ?? account.role}</span>
+                    <span className="text-[13px] text-go-muted">
+                      {account.name}
+                      {DEMO_DEVICE[account.role] ? ` · ${DEMO_DEVICE[account.role]}` : ""}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Popover>
+        )}
 
         <p className="px-1 text-[13px] text-go-muted">After your first sign-in, GO keeps working offline. Your work syncs when the connection returns.</p>
       </div>

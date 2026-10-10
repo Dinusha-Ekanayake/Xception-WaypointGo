@@ -14,13 +14,14 @@ const AMAYA = {
 const ISURU = { userId: OPERATOR.userId, displayName: OPERATOR.displayName, employeeCode: OPERATOR.employeeCode, offlineVerifier: null };
 const json = (body: unknown, status = 200) => ({ status, contentType: "application/json", body: JSON.stringify(body) });
 
-async function serve(page: Page, answer: (pin: string) => { status: number; body: unknown }): Promise<string[]> {
+async function serve(page: Page, answer: (pin: string) => { status: number; body: unknown }, demoPin: string | null = null): Promise<string[]> {
   const pins: string[] = [];
   const current = manifest("trip-wide", false, 2);
   await page.route("**/api/**", async (route) => {
     const { pathname } = new URL(route.request().url());
     const method = route.request().method();
     if (pathname === "/api/session") return route.fulfill(json(SESSION));
+    if (pathname === "/api/session/demo") return route.fulfill(json({ accounts: [], password: null, pin: demoPin }));
     if (pathname === "/api/session/crew") {
       return route.fulfill(json({ members: [ISURU, AMAYA], expiresAt: new Date(Date.now() + 3_600_000).toISOString() }));
     }
@@ -140,5 +141,49 @@ test.describe("portrait tablet", () => {
     await expect(page.getByText("Select your name to continue.")).toBeVisible();
     await expect(page.getByRole("button", { name: /Amaya/ })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+});
+
+// Demo sign-in: in a configured demo the server offers the loaders' PIN, and
+// one tap after the name fills and sends it. Outside a demo there is no button.
+test.describe("demo PIN", () => {
+  const signsIn = (pin: string) =>
+    pin === "2468"
+      ? { status: 200, body: { userId: AMAYA.userId, displayName: AMAYA.displayName, employeeCode: AMAYA.employeeCode, since: new Date().toISOString() } }
+      : { status: 401, body: { triesLeft: 2 } };
+
+  test.describe("on a dock tablet", () => {
+    test.use({ viewport: { width: 1280, height: 800 } });
+
+    test("a tap fills and sends the demo PIN", async ({ page }) => {
+      const pins = await serve(page, signsIn, "2468");
+      await toSignIn(page);
+      await page.getByRole("button", { name: /Amaya/ }).click();
+      await page.getByRole("button", { name: "Use demo PIN" }).click();
+      await expect(page.getByRole("heading", { name: "Tonight's departures" })).toBeVisible();
+      expect(pins).toEqual(["2468"]);
+    });
+
+    test("outside a demo there is no demo PIN", async ({ page }) => {
+      await serve(page, signsIn);
+      await toSignIn(page);
+      await page.getByRole("button", { name: /Amaya/ }).click();
+      await expect(page.getByRole("button", { name: "1", exact: true })).toBeEnabled();
+      await expect(page.getByRole("button", { name: "Use demo PIN" })).toHaveCount(0);
+    });
+  });
+
+  test.describe("on a phone", () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test("the PIN screen offers the demo PIN under the keypad", async ({ page }) => {
+      const pins = await serve(page, signsIn, "2468");
+      await toSignIn(page);
+      await page.getByRole("button", { name: /Amaya/ }).click();
+      await expect(page.getByRole("heading", { name: "Enter your PIN" })).toBeVisible();
+      await page.getByRole("button", { name: "Use demo PIN" }).click();
+      await expect(page.getByRole("heading", { name: "Tonight's departures" })).toBeVisible();
+      expect(pins).toEqual(["2468"]);
+    });
   });
 });
