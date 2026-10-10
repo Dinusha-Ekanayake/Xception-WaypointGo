@@ -1,17 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { McpSettingsRow, SettingsPanel, cx, useDeviceLang, useShell } from "@shared/ui";
+import { McpSettingsRow, SettingsPanel, cx, useShell } from "@shared/ui";
 
 /**
- * The dispatcher's picture: opens Settings (language, the assistant connection,
+ * The dispatcher's picture: opens Settings (the assistant connection,
  * installing the app), with the account below it as Figma's "Account menu"
  * draws it: role, depots, and Sign out. Sign out is not on the bar itself, so a
  * stray click on a shared depot PC does not end a session.
  */
 export default function ProfileButton({ displayName, depots, placement }: { displayName: string; depots: string[]; placement: "popover" | "sheet" }): React.JSX.Element {
   const [open, setOpen] = useState(false);
-  const [lang, setLang] = useDeviceLang();
   const shell = useShell();
   return (
     <>
@@ -30,9 +29,6 @@ export default function ProfileButton({ displayName, depots, placement }: { disp
         <SettingsPanel
           displayName={displayName}
           roleLabel="Dispatcher"
-          lang={lang}
-          onLang={setLang}
-          translated={false}
           placement={placement}
           onClose={() => setOpen(false)}
         >
