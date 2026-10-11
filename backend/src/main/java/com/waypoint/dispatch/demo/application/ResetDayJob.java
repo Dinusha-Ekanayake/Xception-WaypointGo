@@ -15,11 +15,18 @@ import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
-/** A persisted workflow; every owning command has its own audited transaction. */
+/**
+ * A persisted workflow; every owning command has its own audited transaction.
+ * The last step plans the day in the generation queue, so it is sent again on
+ * each run, as a new command, until it answers {@code PUBLISHED}; it gives up
+ * after {@link #MAX_POLLS} sends.
+ */
 @Component
 public class ResetDayJob implements ScheduledJob {
+  static final String PLAN_STEP = "plan:PrepareDemoDay";
+  static final int MAX_POLLS = 120;
   private static final List<String> STEPS = List.of(
-      "reference:PrepareDemoDay", "iam:PrepareDemoDay", "order:PrepareDemoDay");
+      "reference:PrepareDemoDay", "iam:PrepareDemoDay", "order:PrepareDemoDay", "plan:PrepareDemoDay");
   private final Database db;
   private final CommandBus bus;
   private final ObjectMapper json;
@@ -49,13 +56,24 @@ public class ResetDayJob implements ScheduledJob {
       int step = detail.path("step").asInt();
       if (step < 0 || step >= STEPS.size()) { fail(id, "Invalid preparation step"); continue; }
       String kind = STEPS.get(step);
-      UUID commandId = UUID.nameUUIDFromBytes((id + ":" + kind).getBytes(StandardCharsets.UTF_8));
+      int polls = detail.path("polls").asInt();
+      String key = PLAN_STEP.equals(kind) ? id + ":" + kind + ":" + polls : id + ":" + kind;
+      UUID commandId = UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8));
       String date = detail.path("serviceDate").asText();
       Command command = new Command(commandId, kind, 0L,
           json.valueToTree(Map.of("serviceDate", date, "reason", run.get("reason"))),
           Instant.EPOCH);
       try {
-        bus.dispatch(Actor.user((UUID) run.get("actor")), command, "demo:" + id);
+        Object answer = bus.dispatch(Actor.user((UUID) run.get("actor")), command, "demo:" + id).value();
+        if (PLAN_STEP.equals(kind) && !(answer instanceof Map<?, ?> body && "PUBLISHED".equals(body.get("status")))) {
+          boolean expired = polls + 1 >= MAX_POLLS;
+          db.asSystem(ModuleRole.DEMO, () -> db.update(
+              "UPDATE demo.scenario_runs SET outcome=?,details=jsonb_set(details,'{polls}',to_jsonb(?::int))"
+                  + (expired ? " || '{\"failure\":\"Planning the demo day took too long\"}'::jsonb" : "")
+                  + ",row_version=row_version+1 WHERE id=? AND row_version=?",
+              expired ? "failed" : "preparing", polls + 1, id, run.get("row_version")));
+          continue;
+        }
         int next = step + 1;
         db.asSystem(ModuleRole.DEMO, () -> db.update(
             "UPDATE demo.scenario_runs SET outcome=?,details=jsonb_set(details - 'failure' - 'attempts','{step}',to_jsonb(?::int)),row_version=row_version+1 WHERE id=? AND row_version=?",

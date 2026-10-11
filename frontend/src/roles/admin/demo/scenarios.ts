@@ -39,13 +39,13 @@ export const SCENARIOS: Scenario[] = [
     situation: "The prepared peak day has 85 orders at Peliyagoda, more than the fleet can carry.",
     roles: ["Dispatcher", "Store manager"],
     steps: [
-      "Prepare demo day, then clock: after cutoff",
-      "Dispatcher: close orders and generate the plan",
-      "Dispatcher: open the deferred orders and read each reason",
+      "Prepare demo day: it places the orders, plans them and publishes the plan",
+      "Dispatcher: open the published plan and its deferred orders, and read each reason",
+      "Loader: the prepared day's trips are on the dock board; Driver: the plan published notice is on Home",
       "Store: the deferred store sees the notice and its new day",
     ],
     expected: "Deferred orders carry a reason, an actor and a time; the store is told, never left guessing.",
-    setup: ["after-cutoff"],
+    setup: [],
     register: "Task 2B",
   },
   {

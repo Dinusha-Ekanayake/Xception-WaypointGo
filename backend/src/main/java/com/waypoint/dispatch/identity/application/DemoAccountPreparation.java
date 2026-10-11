@@ -3,6 +3,7 @@ package com.waypoint.dispatch.identity.application;
 import com.waypoint.dispatch.demo.contract.DemoRuntime;
 import com.waypoint.dispatch.identity.contract.DemoAccounts;
 import com.waypoint.dispatch.identity.contract.IdentityQuery;
+import com.waypoint.dispatch.platform.config.DemoSignInProperties;
 import com.waypoint.dispatch.platform.db.*;
 import com.waypoint.dispatch.platform.messaging.*;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
@@ -15,14 +16,25 @@ import org.springframework.stereotype.Component;
 @Component
 public class DemoAccountPreparation implements CommandHandler,DemoAccounts {
   private final Database db; private final AccountAdminUseCase accounts; private final IdentityQuery identity;
-  private final DemoRuntime runtime; private final ReferenceQuery ref;
-  public DemoAccountPreparation(Database db,AccountAdminUseCase accounts,IdentityQuery identity,DemoRuntime runtime,ReferenceQuery ref){this.db=db;this.accounts=accounts;this.identity=identity;this.runtime=runtime;this.ref=ref;}
+  private final DemoRuntime runtime; private final ReferenceQuery ref; private final DemoSignInProperties signIn;
+  public DemoAccountPreparation(Database db,AccountAdminUseCase accounts,IdentityQuery identity,DemoRuntime runtime,ReferenceQuery ref,DemoSignInProperties signIn){this.db=db;this.accounts=accounts;this.identity=identity;this.runtime=runtime;this.ref=ref;this.signIn=signIn;}
+
+  /**
+   * One account per field role: the first of {@code DEMO_SIGN_IN_ACCOUNTS} holding
+   * it, so the driver a judge signs in as is the one given the day's vehicles and
+   * hears the plan, else {@code <role>@waypoint.local}.
+   */
   public Map<String,UUID> accounts() {
     return db.readAs(ModuleRole.IAM,db.ambientActor().orElse(null),()->{
       Map<String,UUID> result=new LinkedHashMap<>();
       for(String role:List.of("dispatcher","loader","driver","store_manager")) {
-        var row=db.queryOne("SELECT u.user_id FROM iam.users u JOIN iam.user_roles r ON r.user_id=u.user_id WHERE u.email=? AND u.is_active AND r.role_code=?",role+"@waypoint.local",role);
-        if(row!=null)result.put(role,(UUID)row.get("user_id"));
+        List<String> emails=new ArrayList<>();
+        for(String raw:signIn.accounts()) if(!raw.isBlank()) emails.add(raw.trim().toLowerCase(Locale.ROOT));
+        emails.add(role+"@waypoint.local");
+        for(String email:emails) {
+          var row=db.queryOne("SELECT u.user_id FROM iam.users u JOIN iam.user_roles r ON r.user_id=u.user_id WHERE u.email=? AND u.is_active AND r.role_code=?",email,role);
+          if(row!=null){result.put(role,(UUID)row.get("user_id"));break;}
+        }
       }
       return Map.copyOf(result);
     });

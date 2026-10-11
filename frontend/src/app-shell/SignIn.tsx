@@ -40,6 +40,10 @@ const field = "min-h-14 w-full rounded-[16px] bg-go-surface px-4 text-[16px] tex
 // go-dark tokens (src/shared/ui/theme.css), so the page needs one set of classes.
 const THEME_KEY = "waypoint.signin.theme";
 
+// The demo list never carries the administrator's password; the team keeps it
+// with the shared credentials on GitHub.
+const SHARED_CREDENTIALS = "Administrator password: find it in the shared credentials on GitHub.";
+
 function storedDark(): boolean {
   try {
     return window.localStorage.getItem(THEME_KEY) === "dark";
@@ -66,6 +70,7 @@ export default function SignIn({
   const [now, setNow] = useState(() => Date.now());
   const [dark, setDark] = useState(false);
   const [demo, setDemo] = useState<DemoSignIn | null>(null);
+  const [demoHint, setDemoHint] = useState<string | null>(null);
 
   useEffect(() => setDark(storedDark()), []);
   // A demo offers its accounts to pick, so a judge does not copy credentials.
@@ -77,11 +82,14 @@ export default function SignIn({
     return () => abort.abort();
   }, []);
   // On a role address, that role's account comes first.
-  const demoAccounts = demo && demo.password ? [...demo.accounts].sort((a, b) => Number(b.role === role) - Number(a.role === role)) : [];
+  const demoAccounts = demo ? [...demo.accounts].sort((a, b) => Number(b.role === role) - Number(a.role === role)) : [];
   const fill = (account: DemoAccount) => {
+    const fills = account.fillsPassword !== false;
     setEmail(account.email);
-    setPassword(demo?.password ?? "");
+    setPassword(fills ? demo?.password ?? "" : "");
+    setDemoHint(fills ? null : SHARED_CREDENTIALS);
     setFailure(null);
+    if (!fills) window.setTimeout(() => document.querySelector<HTMLInputElement>("input[aria-label=\"Password\"]")?.focus(), 0);
   };
   const toggleTheme = () => {
     const next = !dark;
@@ -182,6 +190,8 @@ export default function SignIn({
           </button>
         </form>
 
+        {demoHint && <p role="status" className="px-1 text-[13px] text-go-ink">{demoHint}</p>}
+
         {demoAccounts.length > 0 && (
           <Popover
             label="Demo accounts"
@@ -207,6 +217,7 @@ export default function SignIn({
                     <span className="text-[13px] text-go-muted">
                       {account.name}
                       {DEMO_DEVICE[account.role] ? ` · ${DEMO_DEVICE[account.role]}` : ""}
+                      {account.fillsPassword === false ? " · password in the shared credentials on GitHub" : ""}
                     </span>
                   </button>
                 ))}

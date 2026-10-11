@@ -7,7 +7,9 @@ import type { ShellRole } from "./session.ts";
 // a changed password is never listed. Outside a demo the list is empty and the
 // page shows nothing. Mirrors identity's DemoSignInController.
 
-export type DemoAccount = { email: string; name: string; role: ShellRole };
+// fillsPassword is false for an administrator: the list never carries its
+// password, so picking it fills the email and points to the shared credentials.
+export type DemoAccount = { email: string; name: string; role: ShellRole; fillsPassword?: boolean };
 export type DemoSignIn = { accounts: DemoAccount[]; password: string | null; pin: string | null };
 
 const NONE: DemoSignIn = { accounts: [], password: null, pin: null };
@@ -16,7 +18,7 @@ const NONE: DemoSignIn = { accounts: [], password: null, pin: null };
 export async function demoSignIn(signal?: AbortSignal): Promise<DemoSignIn> {
   try {
     const read = await request<DemoSignIn>("/api/session/demo", { signal });
-    return read.accounts.length > 0 && read.password ? read : { ...NONE, pin: read.pin ?? null };
+    return read.accounts.length > 0 ? read : { ...NONE, pin: read.pin ?? null };
   } catch {
     return NONE;
   }

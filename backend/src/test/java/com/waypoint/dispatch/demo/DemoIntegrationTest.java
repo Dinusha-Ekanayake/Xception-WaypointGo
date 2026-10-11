@@ -50,6 +50,8 @@ class DemoIntegrationTest {
   @Autowired ResetDayJob resetJob;
   @Autowired ImportReferenceDataHandler referenceImport;
   @Autowired ReferenceQuery reference;
+  @Autowired com.waypoint.dispatch.planning.application.PlanGenerationWorker planWorker;
+  @Autowired com.waypoint.dispatch.platform.messaging.OutboxRelay relay;
 
   @DynamicPropertySource
   static void database(DynamicPropertyRegistry registry) {
@@ -133,11 +135,17 @@ class DemoIntegrationTest {
       candidate = reference.nextOperatingDay(candidate.plusDays(1));
     }
     LocalDate day = candidate;
+    Instant started = Instant.now().minusSeconds(5);
     Command reset = command("ResetDay", settings.view().rowVersion(),
         Map.of("reason", "Prepare peak demo day", "serviceDate", day.toString()));
     bus.dispatch(admin, reset);
     assertTrue(bus.dispatch(admin, reset).replayed());
-    for (int i = 0; i < 3; i++) resetJob.run(Instant.now());
+    for (int i = 0; i < 4; i++) resetJob.run(Instant.now());
+    // The last step queued the day's generation; the worker is off in tests, so run it, then publish.
+    assertEquals("preparing", db.asSystem(ModuleRole.DEMO, () -> db.queryOne(
+        "SELECT outcome FROM demo.scenario_runs WHERE id = ?", reset.commandId())).get("outcome"));
+    planWorker.runPending();
+    resetJob.run(Instant.now());
     Map<String, Object> run = db.asSystem(ModuleRole.DEMO, () -> db.queryOne(
         "SELECT outcome,details FROM demo.scenario_runs WHERE id = ?", reset.commandId()));
     assertEquals("completed", run.get("outcome"), run.get("details").toString());
@@ -146,6 +154,21 @@ class DemoIntegrationTest {
             + " AND warehouse_order_ref LIKE 'SEED-WH-%'", java.sql.Date.valueOf(day))
         .get("n")).longValue());
     assertEquals(85, seeded);
+    // The day is planned and published, so the dock board has trips and their drivers hear the plan.
+    Map<String, Object> plan = db.asSystem(ModuleRole.PLANNING, () -> db.queryOne(
+        "SELECT r.plan_id, (SELECT count(*) FROM planning.trips t WHERE t.plan_id = r.plan_id) AS trips"
+            + " FROM planning.runs r WHERE r.depot_code = 'Peliyagoda' AND r.service_date = ? AND r.status = 'published'",
+        java.sql.Date.valueOf(day)));
+    assertNotNull(plan, "the prepared day is published");
+    assertTrue(((Number) plan.get("trips")).longValue() > 0, "the published plan has trips to load");
+    for (int pass = 0; pass < 200 && relay.deliverBatch() > 0; pass++) { }
+    UUID demoDriver = (UUID) db.asSystem(ModuleRole.IAM, () -> db.queryOne(
+        "SELECT user_id FROM iam.users WHERE email = 'driver@waypoint.local'")).get("user_id");
+    long heard = db.asSystem(ModuleRole.NOTIFICATION, () -> ((Number) db.queryOne(
+        "SELECT count(*) AS n FROM notification.notifications WHERE recipient_user_id = ?"
+            + " AND event_type ILIKE '%published%' AND created_at >= ?",
+        demoDriver, java.sql.Timestamp.from(started)).get("n")).longValue());
+    assertTrue(heard > 0, "the demo driver hears the published plan");
     assertThrows(DomainException.class, () -> bus.dispatch(admin,
         command("ResetDay", settings.view().rowVersion(),
             Map.of("reason", "Reject replacement of prepared day", "serviceDate", day.toString()))));

@@ -104,7 +104,7 @@ export default function DemoControlRoom(): React.JSX.Element {
             <h2 className="text-lg font-medium text-go-ink">Demo day and settings</h2>
             <div className="flex flex-wrap items-center gap-3">
               <button type="button" className={primary} disabled={busy}
-                onClick={() => { if (window.confirm("Prepare a fresh demo day? Only demo records are created; real orders are never touched.")) void run("Prepare demo day", (v) => resetDay(v, r)); }}>
+                onClick={() => { if (window.confirm("Prepare a fresh demo day? It places demo orders, then plans and publishes them, so loaders have trips and the driver is notified. Real orders are never touched.")) void run("Prepare demo day", (v) => resetDay(v, r)); }}>
                 Prepare demo day
               </button>
               <span className="text-sm text-go-secondary">Seeds the Peliyagoda peak day on the next empty operating day, with the demo accounts&rsquo; access.</span>

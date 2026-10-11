@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-11 - feat: a prepared demo day is planned and published; the demo list names the administrator
+
+`claude/demo-day-plan` · @jv-ransika
+
+Judges marking the loader and driver found nothing to see: Prepare demo day only placed orders, and gave the vehicles to `driver@waypoint.local`, not the driver they sign in as. It now ends with `plan:PrepareDemoDay` (migration `20261011T1200`), which queues the generation and publishes the draft, so the dock board has trips and the driver hears the plan; the accounts it prepares are the first of `DEMO_SIGN_IN_ACCOUNTS` per role. The demo sign-in list shows the administrator with `DEMO_SIGN_IN_ADMIN` but never its password, and points to the shared credentials on GitHub. R-DEMO-03, DEMO-09, DEMO-10.
+Verified: `DemoIntegrationTest` (published plan with trips, driver notified), `DemoSignInIntegrationTest`, `ModuleBoundaryTest`, `SeededPolicyTest`, `npm test`, typecheck, build, `demo-sign-in.spec.ts`.
+
 ## 2026-10-09 - deploy: spoken messages run on the VPS
 
 `dev` · @jv-ransika
