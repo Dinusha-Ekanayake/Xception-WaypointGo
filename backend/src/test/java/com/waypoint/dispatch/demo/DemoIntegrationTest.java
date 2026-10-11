@@ -140,12 +140,7 @@ class DemoIntegrationTest {
         Map.of("reason", "Prepare peak demo day", "serviceDate", day.toString()));
     bus.dispatch(admin, reset);
     assertTrue(bus.dispatch(admin, reset).replayed());
-    for (int i = 0; i < 4; i++) resetJob.run(Instant.now());
-    // The last step queued the day's generation; the worker is off in tests, so run it, then publish.
-    assertEquals("preparing", db.asSystem(ModuleRole.DEMO, () -> db.queryOne(
-        "SELECT outcome FROM demo.scenario_runs WHERE id = ?", reset.commandId())).get("outcome"));
-    planWorker.runPending();
-    resetJob.run(Instant.now());
+    for (int i = 0; i < 3; i++) resetJob.run(Instant.now());
     Map<String, Object> run = db.asSystem(ModuleRole.DEMO, () -> db.queryOne(
         "SELECT outcome,details FROM demo.scenario_runs WHERE id = ?", reset.commandId()));
     assertEquals("completed", run.get("outcome"), run.get("details").toString());
@@ -154,6 +149,23 @@ class DemoIntegrationTest {
             + " AND warehouse_order_ref LIKE 'SEED-WH-%'", java.sql.Date.valueOf(day))
         .get("n")).longValue());
     assertEquals(85, seeded);
+    // Seeding leaves the day unplanned; publishing it is a separate step.
+    assertNull(db.asSystem(ModuleRole.PLANNING, () -> db.queryOne(
+        "SELECT 1 FROM planning.runs WHERE depot_code = 'Peliyagoda' AND service_date = ? AND status = 'published'",
+        java.sql.Date.valueOf(day))));
+    Command publish = command("PublishDay", settings.view().rowVersion(), Map.of("reason", "Publish the prepared demo day"));
+    Map<?, ?> publishing = (Map<?, ?>) bus.dispatch(admin, publish).value();
+    assertEquals(day.toString(), publishing.get("serviceDate"), "the latest prepared day is the one published");
+    resetJob.run(Instant.now());
+    resetJob.run(Instant.now());
+    // The plan step queued the day's generation; the worker is off in tests, so run it, then publish.
+    assertEquals("preparing", db.asSystem(ModuleRole.DEMO, () -> db.queryOne(
+        "SELECT outcome FROM demo.scenario_runs WHERE id = ?", publish.commandId())).get("outcome"));
+    planWorker.runPending();
+    resetJob.run(Instant.now());
+    Map<String, Object> published = db.asSystem(ModuleRole.DEMO, () -> db.queryOne(
+        "SELECT outcome,details FROM demo.scenario_runs WHERE id = ?", publish.commandId()));
+    assertEquals("completed", published.get("outcome"), published.get("details").toString());
     // The day is planned and published, so the dock board has trips and their drivers hear the plan.
     Map<String, Object> plan = db.asSystem(ModuleRole.PLANNING, () -> db.queryOne(
         "SELECT r.plan_id, (SELECT count(*) FROM planning.trips t WHERE t.plan_id = r.plan_id) AS trips"
@@ -169,6 +181,8 @@ class DemoIntegrationTest {
             + " AND event_type ILIKE '%published%' AND created_at >= ?",
         demoDriver, java.sql.Timestamp.from(started)).get("n")).longValue());
     assertTrue(heard > 0, "the demo driver hears the published plan");
+    assertThrows(DomainException.class, () -> bus.dispatch(admin, command("PublishDay", settings.view().rowVersion(),
+        Map.of("reason", "Refuse a second publication", "serviceDate", day.toString()))));
     assertThrows(DomainException.class, () -> bus.dispatch(admin,
         command("ResetDay", settings.view().rowVersion(),
             Map.of("reason", "Reject replacement of prepared day", "serviceDate", day.toString()))));

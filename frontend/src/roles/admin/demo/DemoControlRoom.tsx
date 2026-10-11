@@ -7,7 +7,7 @@ import type { DemoView } from "@shared/domain/types";
 import { clock, dayLabel } from "@shared/wording/time";
 import { Badge, Empty, card, field, primary, secondary } from "../access/components";
 import { depotParts } from "./clock";
-import { depotInstant, loadDemo, loadRuns, resetDay, setClock, setEnabled, startSimulation, updateSettings } from "./data";
+import { depotInstant, loadDemo, loadRuns, publishDay, resetDay, setClock, setEnabled, startSimulation, updateSettings } from "./data";
 import ScenarioDeck from "./ScenarioDeck";
 import type { SetupAction } from "./scenarios";
 import SimulationsPanel from "./SimulationsPanel";
@@ -104,10 +104,17 @@ export default function DemoControlRoom(): React.JSX.Element {
             <h2 className="text-lg font-medium text-go-ink">Demo day and settings</h2>
             <div className="flex flex-wrap items-center gap-3">
               <button type="button" className={primary} disabled={busy}
-                onClick={() => { if (window.confirm("Prepare a fresh demo day? It places demo orders, then plans and publishes them, so loaders have trips and the driver is notified. Real orders are never touched.")) void run("Prepare demo day", (v) => resetDay(v, r)); }}>
+                onClick={() => { if (window.confirm("Prepare a fresh demo day? Only demo records are created; real orders are never touched.")) void run("Prepare demo day", (v) => resetDay(v, r)); }}>
                 Prepare demo day
               </button>
               <span className="text-sm text-go-secondary">Seeds the Peliyagoda peak day on the next empty operating day, with the demo accounts&rsquo; access.</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" className={primary} disabled={busy}
+                onClick={() => { if (window.confirm("Plan and publish the prepared demo day? Loaders then have its trips and the driver is notified. A published plan can only be revised.")) void run("Publish demo plan", (v) => publishDay(v, r)); }}>
+                Publish demo plan
+              </button>
+              <span className="text-sm text-go-secondary">Plans and publishes the latest prepared day, so the dock board has trips and the demo driver gets the plan notices. It takes a minute.</span>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-sm text-go-secondary">
               <span>Driver position updates every</span>

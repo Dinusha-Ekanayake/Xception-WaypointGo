@@ -8,6 +8,7 @@ import com.waypoint.dispatch.platform.messaging.Command;
 import com.waypoint.dispatch.platform.messaging.CommandBus;
 import com.waypoint.dispatch.platform.scheduling.ScheduledJob;
 import com.waypoint.dispatch.shared.domain.Actor;
+import com.waypoint.dispatch.shared.error.DomainException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
@@ -16,17 +17,19 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
- * A persisted workflow; every owning command has its own audited transaction.
- * The last step plans the day in the generation queue, so it is sent again on
- * each run, as a new command, until it answers {@code PUBLISHED}; it gives up
- * after {@link #MAX_POLLS} sends.
+ * Persisted workflows; every owning command has its own audited transaction.
+ * {@code demo:ResetDay} seeds a day's orders. {@code demo:PublishDay}, started
+ * separately, plans and publishes a seeded day: its plan step runs in the
+ * generation queue, so it is sent again on each run, as a new command, until it
+ * answers {@code PUBLISHED}, and gives up after {@link #MAX_POLLS} sends.
  */
 @Component
 public class ResetDayJob implements ScheduledJob {
   static final String PLAN_STEP = "plan:PrepareDemoDay";
   static final int MAX_POLLS = 120;
-  private static final List<String> STEPS = List.of(
-      "reference:PrepareDemoDay", "iam:PrepareDemoDay", "order:PrepareDemoDay", "plan:PrepareDemoDay");
+  static final Map<String, List<String>> STEPS = Map.of(
+      ResetDayHandler.KIND, List.of("reference:PrepareDemoDay", "iam:PrepareDemoDay", "order:PrepareDemoDay"),
+      PublishDayHandler.KIND, List.of("iam:PrepareDemoDay", PLAN_STEP));
   private final Database db;
   private final CommandBus bus;
   private final ObjectMapper json;
@@ -47,15 +50,17 @@ public class ResetDayJob implements ScheduledJob {
   public void run(Instant ignored) {
     if (!settings.view().enabled()) return;
     List<Map<String, Object>> runs = db.asSystem(ModuleRole.DEMO, () -> db.query(
-        "SELECT id,actor,reason,details,row_version FROM demo.scenario_runs WHERE scenario_key = 'demo:ResetDay' AND outcome = 'preparing' ORDER BY started_at,id LIMIT 1"));
+        "SELECT id,scenario_key,actor,reason,details,row_version FROM demo.scenario_runs"
+            + " WHERE scenario_key IN ('demo:ResetDay','demo:PublishDay') AND outcome = 'preparing' ORDER BY started_at,id LIMIT 1"));
     for (Map<String, Object> run : runs) {
       UUID id = (UUID) run.get("id");
+      List<String> steps = STEPS.get((String) run.get("scenario_key"));
       JsonNode detail;
       try { detail = json.readTree(run.get("details").toString()); }
       catch (Exception invalid) { fail(id, "Saved preparation is unreadable"); continue; }
       int step = detail.path("step").asInt();
-      if (step < 0 || step >= STEPS.size()) { fail(id, "Invalid preparation step"); continue; }
-      String kind = STEPS.get(step);
+      if (step < 0 || step >= steps.size()) { fail(id, "Invalid preparation step"); continue; }
+      String kind = steps.get(step);
       int polls = detail.path("polls").asInt();
       String key = PLAN_STEP.equals(kind) ? id + ":" + kind + ":" + polls : id + ":" + kind;
       UUID commandId = UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8));
@@ -77,10 +82,11 @@ public class ResetDayJob implements ScheduledJob {
         int next = step + 1;
         db.asSystem(ModuleRole.DEMO, () -> db.update(
             "UPDATE demo.scenario_runs SET outcome=?,details=jsonb_set(details - 'failure' - 'attempts','{step}',to_jsonb(?::int)),row_version=row_version+1 WHERE id=? AND row_version=?",
-            next == STEPS.size() ? "completed" : "preparing", next, id, run.get("row_version")));
+            next == steps.size() ? "completed" : "preparing", next, id, run.get("row_version")));
       } catch (RuntimeException failure) {
         int attempts = detail.path("attempts").asInt() + 1;
-        String reason = "Step " + kind + " failed: " + failure.getClass().getSimpleName();
+        String reason = "Step " + kind + " failed: " + (failure instanceof DomainException refused
+            ? refused.getMessage() : failure.getClass().getSimpleName());
         db.asSystem(ModuleRole.DEMO, () -> db.update(
             "UPDATE demo.scenario_runs SET outcome=?,details=jsonb_set(jsonb_set(details,'{failure}',to_jsonb(?::text)),'{attempts}',to_jsonb(?::int)),row_version=row_version+1 WHERE id=? AND row_version=? AND outcome='preparing'",
             attempts >= 3 ? "failed" : "preparing", reason, attempts, id, run.get("row_version")));

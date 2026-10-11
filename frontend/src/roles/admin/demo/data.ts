@@ -30,6 +30,11 @@ export function resetDay(view: DemoView, reason: string) {
   return send(newCommand(DemoCommandKind.ResetDay, { reason }, view.rowVersion));
 }
 
+/** Plans and publishes the latest prepared day, apart from seeding it: loader trips and driver notices. */
+export function publishDay(view: DemoView, reason: string) {
+  return send(newCommand(DemoCommandKind.PublishDay, { reason }, view.rowVersion));
+}
+
 /** The instant of a depot wall-clock time (Asia/Colombo, UTC+05:30) on the demo day. */
 export function depotInstant(view: DemoView, hhmm: string): Date {
   const day = new Date(new Date(view.now).getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10);

@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 /** Records preparation intent. The coordinator dispatches owner commands after commit. */
 @Component
 public class ResetDayHandler implements CommandHandler {
+  static final String KIND = "demo:ResetDay";
   private final Database db;
   private final DemoAccess access;
   private final DemoDayQuery days;
@@ -36,7 +37,7 @@ public class ResetDayHandler implements CommandHandler {
     this.clock = clock;
   }
 
-  @Override public String kind() { return "demo:ResetDay"; }
+  @Override public String kind() { return KIND; }
   @Override public String action() { return kind(); }
   @Override public ModuleRole moduleRole() { return ModuleRole.DEMO; }
   @Override public String resource(Command command) { return "wpt:demo:settings:global"; }
@@ -54,7 +55,7 @@ public class ResetDayHandler implements CommandHandler {
     String reason = CommandPayload.of(command).requiredText("reason");
     if (reason.length() < 3 || reason.length() > 500)
       throw new DomainException(ErrorCode.VALIDATION_FAILED, "Use a reason of 3-500 characters");
-    if (db.queryOne("SELECT 1 FROM demo.scenario_runs WHERE scenario_key = 'demo:ResetDay' AND outcome = 'preparing' LIMIT 1") != null)
+    if (db.queryOne("SELECT 1 FROM demo.scenario_runs WHERE scenario_key IN ('demo:ResetDay','demo:PublishDay') AND outcome = 'preparing' LIMIT 1") != null)
       throw new DomainException(ErrorCode.CONFLICT, "A demo day is already being prepared");
     LocalDate date = CommandPayload.of(command).optionalDate("serviceDate");
     if (date == null) {
