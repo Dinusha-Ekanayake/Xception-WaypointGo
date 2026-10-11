@@ -30,9 +30,9 @@ export function resetDay(view: DemoView, reason: string) {
   return send(newCommand(DemoCommandKind.ResetDay, { reason }, view.rowVersion));
 }
 
-/** Plans and publishes the latest prepared day, apart from seeding it: loader trips and driver notices. */
-export function publishDay(view: DemoView, reason: string) {
-  return send(newCommand(DemoCommandKind.PublishDay, { reason }, view.rowVersion));
+/** Sample notices in the demo driver's inbox, so the driver's notifications can be shown at any time. */
+export function sendDriverNotifications(reason: string) {
+  return send(newCommand(DemoCommandKind.SendDriverNotifications, { reason }));
 }
 
 /** The instant of a depot wall-clock time (Asia/Colombo, UTC+05:30) on the demo day. */

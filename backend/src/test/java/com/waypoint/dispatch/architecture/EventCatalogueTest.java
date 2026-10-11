@@ -68,6 +68,7 @@ class EventCatalogueTest {
           "vehicle.status_changed",
           "calendar.overridden",
           "message.posted",
+          "demo.driver_notifications_requested",
           "order.outlook_changed",
           "stop.likely_late");
 

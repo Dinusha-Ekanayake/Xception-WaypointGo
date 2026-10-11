@@ -7,7 +7,7 @@ import type { DemoView } from "@shared/domain/types";
 import { clock, dayLabel } from "@shared/wording/time";
 import { Badge, Empty, card, field, primary, secondary } from "../access/components";
 import { depotParts } from "./clock";
-import { depotInstant, loadDemo, loadRuns, publishDay, resetDay, setClock, setEnabled, startSimulation, updateSettings } from "./data";
+import { depotInstant, loadDemo, loadRuns, resetDay, sendDriverNotifications, setClock, setEnabled, startSimulation, updateSettings } from "./data";
 import ScenarioDeck from "./ScenarioDeck";
 import type { SetupAction } from "./scenarios";
 import SimulationsPanel from "./SimulationsPanel";
@@ -110,11 +110,11 @@ export default function DemoControlRoom(): React.JSX.Element {
               <span className="text-sm text-go-secondary">Seeds the Peliyagoda peak day on the next empty operating day, with the demo accounts&rsquo; access.</span>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <button type="button" className={primary} disabled={busy}
-                onClick={() => { if (window.confirm("Plan and publish the prepared demo day? Loaders then have its trips and the driver is notified. A published plan can only be revised.")) void run("Publish demo plan", (v) => publishDay(v, r)); }}>
-                Publish demo plan
+              <button type="button" className={secondary} disabled={busy}
+                onClick={() => void run("Driver notifications", () => sendDriverNotifications(r))}>
+                Send driver notifications
               </button>
-              <span className="text-sm text-go-secondary">Plans and publishes the latest prepared day, so the dock board has trips and the demo driver gets the plan notices. It takes a minute.</span>
+              <span className="text-sm text-go-secondary">Puts four sample notices in the demo driver&rsquo;s inbox. Nothing else changes, so planning and loading stay free to try.</span>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-sm text-go-secondary">
               <span>Driver position updates every</span>

@@ -4,12 +4,12 @@
 
 ---
 
-## 2026-10-11 - feat: Publish demo plan gives loaders and drivers a day; the demo list names the administrator
+## 2026-10-11 - feat: sample driver notifications for judges; the demo list names the administrator
 
 `claude/demo-day-plan` · @jv-ransika
 
-Judges marking the loader and driver found nothing to see: Prepare demo day only placed orders, and gave the vehicles to `driver@waypoint.local`, not the driver they sign in as. A separate control room action, Publish demo plan (`demo:PublishDay`, migrations `20261011T1200` and `T1300`), plans the latest prepared day through `plan:PrepareDemoDay` in the generation queue and publishes it, so the dock board has trips and the driver hears the plan; seeding orders is unchanged. Both prepare the first of `DEMO_SIGN_IN_ACCOUNTS` per role. The demo sign-in list shows the administrator with `DEMO_SIGN_IN_ADMIN` but never its password, and points to the shared credentials on GitHub. R-DEMO-03, DEMO-09, DEMO-10.
-Verified: `DemoIntegrationTest` (seeding leaves the day unplanned; publishing gives trips and notifies the driver; a second publish is refused), `FoundationIntegrationTest`, `DemoSignInIntegrationTest`, `ModuleBoundaryTest`, `SeededPolicyTest`, `npm test`, typecheck, build, `demo-sign-in.spec.ts`.
+Judges could not see the driver's notifications without a plan published and loaded, and a demo that published the day for them blocked planning instead. Send driver notifications (`demo:SendDriverNotifications`, migration `20261011T1400`) publishes `demo.driver_notifications_requested`; Notification writes four sample notices to the demo driver's inbox, in app only, and nothing else changes. Prepare demo day still only seeds orders, now for the first of `DEMO_SIGN_IN_ACCOUNTS` per role. A short-lived plan step (`plan:PrepareDemoDay`, `demo:PublishDay`, migrations `20261011T1200` and `T1300`, already applied on preview and production) was removed and its actions marked unimplemented. The demo sign-in list shows the administrator with `DEMO_SIGN_IN_ADMIN` but never its password, and points to the shared credentials on GitHub. R-DEMO-03, R-DEMO-05, DEMO-09, DEMO-10.
+Verified: `DemoIntegrationTest`, `DemoSignInIntegrationTest`, `FoundationIntegrationTest`, `EventCatalogueTest`, `ModuleBoundaryTest`, `SeededPolicyTest`, `npm test`, typecheck, build, `demo-sign-in.spec.ts`.
 
 ## 2026-10-09 - deploy: spoken messages run on the VPS
 
