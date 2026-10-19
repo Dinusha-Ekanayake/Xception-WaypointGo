@@ -35,6 +35,11 @@ export function sendDriverNotifications(reason: string) {
   return send(newCommand(DemoCommandKind.SendDriverNotifications, { reason }));
 }
 
+/** Asks the server to start the demo database again from a fresh install (R-DEMO-06). */
+export function requestReset(reason: string) {
+  return send(newCommand(DemoCommandKind.RequestReset, { reason, confirm: "RESET" }));
+}
+
 /** The instant of a depot wall-clock time (Asia/Colombo, UTC+05:30) on the demo day. */
 export function depotInstant(view: DemoView, hhmm: string): Date {
   const day = new Date(new Date(view.now).getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10);

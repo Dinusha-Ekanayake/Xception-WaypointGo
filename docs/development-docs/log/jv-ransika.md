@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-19 - feat: the demo runs in its own database, with a Reset demo button
+
+`claude/demo-day-plan` · @jv-ransika
+
+Demo data piled up in the real database, and its rules (no going back before a close, one seed per day) kept getting in the way of judging. With `DEMO_RESET=true` the demo runs in `waypoint_demo`: demo mode on asks the server to switch, Reset demo to recreate it from a fresh install, demo mode off to switch back to the real database, which the demo never wrote to. The app only records requests; `deploy/vps/demo-reset.sh` on a systemd timer carries them out and drops nothing but `waypoint_demo`. `compose.yaml` takes `DB_NAME`; `deploy.sh` keeps the live database and migrates both. R-DEMO-06, DEMO-11, Demo database in [deployment.md](../../deployment.md).
+Verified: `DemoSeparateDatabaseIntegrationTest`, `DemoIntegrationTest`, `FoundationIntegrationTest`, `ModuleBoundaryTest`, `SeededPolicyTest`, `bash -n`, typecheck, then on, reset and off on preview.
+
 ## 2026-10-19 - fix: Prepare demo day moves on to the next empty day; the presenter guide names the working accounts
 
 `claude/demo-day-plan` · @jv-ransika

@@ -52,8 +52,8 @@ services:
     # owner of the schema, not a superuser) and gives waypoint_app the password in
     # DATABASE_URL.
     environment:
-      DATABASE_URL: postgresql://waypoint_app:${APP_DB_PASSWORD:-local-testing-only-app}@db:5432/waypoint
-      MIGRATION_DATABASE_URL: postgresql://waypoint:${POSTGRES_PASSWORD:-local-testing-only}@db:5432/waypoint
+      DATABASE_URL: postgresql://waypoint_app:${APP_DB_PASSWORD:-local-testing-only-app}@db:5432/${DB_NAME:-waypoint}
+      MIGRATION_DATABASE_URL: postgresql://waypoint:${POSTGRES_PASSWORD:-local-testing-only}@db:5432/${DB_NAME:-waypoint}
       SEED_PASSWORD: ${SEED_PASSWORD:-123456789123}
       JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError
     command: ["sh", "/app/compose-init.sh"]
@@ -71,7 +71,7 @@ services:
     image: postgres:16-bookworm
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:-local-testing-only}
-    command: ["psql", "-h", "db", "-U", "waypoint", "-d", "waypoint", "-v", "ON_ERROR_STOP=1", "-f", "/seed/seed-demo.sql"]
+    command: ["psql", "-h", "db", "-U", "waypoint", "-d", "${DB_NAME:-waypoint}", "-v", "ON_ERROR_STOP=1", "-f", "/seed/seed-demo.sql"]
     volumes:
       - ./scripts/seed-demo.sql:/seed/seed-demo.sql:ro
     depends_on:
@@ -90,7 +90,7 @@ services:
     # Logs in as waypoint_app, which owns nothing and can touch a table only by
     # adopting a module role inside a transaction. The owner's password is not here.
     environment:
-      DATABASE_URL: postgresql://waypoint_app:${APP_DB_PASSWORD:-local-testing-only-app}@db:5432/waypoint
+      DATABASE_URL: postgresql://waypoint_app:${APP_DB_PASSWORD:-local-testing-only-app}@db:5432/${DB_NAME:-waypoint}
       # Off by default here because this file is also the local Docker stack on
       # plain HTTP. The VPS overlay forces it on.
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
@@ -144,6 +144,9 @@ services:
       DEMO_SIGN_IN_PIN: ${DEMO_SIGN_IN_PIN:-}
       DEMO_SIGN_IN_ADMIN: ${DEMO_SIGN_IN_ADMIN:-false}
       DEMO_SIGN_IN_UNTIL: ${DEMO_SIGN_IN_UNTIL:-}
+      # Opt-in: the Reset demo button only records a request, which the server's
+      # deploy/vps/demo-reset.sh carries out (docs/deployment.md).
+      DEMO_RESET: ${DEMO_RESET:-false}
       # Roadmap FF-05: voice note transcription, off while TRANSCRIBE_ENGINE is empty.
       TRANSCRIBE_ENGINE: ${TRANSCRIBE_ENGINE:-}
       TRANSCRIBE_MODEL: ${TRANSCRIBE_MODEL:-gemini-3.8-flash}

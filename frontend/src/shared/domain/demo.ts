@@ -29,6 +29,7 @@ export const DemoCommandKind = {
   UpdateSettings: "demo:UpdateSettings",
   ResetDay: "demo:ResetDay",
   SendDriverNotifications: "demo:SendDriverNotifications",
+  RequestReset: "demo:RequestReset",
   StartSimulation: "demo:StartSimulation",
   ControlSimulations: "demo:ControlSimulations",
 } as const;
