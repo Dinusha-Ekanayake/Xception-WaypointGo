@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-19 - fix: an empty catalogue syncs as soon as the backend serves
+
+`claude/demo-day-plan` · @jv-ransika
+
+A fresh database (a first install, or a demo database just reset) had no catalogue until the next quarter-hour run of `CatalogueSyncJob`, so the store said the warehouse was not answering for up to 15 minutes. `CatalogueStartupSync` runs one sync in the background when the backend starts serving and no sync ever succeeded there; the 15-minute refresh is unchanged. Off in tests (`app.warehouse.sync-on-start=false`).
+Verified: `ModuleBoundaryTest`, `FoundationIntegrationTest`, a demo reset on preview showing the catalogue straight after.
+
 ## 2026-10-19 - fix: each frontend reaches its own stack's backend
 
 `claude/demo-day-plan` · @jv-ransika
