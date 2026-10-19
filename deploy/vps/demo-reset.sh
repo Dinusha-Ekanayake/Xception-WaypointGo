@@ -73,10 +73,13 @@ log_run() {
 }
 
 # The backend on one database. The name is one of two literals, never input.
+# The live database is recorded only once the backend runs on it, and the start
+# is tried twice, because a container another command just replaced can make the
+# first attempt fail ("No such container").
 start_on() {
   [[ "$1" == "$REAL" || "$1" == "$DEMO" ]] || return 1
+  DB_NAME="$1" "${compose[@]}" up -d --no-deps --force-recreate --wait --wait-timeout 600 backend     || { sleep 5; DB_NAME="$1" "${compose[@]}" up -d --no-deps --force-recreate --wait --wait-timeout 600 backend; }     || return 1
   echo "$1" > "$STATE"
-  DB_NAME="$1" "${compose[@]}" up -d --no-deps --force-recreate --wait --wait-timeout 600 backend
 }
 
 # waypoint_demo from a fresh install: schema, reference data, the accounts and
