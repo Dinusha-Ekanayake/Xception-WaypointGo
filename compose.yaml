@@ -20,6 +20,9 @@ services:
     labels:
       com.waypoint.logs: "true"
     image: postgres:16-bookworm
+    # A host restart (the provider's power button on 2026-10-18) left the database
+    # stopped while everything that depends on it came back, so it restarts too.
+    restart: unless-stopped
     environment:
       POSTGRES_USER: waypoint
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-testing-only}

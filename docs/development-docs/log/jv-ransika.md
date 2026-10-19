@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-19 - fix: the database comes back after a host restart
+
+`claude/demo-day-plan` · @jv-ransika
+
+The VPS was powered off from the provider's side on 2026-10-18 18:34 and booted 25 minutes later; every container came back except both `db`, which had no restart policy, so production and preview answered 503 to every sign-in for about 21 hours. `db` now has `restart: unless-stopped` like the other services. Both databases were started by hand first; Postgres reported a clean shutdown.
+Verified: `docker compose config`, a preview then production deploy, sign-in on both.
+
 ## 2026-10-11 - feat: sample driver notifications for judges; the demo list names the administrator
 
 `claude/demo-day-plan` · @jv-ransika
