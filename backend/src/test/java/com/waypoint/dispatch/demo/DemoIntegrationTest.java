@@ -149,6 +149,18 @@ class DemoIntegrationTest {
     assertThrows(DomainException.class, () -> bus.dispatch(admin,
         command("ResetDay", settings.view().rowVersion(),
             Map.of("reason", "Reject replacement of prepared day", "serviceDate", day.toString()))));
+    // With no date given, a seeded day is passed over for the next empty one, or refused when none is left.
+    try {
+      Map<?, ?> next = (Map<?, ?>) bus.dispatch(admin, command("ResetDay", settings.view().rowVersion(),
+          Map.of("reason", "Prepare the next empty day"))).value();
+      assertNotEquals(day.toString(), next.get("serviceDate"));
+      assertTrue(db.asSystem(ModuleRole.ORDERING, () -> db.queryOne(
+          "SELECT 1 FROM ordering.orders WHERE depot_code = 'Peliyagoda' AND delivery_date = ? LIMIT 1",
+          java.sql.Date.valueOf(next.get("serviceDate").toString()))) == null);
+      for (int i = 0; i < 3; i++) resetJob.run(Instant.now());
+    } catch (DomainException full) {
+      assertTrue(full.getMessage().contains("within seven days"), full.getMessage());
+    }
     bus.dispatch(admin, command("Disable", settings.view().rowVersion(),
         Map.of("reason", "End isolated demo test")));
   }

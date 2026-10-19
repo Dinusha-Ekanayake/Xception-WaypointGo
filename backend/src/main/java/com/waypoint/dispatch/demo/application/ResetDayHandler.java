@@ -57,10 +57,16 @@ public class ResetDayHandler implements CommandHandler {
     if (db.queryOne("SELECT 1 FROM demo.scenario_runs WHERE scenario_key = 'demo:ResetDay' AND outcome = 'preparing' LIMIT 1") != null)
       throw new DomainException(ErrorCode.CONFLICT, "A demo day is already being prepared");
     LocalDate date = CommandPayload.of(command).optionalDate("serviceDate");
+    LocalDate today = clock.now().atZone(Clock.OPERATING_ZONE).toLocalDate();
     if (date == null) {
-      date = reference.nextOperatingDay(clock.now().atZone(Clock.OPERATING_ZONE).toLocalDate().plusDays(1));
+      // The first empty operating day within the window, so a day already seeded
+      // (or holding real orders) moves the demo on rather than refusing it.
+      date = reference.nextOperatingDay(today.plusDays(1));
+      while (!days.empty("Peliyagoda", date) && !date.isAfter(today.plusDays(7))) {
+        date = reference.nextOperatingDay(date.plusDays(1));
+      }
     }
-    if (date.isAfter(clock.now().atZone(Clock.OPERATING_ZONE).toLocalDate().plusDays(7))
+    if (date.isAfter(today.plusDays(7))
         || !reference.isOperating(date)
         || !days.empty("Peliyagoda", date)) {
       throw new DomainException(ErrorCode.CONFLICT, "Choose an empty operating date within seven days");

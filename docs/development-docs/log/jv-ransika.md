@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-19 - fix: Prepare demo day moves on to the next empty day; the presenter guide names the working accounts
+
+`claude/demo-day-plan` · @jv-ransika
+
+Prepare demo day always aimed at the next operating day and was refused once that day held orders, so a second demo could not be prepared. With no date given it now takes the first empty operating day within seven days (R-DEMO-03, DEMO-03). The presenter guide listed `<role>@waypoint.local`, which the demo password does not open on the deployment; it now lists the accounts, password and loader PIN the sign-in page offers (`GET /api/session/demo`).
+Verified: `DemoIntegrationTest`, `npm test`, typecheck, build, a preview then production deploy.
+
 ## 2026-10-19 - fix: the database comes back after a host restart
 
 `claude/demo-day-plan` · @jv-ransika
