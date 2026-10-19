@@ -28,7 +28,9 @@ STATE="$APP_DIR/.demo-database"
 
 env_value() { sed -n "s/^$1=//p" "$APP_DIR/.env" | tail -1; }
 [[ "$(env_value DEMO_RESET)" == "true" ]] || exit 0
+# As deploy.sh: no DEPLOY_ENV line means production.
 environment="$(env_value DEPLOY_ENV)"
+environment="${environment:-production}"
 [[ "$environment" == production || "$environment" == preview ]] || exit 0
 
 compose=(docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml)
