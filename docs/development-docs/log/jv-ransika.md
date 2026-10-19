@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-19 - fix: each frontend reaches its own stack's backend
+
+`claude/demo-day-plan` · @jv-ransika
+
+Both stacks' backends join the shared `waypoint-edge` network, where compose names each `backend`, and the frontends called `http://backend:8080`. A production page could be answered by the preview backend: a demo switch pressed on production was recorded in preview, and production's control room read preview's demo state. The VPS overlay now sets `BACKEND_URL` to the stack's unique `production-backend` or `preview-backend`.
+Verified: `docker compose config` for both environments, deploys, and the control room reading its own stack.
+
 ## 2026-10-19 - feat: the demo runs in its own database, with a Reset demo button
 
 `claude/demo-day-plan` · @jv-ransika
