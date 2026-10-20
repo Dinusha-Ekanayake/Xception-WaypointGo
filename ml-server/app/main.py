@@ -49,7 +49,7 @@ def delivery_risk(req: DeliveryRiskRequest):
 @app.post('/v1/demand-forecast', response_model=DemandForecastResponse)
 def demand_forecast(req: DemandForecastRequest):
     try:
-        rows = scoring.demand_forecast(LOADED, req.calendar, req.weeks)
+        rows = scoring.demand_forecast(LOADED, req.calendar, req.outlets, req.weeks)
     except scoring.BadRequest as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     info = _info('demand_forecast')

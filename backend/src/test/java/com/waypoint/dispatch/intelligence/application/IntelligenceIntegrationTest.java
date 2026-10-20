@@ -490,6 +490,17 @@ class IntelligenceIntegrationTest {
     assertEquals(10.5, rows.get(0).get("totalVolumeM3").asDouble(), 1e-9);
     assertEquals(2.25, rows.get(0).get("chilledVolumeM3").asDouble(), 1e-9);
     assertFalse(rows.get(0).get("degraded").asBoolean());
+
+    // The demand model schedules each outlet's orders, so every depot's outlets go with the request.
+    java.util.Set<String> sent = new java.util.HashSet<>();
+    for (JsonNode o : STUB.lastForecastRequest.get().path("outlets")) {
+      sent.add(o.path("depot").asText() + "|" + o.path("outlet_id").asText());
+    }
+    java.util.Set<String> expected = new java.util.HashSet<>();
+    for (String d : reference.depotCodes()) {
+      reference.outletsOfDepot(d, null).forEach(o -> expected.add(d + "|" + o.outletId()));
+    }
+    assertEquals(expected, sent);
   }
 
   @Test

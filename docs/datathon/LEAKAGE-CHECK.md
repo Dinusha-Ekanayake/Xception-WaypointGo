@@ -6,7 +6,7 @@ How much of the reported late-risk score holds on days the model has never seen,
 
 ## Why
 
-The original validation grouped folds by route (`ml-server/datathon/src/task1_a.py`). Two things could make that score look better than it is:
+The original validation grouped folds by route (`ml-server/datathon/src/task1_a.py`). The result below measures that earlier pipeline's features; since yi-yi #5 the check builds its frames with the final model's features (`parallel_model.prepare`) and has not yet been rerun on them. Two things could make that score look better than it is:
 
 1. **The split.** Folds grouped by route still put other routes of the same day on both sides, so a fold can learn that day's conditions.
 2. **The inputs.** `disruption_index` in `road_conditions.csv` is the road condition that actually happened on the day. A plan made the evening before does not know it. The features derived from it (`tmult`, `exp_extra_travel`, `cum_exp_extra_travel`) carry the same information.

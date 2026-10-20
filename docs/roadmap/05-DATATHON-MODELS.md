@@ -33,7 +33,7 @@ It is advice: R-ML-05 stays, and predictions never change an allocation.
 
 - **Training data.** The models were trained on the synthetic competition data, licensed for the competition only. The repository holds a 560-row sample.
 - **The 0.979 AUC is likely optimistic.**
-  - Validation groups by route (`ml-server/datathon/src/task1_a.py:29`), so routes from the same date sit on both sides.
+  - Validation groups by route (`ml-server/datathon/src/task1_a.py:29`, the earlier pipeline, replaced by the final models in yi-yi #5), so routes from the same date sit on both sides.
   - `disruption_index` is the realised road condition.
   - The fallback model (log loss 0.2385 against 0.1516) is the honest production figure after road conditions end on 2026-06-28.
   - **Measured by MF-05 (2026-10-08):** the split costs only 0.002 of AUC (0.977 route folds, 0.975 on the last 6 weeks in date order). The road index is the real gap: without it AUC is 0.957 and log loss 0.168 against 0.133, 26% worse. Figures in `ml-server/README.md`.

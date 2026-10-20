@@ -71,6 +71,8 @@ class Week(Model):
 
 class DemandForecastRequest(Model):
     calendar: List[Dict[str, Any]] = Field(min_length=7)
+    # Every outlet of the depots forecast (outlet_id, brand, depot): the model schedules their orders.
+    outlets: List[Dict[str, Any]] = Field(min_length=1)
     weeks: List[Week] = Field(min_length=1)
 
 

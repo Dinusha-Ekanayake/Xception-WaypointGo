@@ -1,5 +1,5 @@
-# Waypoint model service. Python 3.11 is what the Datathon models were trained on.
-FROM python:3.11-slim
+# Waypoint model service. Python 3.12 is where the final Datathon models reproduce their submissions.
+FROM python:3.12-slim
 
 # LightGBM needs the OpenMP runtime.
 RUN apt-get update \

@@ -138,7 +138,7 @@ def test_the_service_serves_a_retrained_model_from_the_same_features(tmp_path, w
     (tmp_path / 'manifest.json').write_text(json.dumps(manifest))
 
     loaded = registry.load(tmp_path / 'manifest.json', models)
-    assert loaded.task1_a is None and loaded.planning is not None
+    assert loaded.task1 is None and loaded.planning is not None
     assert loaded.task2a is not None, 'the forecast model is unaffected'
     body = request_body(pd.read_csv(FIXTURES / 'orders.csv'), pd.read_csv(FIXTURES / 'route_legs.csv'), general())
     routes = [Route(**r) for r in body['routes']]

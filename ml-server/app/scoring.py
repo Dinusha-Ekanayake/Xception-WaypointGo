@@ -2,13 +2,16 @@
 
 The reference tables arrive with the request, shaped exactly like the supplied
 CSVs (same table and column names), so the vendored feature code runs
-unchanged. A route whose date has no road-condition row is scored by the
-fallback model, which was trained without them, and is labelled so.
+unchanged. A route whose date has no road-condition row is scored by the copy
+of the model trained without them, and is labelled so.
 """
+import copy
+
 import numpy as np
 import pandas as pd
 
-from src import features_a, features_b, task1_a, task1_b, task2a  # noqa: F401 (vendored)
+import mc_task1  # vendored
+import task2a_demand  # vendored
 from training import planning
 
 TABLES = {
@@ -97,24 +100,18 @@ def delivery_risk(loaded, routes, reference):
     if loaded.planning is not None:
         return _planning(loaded.planning, routes, g)
     cal = g['calendar'].set_index('date')
+    model = _with_context(loaded.task1, _context(g, loaded.task1.ctx))
     covered = set(zip(g['road_conditions'].district, g['road_conditions'].date))
-    with_rc = [r for r in routes if (r.district, r.date) in covered]
-    without_rc = [r for r in routes if (r.district, r.date) not in covered]
     out = {}
-    if with_rc:
-        orders, legs = frames(with_rc)
+    for fallback in (False, True):
+        group = [r for r in routes if ((r.district, r.date) in covered) != fallback]
+        if not group:
+            continue
+        orders, legs = frames(group)
         legs['monsoon'] = legs.date.map(cal.monsoon).astype(int)
-        legs['dow'] = legs.date.map(cal.dow).astype(int)
-        for row in _blend(loaded, orders, legs, g).itertuples(index=False):
-            out[row.delivery_id] = (float(row.pred_service_min), float(row.pred_late_prob), 'used')
-    if without_rc:
-        orders, legs = frames(without_rc)
-        legs['monsoon'] = legs.date.map(cal.monsoon).astype(int)
-        legs['dow'] = legs.date.map(cal.dow).astype(int)
-        xb = features_b.build([('serve', orders, legs)], g, no_road_conditions=True)
-        pb = task1_b.predict(loaded.task1_fallback, xb)
-        for d, svc, late in zip(xb.delivery_id, pb.svc, pb.late):
-            out[d] = (round(float(svc), 2), round(float(np.clip(late, 5e-4, 1 - 5e-4)), 4), 'fallback')
+        for row in model.predict(orders, legs, use_fallback=fallback).itertuples(index=False):
+            out[row.delivery_id] = (round(float(row.pred_service_min), 2), round(float(row.pred_late_prob), 4),
+                                    'fallback' if fallback else 'used')
     result = []
     for r in routes:
         for s in sorted(r.stops, key=lambda s: s.seq):
@@ -140,42 +137,64 @@ def _planning(model, routes, g):
     return [(d, round(float(s), 2), round(float(p), 4), 'fallback') for d, s, p in zip(x.deliveryId, svc, late)]
 
 
-def _blend(loaded, orders, legs, g):
-    """inference.predict_task1 with the models already in memory."""
-    xb = features_b.build([('serve', orders, legs)], g)
-    pb = xb[['delivery_id']].join(task1_b.predict(loaded.task1_b, xb))
-    xa = features_a.build([('serve', legs)], [orders], g)
-    xa = features_a.set_categories(xa, loaded.task1_a['cats'])
-    pa = task1_a.predict(loaded.task1_a, xa, g['traffic_speed'])
-    m = orders[['delivery_id']].merge(pa[['delivery_id', 'svc', 'late']], on='delivery_id').merge(
-        pb[['delivery_id', 'svc', 'late']], on='delivery_id', suffixes=('_A', '_B'))
-    wl, ws = loaded.blend['w_A_late'], loaded.blend['w_A_svc']
-    a_s, a_l, b_s, b_l = m.svc_A.round(2), m.late_A.round(4), m.svc_B.round(2), m.late_B.round(4)
-    m['pred_service_min'] = (ws * a_s + (1 - ws) * b_s).round(2)
-    m['pred_late_prob'] = np.clip(wl * a_l + (1 - wl) * b_l, 5e-4, 1 - 5e-4).round(4)
-    return m[['delivery_id', 'pred_service_min', 'pred_late_prob']]
+def _context(g, trained):
+    """mc_task1.Context built from the request's tables instead of the training CSVs.
+
+    The same steps as Context.__init__, so a day past the training data scores
+    with the reference the backend sent. The vocabulary is the trained model's:
+    the category codes must be the ones it learned.
+    """
+    ctx = object.__new__(mc_task1.Context)
+    ctx.outlets, ctx.cal, ctx.rc = g['outlets'], g['calendar'], g['road_conditions']
+    ctx.ts, ctx.sa, ctx.dt = g['traffic_speed'], g['service_allowance'], g['district_travel']
+    cal = ctx.cal.copy()
+    cal['d'] = pd.to_datetime(cal.date)
+    pay = cal.loc[cal.is_payday == 1, 'd'].values
+    idx = np.searchsorted(pay, cal.d.values, side='right') - 1
+    lag = (cal.d.values - pay[np.clip(idx, 0, None)]).astype('timedelta64[D]').astype(int)
+    cal['pay_lag'] = np.where(idx >= 0, np.minimum(lag, 10), 10)
+    nxt = np.searchsorted(pay, cal.d.values, side='left')
+    lead = (pay[np.clip(nxt, 0, len(pay) - 1)] - cal.d.values).astype('timedelta64[D]').astype(int)
+    cal['pay_lead'] = np.where(nxt < len(pay), np.minimum(lead, 10), 10)
+    ctx.calf = cal[['date', 'is_weekend', 'is_payday', 'pay_lag', 'pay_lead', 'festival_ramp', 'is_holiday']]
+    ctx.speed = {(r.district, r.monsoon, r.hour): r.speed_index for r in ctx.ts.itertuples()}
+    ctx.vocab = trained.vocab
+    return ctx
 
 
-def demand_forecast(loaded, calendar_rows, weeks):
-    """inference.predict_task2a for any calendar, past the supplied one too.
+def _with_context(model, ctx):
+    """A copy of the loaded ParallelModel that reads ctx. The loaded model is never changed,
+    so concurrent requests cannot see each other's tables."""
+    m = copy.copy(model)
+    m.ctx = ctx
+    m.parts = {}
+    for name, part in model.parts.items():
+        sim = copy.copy(part['sim'])
+        sim.ctx = ctx
+        m.parts[name] = {**part, 'sim': sim}
+    return m
 
-    A day generated past the supplied calendar has no festival, so a festival
-    the model knows may have no column; it is added as 0 rather than failing.
+
+FORECAST_OUTLETS = ['outlet_id', 'brand', 'depot']
+
+
+def demand_forecast(loaded, calendar_rows, outlet_rows, weeks):
+    """task2a_demand.predict_rows for any calendar, past the supplied one too.
+
+    The model schedules each outlet's expected orders, so the outlets of every
+    depot forecast come with the request.
     """
     cal = general({**{k: [] for k in TABLES}, 'calendar': calendar_rows})['calendar']
-    c, wk, _ = task2a.calendar_features(cal)
-    for f in loaded.task2a['afest']['fests']:
-        if 'fr_' + f not in c:
-            c['fr_' + f] = 0.0
+    outlets = pd.DataFrame(outlet_rows)
+    missing = [c for c in FORECAST_OUTLETS if c not in outlets.columns]
+    if missing:
+        raise BadRequest(f'outlets lack columns {missing}')
     rows = pd.DataFrame([w.model_dump() for w in weeks]).rename(
         columns={'isoYear': 'iso_year', 'isoWeek': 'iso_week'})
-    r = rows.merge(wk[['iso_year', 'iso_week', 'widx']], on=['iso_year', 'iso_week'], how='left')
-    if r.widx.isna().any():
-        bad = r[r.widx.isna()].iloc[0]
-        raise BadRequest(f'week {int(bad.iso_year)}-W{int(bad.iso_week)} is not in the calendar sent')
-    f = task2a.forecast(loaded.task2a, c, sorted(r.widx.astype(int).unique()))
-    out = r.merge(f[['widx', 'depot', 'brand', 'total', 'chilled']], on=['widx', 'depot', 'brand'], how='left')
-    out['total'] = out.total.fillna(0.0).round(2)
-    out['chilled'] = np.where(out.brand == 'Fresh', out.chilled.fillna(0.0), 0.0).round(2)
-    return [(row.depot, row.brand, int(row.iso_year), int(row.iso_week), float(row.total), float(row.chilled))
-            for row in out.itertuples(index=False)]
+    known = set(zip(cal.iso_year, cal.iso_week))
+    for row in rows.itertuples(index=False):
+        if (row.iso_year, row.iso_week) not in known:
+            raise BadRequest(f'week {int(row.iso_year)}-W{int(row.iso_week)} is not in the calendar sent')
+    out = task2a_demand.predict_rows(loaded.task2a, rows, cal, outlets)
+    return [(row.depot, row.brand, int(row.iso_year), int(row.iso_week), float(row.pred_total_volume_m3),
+             float(row.pred_chilled_volume_m3)) for row in out.itertuples(index=False)]
