@@ -3,7 +3,7 @@
 import { stops } from "@shared/wording";
 import { useMemo, useState } from "react";
 import type { OrderView, PlanView, VehicleView } from "@shared/domain/types";
-import { Pill, Popover, cx, usePersistentState } from "@shared/ui";
+import { Icon, Pill, Popover, cx, usePersistentState } from "@shared/ui";
 import { capacityLabel, typeLabel } from "../data/fleet.ts";
 import { board, hhmm, leftOutLine, summarise, type TripLoad } from "../data/plan.ts";
 import {
@@ -252,7 +252,7 @@ function TripCell({
         </span>
       </span>
       <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-go-secondary">
-        <span aria-hidden className={`size-2 rounded-full ${chilled ? "bg-go-info" : "bg-go-placeholder"}`} />
+        <Icon name={chilled ? "chilled" : "box"} size={12} />
         {chilled ? "Chilled" : "Ambient"} · {trip.stops.length} {trip.stops.length === 1 ? "stop" : "stops"}
         {added && <Pill tone="success">Added</Pill>}
         {load.tight && <Pill tone="warning">Tight</Pill>}

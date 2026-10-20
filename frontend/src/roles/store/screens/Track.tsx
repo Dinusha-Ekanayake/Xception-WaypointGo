@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView, IssueView, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
-import { Icon, Notice, Pending, SkeletonRows, cx } from "@shared/ui";
+import { Icon, Notice, Pending, RefrigeratedBadge, SkeletonRows, cx } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
 import { ORDER_STATUS, clock, depotToday, hhmm, longDay, onTheWay, temperatureLabel } from "../data/format.ts";
 import { ISSUE_TYPE, isOpenIssue } from "../data/issues.ts";
@@ -98,7 +98,7 @@ export default function Track({
             <Card label={t("Where it is")} style={{ viewTransitionName: "vt-delivery" }}>
               <div className="flex items-center gap-2">
                 <Chip tone={arrived ? "ink" : "mint"}>{t(arrived ? "Arrived" : "On the way")}</Chip>
-                {refrigerated && <Chip outline>{t("Refrigerated vehicle")}</Chip>}
+                {refrigerated && <RefrigeratedBadge size="md" tr={t} />}
               </div>
               {first && <NextStop stop={stops[0] ?? null} order={first} outlet={outlet} />}
               {first && <Progress status={first.status} arrivedAt={stops[0]?.arrivedAt ?? null} />}

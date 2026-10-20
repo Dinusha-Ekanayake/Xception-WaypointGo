@@ -55,7 +55,8 @@ export type IconName = keyof typeof ICONS;
 /** Every icon, for the development gallery. */
 export const ICON_NAMES = Object.keys(ICONS) as IconName[];
 
-export function Icon({ name, label }: { name: IconName; label?: string }): React.JSX.Element {
+/** `size` draws the design's box at another size, insets kept, for a glyph inside a small pill. */
+export function Icon({ name, label, size }: { name: IconName; label?: string; size?: number }): React.JSX.Element {
   const spec: IconSpec = ICONS[name];
   const img = (
     <img alt="" src={`/icons/go/${name}.svg`} className="absolute inset-0 block size-full max-w-none" />
@@ -66,7 +67,7 @@ export function Icon({ name, label }: { name: IconName; label?: string }): React
       aria-label={label}
       aria-hidden={label ? undefined : true}
       className="relative inline-block shrink-0 overflow-hidden"
-      style={{ width: spec.box, height: spec.box }}
+      style={{ width: size ?? spec.box, height: size ?? spec.box }}
     >
       {spec.inset ? (
         <span className="absolute" style={{ inset: spec.inset }}>

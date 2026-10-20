@@ -47,4 +47,5 @@ export { useDialogFocus } from "./useDialogFocus.ts";
 export { ToastProvider, useToast, type ToastMessage } from "./Toast.tsx";
 export { StructuredError, getErrorDefaults, type StructuredErrorProps } from "./StructuredError.tsx";
 export { SHELL_THEME_KEY, ThemeToggle, keepShellTheme, storedShellDark } from "./ThemeToggle.tsx";
+export { RefrigeratedBadge, TemperatureBadge } from "./Temperature.tsx";
 export { When } from "./When.tsx";

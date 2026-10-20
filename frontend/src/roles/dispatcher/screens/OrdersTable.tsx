@@ -1,7 +1,7 @@
 "use client";
 
 import type { OrderView, RunSheetStopView } from "@shared/domain/types";
-import { Pill, cx } from "@shared/ui";
+import { Pill, TemperatureBadge, cx } from "@shared/ui";
 import { clock, clockOn, dayLabel, hhmm } from "@shared/wording";
 import { STATUS, size } from "../data/orders.ts";
 import { seriesColour } from "./ForecastChart.tsx";
@@ -107,7 +107,7 @@ function Row({ line, last, active, onSelect }: { line: OrderLine; last: LastColu
         <span className="sr-only">{order.brandCode}</span>
       </span>
       <span role="cell">
-        <Pill tone={order.temperature === "chilled" ? "info" : "muted"}>{order.temperature === "chilled" ? "Chilled" : "Ambient"}</Pill>
+        <TemperatureBadge temperature={order.temperature} />
       </span>
       <span role="cell" className="tabular-nums">
         {size(order)}

@@ -1,7 +1,7 @@
 "use client";
 
 import type { IssueView, OrderStatus } from "@shared/domain/types";
-import { Drawer, Icon, Pill, SecondaryButton, cx } from "@shared/ui";
+import { Drawer, Icon, Pill, SecondaryButton, TemperatureBadge, cx } from "@shared/ui";
 import { clock, clockOn, dayLabel, hhmm, shortDay, units } from "@shared/wording";
 import { TYPE } from "../data/issues.ts";
 import { STATUS, size } from "../data/orders.ts";
@@ -73,7 +73,7 @@ export default function OrderDrawer({
         </button>
       </header>
       <div className="flex flex-wrap gap-1.5">
-        <Pill tone={order.temperature === "chilled" ? "info" : "muted"}>{order.temperature === "chilled" ? "Chilled" : "Ambient"}</Pill>
+        <TemperatureBadge temperature={order.temperature} />
         <Pill tone={state.tone}>{state.label}</Pill>
       </div>
       <dl className="grid grid-cols-4 gap-2">

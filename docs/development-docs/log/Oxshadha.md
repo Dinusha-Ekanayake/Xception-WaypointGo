@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-20 - fix: one temperature badge in every role
+
+`dev` · @Oxshadha
+
+- Each role drew "chilled" its own way (a blue text pill and a dot on the dispatcher's screens, an outlined text chip in the store). `TemperatureBadge` and `RefrigeratedBadge` in `src/shared/ui/Temperature.tsx` use the loader's Figma icons: the thermometer for chilled goods, the box for ambient, the snowflake for a refrigerated vehicle. The dispatcher's orders, order drawer and plan board and the store's Home, Track and Deliveries use them; the loader's badge already had these icons and is unchanged. `Icon` takes an optional size for small pills.
+
+---
+
 ## 2026-10-20 - fix: field flow bugs from a demo walk-through
 
 `dev` · @Oxshadha

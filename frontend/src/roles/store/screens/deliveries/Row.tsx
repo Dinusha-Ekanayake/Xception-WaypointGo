@@ -24,7 +24,8 @@ export default function Row({
   time: { label: string; value: string; tone?: "warm" | "mint" | "plain" };
   title: string;
   /** "Refrigerated vehicle", "Chilled". */
-  tag?: string;
+  /** Words shown as a chip, or a ready badge such as the shared temperature ones. */
+  tag?: string | React.ReactNode;
   /** "2 orders". */
   badge?: string;
   line?: string;
@@ -60,7 +61,7 @@ export default function Row({
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex flex-wrap items-center gap-2">
             <span className="text-[17px] font-medium text-black">{title}</span>
-            {tag && <Chip outline>{t(tag)}</Chip>}
+            {typeof tag === "string" ? <Chip outline>{t(tag)}</Chip> : tag}
             {badge && <Chip tone="muted">{badge}</Chip>}
           </span>
           {line && <span className="text-[14px] text-black">{line}</span>}

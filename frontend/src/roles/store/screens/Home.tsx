@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { type ApiError, friendlyError } from "@shared/api/problem";
 import type { DeliveryRecordView, IssueView, OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
-import { Icon, Notice, SkeletonRows, cx } from "@shared/ui";
+import { Icon, Notice, SkeletonRows, TemperatureBadge, cx } from "@shared/ui";
 import { addDays, clock, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
 import { isOpenIssue, issueCard, loaderShortUnits } from "../data/issues.ts";
 import { aheadLabel, nextDelivery } from "../data/nextDelivery.ts";
@@ -132,7 +132,7 @@ export default function Home({
                 : t("No delivery planned")}
             </p>
             {coming && <Chip>{t(next_?.when === "ahead" ? aheadLabel(coming.status) : onTheWay(coming.status) ? "On the way" : "Arrived")}</Chip>}
-            {coming && <Chip outline>{t(temperatureLabel(coming.temperature))}</Chip>}
+            {coming && <TemperatureBadge temperature={coming.temperature} size="md" tr={t} />}
             {stop && <Chip outline>{stop.vehicleId}</Chip>}
           </div>
           {coming ? (
