@@ -5,7 +5,7 @@ import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import type { DecisionView } from "@shared/domain/types";
 import { cx } from "@shared/ui";
-import { hhmm, stops } from "@shared/wording";
+import { clockOn, hhmm, stops } from "@shared/wording";
 import { lateBy, tripOf, updateText, useOpenTripThread } from "../data/threads.ts";
 import { depotSummaries, etaOf, groupByTrip, NEEDS_SHOWN, progress, routeLabel, summaryText, type NeedCard, type Run } from "../data/liveDesk.ts";
 import { suggestionFor, type Suggestion } from "../data/playbooks.ts";
@@ -68,8 +68,8 @@ export default function LiveNeeds({
     const suggestion = suggestionFor(card.kind, {
       vehicle: card.vehicleId,
       store: stop?.outletId ?? null,
-      expected: stop ? etaOf(stop) : null,
-      "window close": stop ? hhmm(stop.windowClose) : null,
+      expected: stop ? etaOf(stop, date) : null,
+      "window close": stop ? clockOn(stop.windowClose, date) : null,
     });
     return { suggestion, tripId: stop?.tripId ?? null, outletId: stop?.outletId ?? null };
   };

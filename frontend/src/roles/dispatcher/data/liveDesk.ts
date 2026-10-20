@@ -1,5 +1,6 @@
 import type { FuelView, IssueView, ReadyTripView, RunSheetStopView, PresenceView, StoreAnswerWaiverReason, VehiclePositionView } from "@shared/domain/types";
 import { mapStatus, type MapStatus, type VehicleDay } from "./live.ts";
+import { clockOn } from "../../../shared/wording/index.ts";
 
 // The Figma "05 Live" frames (189:20983 to 189:21943) read from what the
 // dispatcher already loads: each vehicle's run sheet joined to its loading trip
@@ -20,12 +21,21 @@ function windowCloseAt(date: string, stop: RunSheetStopView): number {
   return new Date(`${date}T${hhmm(stop.windowClose)}:00+05:30`).getTime();
 }
 
-/** The arrival the screen shows: recorded, else expected, else planned. */
-export function etaOf(stop: RunSheetStopView): string {
+/**
+ * The arrival the screen shows: recorded, else expected, else planned. With the
+ * run's day it is written with its day ("16:55 · 21 Oct"), so a time is never
+ * read as today's by mistake; without one, the time alone.
+ */
+export function etaOf(stop: RunSheetStopView, day?: string): string {
   const actual = stop.arrivedAt ?? stop.completedAt;
-  if (actual) return depotClock(actual);
-  if (stop.expectedArrival) return depotClock(stop.expectedArrival);
-  return hhmm(stop.plannedArrival);
+  if (day === undefined) {
+    if (actual) return depotClock(actual);
+    if (stop.expectedArrival) return depotClock(stop.expectedArrival);
+    return hhmm(stop.plannedArrival);
+  }
+  if (actual) return clockOn(actual);
+  if (stop.expectedArrival) return clockOn(stop.expectedArrival);
+  return clockOn(stop.plannedArrival, day);
 }
 
 export type Run = {

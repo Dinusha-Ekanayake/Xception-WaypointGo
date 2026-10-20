@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ConstraintResultView, OrderView, PlanView, VehicleView } from "@shared/domain/types";
 import { Drawer, Icon, Pill, Popover, PrimaryButton } from "@shared/ui";
-import { checkLabel, hhmm, temperatureLabel } from "@shared/wording";
+import { checkLabel, clockOn, hhmm, shortDay, temperatureLabel } from "@shared/wording";
 import { typeLabel } from "../data/fleet.ts";
 import { after, type TripLoad } from "../data/plan.ts";
 import { riskLabel, riskTone, slackLabel, stopShare, tightLine, type Slack, type StopRisk } from "../data/planViews.ts";
@@ -64,7 +64,7 @@ export default function PlanTrip({
       </div>
       <div>
         <p className="text-xs text-go-secondary">
-          {`${vehicle ? `${typeLabel(vehicle)} · ` : ""}Depart ${(vehicle?.depotCode ?? plan.depotCode)} ${hhmm(trip.plannedDeparture)} · back ${after(trip.plannedDeparture, trip.plannedMinutes)} · ${temperatureLabel(trip.temperature).toLowerCase()}`}
+          {`${vehicle ? `${typeLabel(vehicle)} · ` : ""}Depart ${(vehicle?.depotCode ?? plan.depotCode)} ${clockOn(trip.plannedDeparture, plan.serviceDate)} · back ${after(trip.plannedDeparture, trip.plannedMinutes)} · ${temperatureLabel(trip.temperature).toLowerCase()}`}
         </p>
       </div>
 
@@ -150,7 +150,7 @@ function Timeline({
   const lastStop = trip.stops[trip.stops.length - 1];
   return (
     <ol aria-label="Stops in order" className="flex flex-col">
-      <Row first time={hhmm(trip.plannedDeparture)} dot="hollow" title={`Depart ${(vehicle?.depotCode ?? plan.depotCode)}`} />
+      <Row first day={plan.serviceDate} time={hhmm(trip.plannedDeparture)} dot="hollow" title={`Depart ${(vehicle?.depotCode ?? plan.depotCode)}`} />
       {trip.stops.map((stop) => {
         const order = orders.get(stop.orderId);
         const share = stopShare(order, vehicle);
@@ -158,6 +158,7 @@ function Timeline({
         return (
           <Row
             key={stop.orderId}
+            day={plan.serviceDate}
             time={hhmm(stop.plannedArrival)}
             dot="filled"
             title={`${stop.outletId}${order ? ` · ${order.districtName}` : ""}`}
@@ -182,6 +183,7 @@ function Timeline({
 
 function Row({
   time,
+  day,
   dot,
   title,
   note,
@@ -193,6 +195,8 @@ function Row({
   last = false,
 }: {
   time: string;
+  /** The day the time belongs to, written small under it. */
+  day?: string;
   dot: "filled" | "hollow";
   title: string;
   note?: string;
@@ -205,7 +209,10 @@ function Row({
 }): React.JSX.Element {
   return (
     <li className="flex items-stretch gap-3">
-      <span className="w-11 shrink-0 py-1.5 text-[14px] leading-5 font-medium tabular-nums text-go-ink">{time}</span>
+      <span className="w-11 shrink-0 py-1.5 text-[14px] leading-5 font-medium tabular-nums text-go-ink">
+        {time}
+        {day && <span className="block text-[10px] leading-3 font-normal text-go-secondary">{shortDay(day)}</span>}
+      </span>
       <span aria-hidden className="relative flex w-3 shrink-0 justify-center">
         <span className={`absolute w-0.5 bg-go-rule ${first ? "top-[13px]" : "top-0"} ${last ? "h-[13px]" : "bottom-0"}`} />
         <span className={`relative z-10 mt-[8px] size-2.5 rounded-full border-2 border-go-teal ${dot === "filled" ? "bg-go-teal" : "bg-go-card"}`} />

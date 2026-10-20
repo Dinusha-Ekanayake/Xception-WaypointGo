@@ -9,6 +9,7 @@ import { lastServedText } from "../data/planViews.ts";
 import { useNextDelivery, usePlacements } from "../data/usePlanReads.ts";
 import { swapTrips } from "./DecisionPanel.tsx";
 import SwapWindow from "./SwapWindow.tsx";
+import StoreContactCard from "./StoreContactCard.tsx";
 import type { PlanActions } from "./planActions.ts";
 
 // Figma "Overlay · Deferred order": a deferred card on the plan board opens the
@@ -74,6 +75,7 @@ export default function DeferredOrderCard({
         <Fact label="Last served" value={lastServedText(allocation.lastServedOn, plan.serviceDate)} warn />
         <Fact label="Reason" value={tooBig ? "Too big for any vehicle" : ruleLabel(allocation.bindingRule)} />
       </dl>
+      <StoreContactCard orderId={order.orderId} outletId={order.outletId} canMessage={editable} actions={actions} />
       {editable && (
         <div className="rounded-go-input bg-go-success-tint px-3 py-2.5">
           <p className="text-[11px] font-semibold tracking-[0.08em] text-go-teal uppercase">Best option</p>

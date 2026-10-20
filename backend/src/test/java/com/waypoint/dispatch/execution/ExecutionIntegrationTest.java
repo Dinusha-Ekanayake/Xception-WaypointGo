@@ -1081,6 +1081,22 @@ class ExecutionIntegrationTest {
 
   /** Whether either vehicle already has a driver somewhere in {@code [from, until)}. */
 
+  // ---- store contacts (R-IAM-41) ----
+
+  @Test
+  void aDispatcherReadsTheStoreManagersOfAnOutletInTheirDepotOnly() throws Exception {
+    database.asModule(ModuleRole.IAM, null, () -> database.update(
+        "UPDATE iam.users SET phone = '+94771234567' WHERE email = ?", manager));
+    JsonNode contacts = json(read(dispatcher, "/api/outlets/" + OUTLET + "/contacts", 200));
+    boolean found = false;
+    for (JsonNode c : contacts) {
+      found |= "Store".equals(c.get("name").asText()) && "+94771234567".equals(c.path("phone").asText());
+    }
+    assertTrue(found, "the outlet's store manager, with the phone on their profile: " + contacts);
+    read(farDispatcher, "/api/outlets/" + OUTLET + "/contacts", 404);
+    read(manager, "/api/outlets/" + OUTLET + "/contacts", 403);
+  }
+
   // ---- positions (issue #161) ----
 
   private JsonNode presenceOf(String vehicle) throws Exception {

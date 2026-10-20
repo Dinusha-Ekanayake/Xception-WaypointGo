@@ -5,7 +5,7 @@ import { friendlyError } from "@shared/api/problem";
 import { caseSummary, dockHelper, latestFor, question, receiveTimes, standing } from "@shared/decisions/decisions";
 import { IssueCommandKind, type AnswerDecision, type AskDecision, type DecisionView, type RunSheetStopView } from "@shared/domain/types";
 import { cx } from "@shared/ui";
-import { clock, units } from "@shared/wording";
+import { clock, clockOn, units } from "@shared/wording";
 import { useCommand } from "../data/useCommand.ts";
 import { Action } from "./LiveParts.tsx";
 
@@ -98,7 +98,7 @@ export default function DecisionAsk({
           <span className="flex flex-wrap gap-1.5" role="group" aria-label={`Times to ask ${stop.outletId} about`}>
             {receiveTimes(stop.expectedArrival, now).map((t) => (
               <Action key={t.toISOString()} disabled={!online || busy} onClick={() => void ask({ kind: "receive_late", deliveryId: stop.deliveryId, receiveAt: t.toISOString() })}>
-                {clock(t)}
+                {clockOn(t)}
               </Action>
             ))}
           </span>
@@ -128,7 +128,7 @@ function Summary({ lines }: { lines: ReturnType<typeof caseSummary> }): React.JS
       <ol className="mt-1 flex flex-col gap-0.5">
         {lines.map((l, i) => (
           <li key={i}>
-            {l.at ? `${clock(l.at)} · ` : ""}
+            {l.at ? `${clockOn(l.at)} · ` : ""}
             {l.text}
           </li>
         ))}

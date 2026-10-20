@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { PlacementView, PlanView, TripView } from "@shared/domain/types";
-import { Pill, PrimaryButton, SecondaryButton, Switch } from "@shared/ui";
+import { Pill, PrimaryButton, SecondaryButton, Switch, When } from "@shared/ui";
 import { dayLabel, ruleLabel, temperatureLabel } from "@shared/wording";
 import { STATUS, size, orderRefText } from "../data/orders.ts";
 import { daysBetween, lastServedText, type DecisionRow } from "../data/planViews.ts";
@@ -16,6 +16,7 @@ import CheckList from "./CheckList.tsx";
 import ExplainSheet from "./ExplainSheet.tsx";
 import type { PlanActions } from "./planActions.ts";
 import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
+import StoreContactCard from "./StoreContactCard.tsx";
 
 // Figma "Plan · 1 Decide", the panel beside the list: the order, why it was not
 // placed, where it could go, and the two things a dispatcher does with it that
@@ -62,7 +63,10 @@ export default function DecisionPanel({
   const open = row.state === "open";
   const all = places ?? [];
   const fits = all.filter((place) => place.feasible);
-  const shown = onlyFits ? fits : all;
+  // The trips it can join first (same brand, district and temperature, R-PLN-01),
+  // then a new trip, then the ones a rule refuses, so the likely choice leads.
+  const rank = (place: PlacementView) => (place.feasible ? (place.joins ? 0 : 1) : 2);
+  const shown = [...(onlyFits ? fits : all)].sort((a, b) => rank(a) - rank(b));
   const target = fits.find((place) => key(place) === chosen) ?? null;
   const days = allocation.lastServedOn ? daysBetween(allocation.lastServedOn, plan.serviceDate) : null;
   const askReason = open && editable && (target !== null || keeping);
@@ -134,6 +138,9 @@ export default function DecisionPanel({
           </div>
         )}
         {open && <CheckList checks={allocation.checks} />}
+        {order && (open || row.state === "kept") && (
+          <StoreContactCard orderId={allocation.orderId} outletId={order.outletId} canMessage={editable} actions={actions} />
+        )}
         {(open || row.state === "kept") && <SecondaryButton onClick={() => setExplaining(true)}>Explain this decision</SecondaryButton>}
         {explaining && <ExplainSheet explanation={explanation} friendly={friendly} onClose={() => setExplaining(false)} />}
 
@@ -152,6 +159,9 @@ export default function DecisionPanel({
                 <TripChoice
                   key={key(place)}
                   place={place}
+                  trip={plan.trips.find((trip) => trip.tripId === place.tripId) ?? null}
+                  serviceDate={plan.serviceDate}
+                  same={swappable.some((trip) => trip.tripId === place.tripId)}
                   checked={chosen === key(place)}
                   only={fits.length === 1 && place.feasible}
                   swap={editable && !actions.busy && swapOn(place) !== null}
@@ -213,7 +223,18 @@ export default function DecisionPanel({
   );
 }
 
-function TripChoice({ place, checked, only, swap, onChoose }: { place: PlacementView; checked: boolean; only: boolean; swap: boolean; onChoose: () => void }): React.JSX.Element {
+function TripChoice({ place, trip, serviceDate, same, checked, only, swap, onChoose }: {
+  place: PlacementView;
+  /** The planned trip it would join; null for a new trip. */
+  trip: TripView | null;
+  serviceDate: string;
+  /** The trip carries the order's brand, district and temperature. */
+  same: boolean;
+  checked: boolean;
+  only: boolean;
+  swap: boolean;
+  onChoose: () => void;
+}): React.JSX.Element {
   return (
     <button
       type="button"
@@ -226,7 +247,14 @@ function TripChoice({ place, checked, only, swap, onChoose }: { place: Placement
       <span className="flex items-center gap-2">
         <span className="text-[14px] font-medium text-go-ink">{`${place.vehicleId} · Trip ${place.tripNumber}`}</span>
         {only && <Pill tone="danger">Only option</Pill>}
+        {same && <Pill tone="success">Same brand, district &amp; temperature</Pill>}
       </span>
+      {trip && (
+        <span className="block text-xs text-go-ink">
+          {`${trip.brandCode} · ${trip.districtName} · ${temperatureLabel(trip.temperature)} · ${trip.stops.length} ${trip.stops.length === 1 ? "stop" : "stops"} · ${size(trip)} · departs `}
+          <When at={trip.plannedDeparture} day={serviceDate} />
+        </span>
+      )}
       <span className="block text-xs text-go-secondary">
         {place.feasible ? (place.joins ? "Joins the trip already planned" : "Opens a new trip") : `${ruleLabel(place.bindingRule)}: ${place.reason}`}
         {swap && <span className="block font-medium text-go-teal">Swap a stop on this trip ›</span>}

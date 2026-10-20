@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ComparisonView, OrderView, SnapshotView } from "@shared/domain/types";
 import { Icon, Menu, Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
-import { clock } from "@shared/wording";
+import { clock, clockOn } from "@shared/wording";
 import { useOrdersById } from "../data/useDay.ts";
 import { useComparison } from "../data/usePlanReads.ts";
 import Refusal from "./Refusal.tsx";
@@ -16,7 +16,7 @@ import Refusal from "./Refusal.tsx";
 export type Pick = { id: string; label: string; snapshotId: string | null };
 
 export function pickLabel(snapshot: SnapshotView): string {
-  return `${snapshot.label} · ${clock(snapshot.createdAt)}`;
+  return `${snapshot.label} · ${clockOn(snapshot.createdAt)}`;
 }
 
 export default function PlanCompare({

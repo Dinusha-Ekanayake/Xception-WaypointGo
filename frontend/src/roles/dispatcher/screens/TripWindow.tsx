@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Icon, PrimaryButton, SecondaryButton, Sheet, cx } from "@shared/ui";
+import { Icon, PrimaryButton, SecondaryButton, Sheet, When, cx } from "@shared/ui";
 
 // Figma "Plan · 1b Swap window" and "Plan · Edit trip" share one frame: the
 // trip's header, an optional suggestion banner, three columns (what can come
@@ -75,8 +75,8 @@ export default function TripWindow({
   banner?: ReactNode;
   left: { title: string; hint: string; body: ReactNode };
   tiles: Tile[];
-  depart: { place: string; time: string };
-  back: { time: string };
+  depart: { place: string; time: string; day?: string };
+  back: { time: string; day?: string };
   stops: StopRow[];
   /** Present when the stop order can change. */
   onReorder?: (from: number, to: number) => void;
@@ -141,7 +141,7 @@ export default function TripWindow({
             <p className="flex items-center gap-3 px-3 py-1 text-[13px] text-go-secondary">
               <span aria-hidden className="size-2.5 rounded-full bg-go-secondary" />
               <span className="flex-1">{depart.place}</span>
-              <span className="font-medium text-go-ink tabular-nums">{depart.time}</span>
+              <span className="font-medium text-go-ink tabular-nums"><When at={depart.time} day={depart.day} /></span>
             </p>
             <ol
               aria-label="Stops in order"
@@ -222,7 +222,7 @@ export default function TripWindow({
             <p className="flex items-center gap-3 px-3 py-1 text-[13px] text-go-secondary">
               <span aria-hidden className="size-2.5 rounded-full bg-go-secondary" />
               <span className="flex-1">Back to depot</span>
-              <span className="font-medium text-go-ink tabular-nums">{back.time}</span>
+              <span className="font-medium text-go-ink tabular-nums"><When at={back.time} day={back.day} /></span>
             </p>
             {(onReorder || onDefer) && (
               <p className="text-xs text-go-secondary">

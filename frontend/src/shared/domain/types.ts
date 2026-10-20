@@ -10,6 +10,7 @@ export type * from "./ordering.ts";
 export type * from "./planning.ts";
 export type * from "./loading.ts";
 export type * from "./execution.ts";
+export type * from "./contacts.ts";
 export type * from "./receipt.ts";
 export type * from "./demo.ts";
 export type * from "./issues.ts";

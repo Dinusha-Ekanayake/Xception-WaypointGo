@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlanCommandKind, type GenerationJobView, type OrderView } from "@shared/domain/types";
 import { Notice, PrimaryButton, SecondaryButton, useToast } from "@shared/ui";
-import { clock, dayLabel } from "@shared/wording";
+import { clock, clockOn, dayLabel } from "@shared/wording";
 import { useFleet } from "../data/fleet.ts";
 import { costNote, improvementNote, publishedEditOpen, summarise } from "../data/plan.ts";
 import { depotHolding, depotStates, idsIn, mergeWorking, type DepotWorking } from "../data/planRouting.ts";
@@ -321,7 +321,7 @@ export default function DepotPlan({
             onTab={setTab}
             decide={open > 0 ? `${open} need a decision` : total > 0 ? `Done · ${decided} of ${total}` : "All placed"}
             view={`${summary.trips} ${summary.trips === 1 ? "trip" : "trips"} · ${summary.tightTrips} tight`}
-            publish={state.stage === "published" ? `Published${state.plan.publishedAt ? ` ${clock(new Date(state.plan.publishedAt))}` : ""}` : "Not published yet"}
+            publish={state.stage === "published" ? `Published${state.plan.publishedAt ? ` ${clockOn(new Date(state.plan.publishedAt))}` : ""}` : "Not published yet"}
             decideDone={open === 0}
             decideBlocks={draft && open > 0}
             published={state.stage === "published"}
@@ -387,11 +387,9 @@ export default function DepotPlan({
   );
 }
 
-/** "16:41" today, "Sat 3 Oct 16:41" another day: a bare time from yesterday reads like one still to come. */
+/** "16:41 · 3 Oct": always with its day, so a bare time from yesterday never reads like one still to come. */
 function savedWhen(at: string): string {
-  const instant = new Date(at);
-  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo" }).format(instant);
-  return day === depotToday() ? clock(instant) : `${dayLabel(day)} ${clock(instant)}`;
+  return clockOn(new Date(at));
 }
 
 /** "Swapped. Draft version 2: 3 placed, 1 deferred." reads as a bold first sentence and the rest. */

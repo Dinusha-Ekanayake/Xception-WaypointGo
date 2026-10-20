@@ -2,7 +2,7 @@
 
 import type { SnapshotView } from "@shared/domain/types";
 import { Icon, Menu, cx, type MenuItem } from "@shared/ui";
-import { clock } from "@shared/wording";
+import { clock, clockOn } from "@shared/wording";
 
 // The Plan header's controls, as Figma draws them: which plan you are looking at
 // (the working draft, the engine's own plan, a saved one), Save snapshot,
@@ -49,7 +49,7 @@ export default function PlanTools({
     ...snapshots.slice(0, 8).map((s) => ({
       id: s.snapshotId,
       label: s.label,
-      hint: `${clock(s.createdAt)} · read only`,
+      hint: `${clockOn(s.createdAt)} · read only`,
       selected: s.snapshotId === viewing,
     })),
   ];

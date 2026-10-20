@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-20 - feat: deciding a deferred order shows matching trips and whom to call; times carry their day
+
+`claude/demo-day-plan` · @jv-ransika
+
+Candidate trips now lead with the trips the order can join, each with brand, district, temperature, stops, load and departure, marked "Same brand, district & temperature". The deferred order's panel (Decide and the board's sheet) shows the outlet's store managers with their profile phone and Call, and Message the store through `plan:ContactStore`; `GET /api/outlets/{id}/contacts` (`iam:ReadStoreContact`, migration `20261020T1800`) serves them for outlets in the dispatcher's depots only (R-IAM-41). Every time on the dispatcher screens now carries its day in small letters (`clockOn`, `<When>`), since a bare time was read as today's (PLN-49).
+Verified: `ExecutionIntegrationTest` (contacts, scope, policy), `ModuleBoundaryTest`, `FoundationIntegrationTest`, `npm test`, typecheck, build, the dispatcher browser suite (104).
+
 ## 2026-10-20 - fix: a check-in remembered from before a demo reset no longer hides "I'm at the depot"
 
 `claude/demo-day-plan` · @jv-ransika

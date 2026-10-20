@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Pill, Segmented, cx, usePersistentState } from "@shared/ui";
-import { clock, businessNow, issueText } from "@shared/wording";
+import { businessNow, clock, clockOn, issueText } from "@shared/wording";
 import PageHeader from "../PageHeader.tsx";
 import { SEVERITY, TYPE, byUrgency } from "../data/issues.ts";
 import { useIssues, useSettledIssues } from "../data/useDay.ts";
@@ -122,7 +122,7 @@ export default function Issues({
                     </span>
                     <span className="min-w-[160px] text-[13px]">
                       <span className="block truncate text-go-ink">{issueText(issue.description)}</span>
-                      <span className="block text-xs text-go-secondary">{`Reported ${clock(issue.raisedAt)}`}</span>
+                      <span className="block text-xs text-go-secondary">{`Reported ${clockOn(issue.raisedAt)}`}</span>
                     </span>
                     {issue.status === "RESOLVED" || issue.status === "CLOSED" ? (
                       <Pill tone={issue.status === "RESOLVED" ? "warning" : "neutral"}>{issue.status === "RESOLVED" ? "To close" : "Closed"}</Pill>

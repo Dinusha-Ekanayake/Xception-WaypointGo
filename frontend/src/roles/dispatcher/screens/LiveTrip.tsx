@@ -1,8 +1,9 @@
 "use client";
 
+import { clockOn } from "@shared/wording";
 import type { RunSheetStopView } from "@shared/domain/types";
 import { ConnectionStatus, cx } from "@shared/ui";
-import { activity, depotClock, etaOf, limits, round1, runTitle, silentMinutes, type Run } from "../data/liveDesk.ts";
+import { activity, etaOf, limits, round1, runTitle, silentMinutes, type Run } from "../data/liveDesk.ts";
 import { useFuel } from "../data/useDay.ts";
 import { driverLine, useDriver } from "./LivePanel.tsx";
 import { Bar, Chip, STATUS } from "./LiveParts.tsx";
@@ -58,7 +59,7 @@ export default function LiveTrip({
           <Card>
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-[15px] font-medium text-go-ink">{name ?? "Driver"}</h2>
-              {run.position && <Chip tone="muted">{`${run.status === "offline" ? "Last seen" : "Last ping"} ${depotClock(run.position.recordedAt)}`}</Chip>}
+              {run.position && <Chip tone="muted">{`${run.status === "offline" ? "Last seen" : "Last ping"} ${clockOn(run.position.recordedAt)}`}</Chip>}
             </div>
             <p className="text-[14px] text-go-ink">{next ? `On the way to ${next.outletId}` : run.status === "returning" ? `Returning to ${depotName}` : "Run finished"}</p>
             <p className="text-[12.5px] text-go-secondary">

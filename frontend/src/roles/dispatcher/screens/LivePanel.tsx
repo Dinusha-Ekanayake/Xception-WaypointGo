@@ -1,10 +1,11 @@
 "use client";
 
+import { clockOn } from "@shared/wording";
 import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView } from "@shared/domain/types";
 import { cx } from "@shared/ui";
-import { depotClock, etaOf, limits, round1, runTitle, silentMinutes, type Run } from "../data/liveDesk.ts";
+import { etaOf, limits, round1, runTitle, silentMinutes, type Run } from "../data/liveDesk.ts";
 import { useFuel } from "../data/useDay.ts";
 import { lateBy, tripOf, updateText, useOpenTripThread } from "../data/threads.ts";
 import { useState } from "react";
@@ -27,7 +28,7 @@ export function useDriver(run: Run | null): { name: string | null } {
 }
 
 export function driverLine(run: Run, driver: string | null): string {
-  return [driver, run.trip ? `Trip ${run.trip.tripNumber} of ${run.trip.tripsForVehicle}` : null, run.trip?.releasedAt ? `left ${depotClock(run.trip.releasedAt)}` : null]
+  return [driver, run.trip ? `Trip ${run.trip.tripNumber} of ${run.trip.tripsForVehicle}` : null, run.trip?.releasedAt ? `left ${clockOn(run.trip.releasedAt)}` : null]
     .filter(Boolean)
     .join(" · ");
 }
@@ -70,7 +71,7 @@ export default function LivePanel({
 
   const box =
     run.status === "offline"
-      ? { tint: "bg-go-surface", head: `Offline${quiet !== null ? ` · ${quiet} min` : ""}`, line: `Last seen ${run.position ? depotClock(run.position.recordedAt) : "unknown"} · syncs when back online`, ink: "text-go-ink" }
+      ? { tint: "bg-go-surface", head: `Offline${quiet !== null ? ` · ${quiet} min` : ""}`, line: `Last seen ${run.position ? clockOn(run.position.recordedAt) : "unknown"} · syncs when back online`, ink: "text-go-ink" }
       : run.status === "at-risk" || run.status === "late"
         ? { tint: "bg-go-warning-tint", head: `${status.label}${next ? ` · ${next.outletId}` : ""}`, line: next ? `Expected ${etaOf(next)} · window ${next.windowClose.slice(0, 5)}` : "", ink: "text-go-warning-text" }
         : run.status === "returning"
@@ -106,9 +107,9 @@ export default function LivePanel({
       <section aria-label="Trip" className="flex flex-col gap-2">
         <h3 className="text-[13.5px] font-medium text-go-ink">Trip</h3>
         <ol className="flex flex-col gap-2.5">
-          <Step dot="bg-go-teal" title={depotName} sub={[run.trip?.releasedAt ? `Departed ${depotClock(run.trip.releasedAt)}` : "Released", run.trip ? `${round1(Number(run.trip.volumeM3))} m³ loaded` : null].filter(Boolean).join(" · ")} />
+          <Step dot="bg-go-teal" title={depotName} sub={[run.trip?.releasedAt ? `Departed ${clockOn(run.trip.releasedAt)}` : "Released", run.trip ? `${round1(Number(run.trip.volumeM3))} m³ loaded` : null].filter(Boolean).join(" · ")} />
           {run.position && (
-            <Step dot={run.status === "offline" ? "bg-[#a3acaa]" : "bg-[#c08a3e]"} title="On the road" sub={`${run.status === "offline" ? "Last seen" : "Last update"} ${depotClock(run.position.recordedAt)}`} />
+            <Step dot={run.status === "offline" ? "bg-[#a3acaa]" : "bg-[#c08a3e]"} title="On the road" sub={`${run.status === "offline" ? "Last seen" : "Last update"} ${clockOn(run.position.recordedAt)}`} />
           )}
           {next && (
             <Step

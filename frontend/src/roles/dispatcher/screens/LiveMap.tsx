@@ -6,7 +6,7 @@ import type { Resource } from "@shared/api/useResource";
 import type { VehiclePositionView } from "@shared/domain/types";
 import type { PositionStream } from "@shared/live/usePositionStream";
 import { useTripTrail } from "@shared/live/useTripTrail";
-import { clock } from "@shared/wording";
+import { clock, clockOn } from "@shared/wording";
 import { LiveMap, MapLegend, num, withLive, type LatLon, type MapLine, type MapMarker, type TrailPoint } from "@shared/ui/map";
 import type { MapStatus } from "../data/live.ts";
 import { hhmm } from "../data/plan.ts";
@@ -69,7 +69,7 @@ export default function LiveMapView({
   }
   if (chosen && path && path.length > 1) {
     const start = path[0]!;
-    markers.push({ id: "trail-start", kind: "start", lat: start.lat, lon: start.lon, label: "", ariaLabel: `${chosen.day.vehicleId} trip start, ${clock(new Date(start.at))}`, selectable: false });
+    markers.push({ id: "trail-start", kind: "start", lat: start.lat, lon: start.lon, label: "", ariaLabel: `${chosen.day.vehicleId} trip start, ${clockOn(new Date(start.at))}`, selectable: false });
   }
   for (const r of runs) {
     const lat = num(r.position?.latitude);
@@ -85,7 +85,7 @@ export default function LiveMapView({
       status: r.status,
       faded: r.status === "offline",
       label: r.day.vehicleId,
-      ariaLabel: `${r.day.vehicleId}, ${STATUS[r.status].label.toLowerCase()}, stop ${r.day.done + (next ? 1 : 0)} of ${r.day.stops.length}${next ? `, window closes ${hhmm(next.windowClose)}` : ""}`,
+      ariaLabel: `${r.day.vehicleId}, ${STATUS[r.status].label.toLowerCase()}, stop ${r.day.done + (next ? 1 : 0)} of ${r.day.stops.length}${next ? `, window closes ${clockOn(next.windowClose, r.day.serviceDate)}` : ""}`,
     });
   }
   const lines: MapLine[] = chosen && path ? [{ id: "trail", points: path, style: "driven" }] : [];
@@ -151,7 +151,7 @@ export default function LiveMapView({
         )}
         {positions.error ? (
           <p role="status" className="absolute bottom-16 left-4 z-[600] rounded-full bg-white px-3 py-1 text-[12px] text-go-danger-strong shadow">
-            Positions not updated{positions.loadedAt ? ` since ${clock(positions.loadedAt)}` : ""} ·{" "}
+            Positions not updated{positions.loadedAt ? ` since ${clockOn(positions.loadedAt)}` : ""} ·{" "}
             <button type="button" className="underline" onClick={positions.refresh}>
               Retry
             </button>
@@ -161,7 +161,7 @@ export default function LiveMapView({
           positions.paused && (
             // Rule 9: the push went quiet, so the map is on a slower poll and says so.
             <p role="status" className="absolute bottom-16 left-4 z-[600] rounded-full bg-white px-3 py-1 text-[12px] text-go-warning-text shadow">
-              Live updates paused · refreshing every 15 s{positions.loadedAt ? ` · last ${clock(positions.loadedAt)}` : ""}
+              Live updates paused · refreshing every 15 s{positions.loadedAt ? ` · last ${clockOn(positions.loadedAt)}` : ""}
             </p>
           )
         )}

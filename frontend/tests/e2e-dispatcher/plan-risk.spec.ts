@@ -93,5 +93,5 @@ test("a draft names the stops with little time before their window closes, befor
   await page.getByRole("button", { name: "Show ›" }).click();
   const tight = page.getByRole("listitem", { name: "Tight stops" });
   await expect(tight.getByText("OUT051")).toBeVisible();
-  await expect(tight.getByText(/arrives 04:10, closes 04:20/)).toBeVisible();
+  await expect(tight.getByText(/arrives 04:10 · \d+ \w+, closes 04:20/)).toBeVisible();
 });
