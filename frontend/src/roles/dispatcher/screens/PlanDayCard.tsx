@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { OrderView } from "@shared/domain/types";
 import { Card, CardHead, LinkAction, Pill } from "@shared/ui";
-import { addDays, clock, dayLabel } from "@shared/wording";
+import { addDays, clock, clockOn, dayLabel } from "@shared/wording";
 import { working } from "../data/plan.ts";
 import { decidedCount, decisionRows } from "../data/planViews.ts";
 import { depotToday } from "../data/scope.ts";
@@ -46,7 +46,7 @@ export default function PlanDayCard({ depots, onOpenPlan }: { depots: string[]; 
                     {open > 0 ? <Pill tone="danger">{`${open} ${open === 1 ? "needs" : "need"} a decision`}</Pill> : <Pill tone="success">Ready to publish</Pill>}
                   </>
                 ) : (
-                  <Pill tone="success">{`Published${state.plan.publishedAt ? ` ${clock(new Date(state.plan.publishedAt))}` : ""}`}</Pill>
+                  <Pill tone="success">{`Published${state.plan.publishedAt ? ` ${clockOn(new Date(state.plan.publishedAt))}` : ""}`}</Pill>
                 )}
               </button>
             </li>

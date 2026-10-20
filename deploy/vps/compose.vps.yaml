@@ -50,6 +50,11 @@ services:
       args:
         NEXT_PUBLIC_ROLE_ADDRESSES: "1"
     ports: !reset []
+    # On the shared edge network both stacks' backends answer to "backend", so
+    # the frontend names its own stack's one: otherwise a production page could
+    # reach the preview backend (seen 2026-10-19, when a demo switch landed there).
+    environment:
+      BACKEND_URL: http://${DEPLOY_ENV:-production}-backend:8080
     networks:
       default:
       edge:

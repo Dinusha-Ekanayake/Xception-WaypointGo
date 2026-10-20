@@ -10,7 +10,7 @@ import { addDays, dayLabel } from "../../../shared/wording/index.ts";
 import { BigButton } from "../ui.tsx";
 import { TruckIcon } from "../icons.tsx";
 import DockPicker, { DOCK_KEY } from "./DockPicker.tsx";
-import { TripCard, TripTable, waiting, type Who } from "./TripRows.tsx";
+import { TripCard, TripTable, vehicleHere, waiting, type Who } from "./TripRows.tsx";
 import { useT } from "../i18n.tsx";
 
 // Figma "01 Dock board", "06 Change dock", "E3 offline" and "E4 no trips here":
@@ -52,6 +52,17 @@ export default function DockBoard({
   const today = depotToday();
   const leavesLater = date !== undefined && date !== today && date !== addDays(today, 1);
   const [filter, setFilter] = usePersistentState<Filter>("loader:board:filter", "all");
+  // R-LOD-13: by default the board lists only vehicles that are here to load.
+  const [arrivedOnly, setArrivedOnly] = usePersistentState<boolean>("loader:board:arrived", true);
+  const [notHere, setNotHere] = useState<string | null>(null);
+  const open = (trip: ReadyTripView) => {
+    if (vehicleHere(trip)) {
+      setNotHere(null);
+      onOpen(trip.tripId);
+    } else {
+      setNotHere(trip.vehicleId);
+    }
+  };
   const [dock, setDockState] = useState<string>(() => {
     try {
       return window.localStorage.getItem(DOCK_KEY) ?? "";
@@ -80,6 +91,7 @@ export default function DockBoard({
   const shown = atDock.filter(
     (t) =>
       match(t, who) &&
+      (!arrivedOnly || vehicleHere(t)) &&
       (q === "" || [t.vehicleId, t.districtName, t.holder?.name ?? "", t.holder?.employeeCode ?? ""].some((v) => v.toLowerCase().includes(q))),
   );
 
@@ -119,6 +131,17 @@ export default function DockBoard({
           />
         </label>
         <div aria-label={tr("Filter trips")} className="-mx-5 flex gap-2 overflow-x-auto px-5 md:mx-0 md:px-0 lg:col-start-2 lg:row-start-2 lg:justify-self-end">
+          <button
+            type="button"
+            aria-pressed={arrivedOnly}
+            onClick={() => setArrivedOnly(!arrivedOnly)}
+            className={cx(
+              "min-h-12 shrink-0 rounded-full px-[18px] text-[15px] font-medium whitespace-nowrap min-[1700px]:text-[17px] max-md:px-2.5 max-md:text-[14px]",
+              arrivedOnly ? "bg-go-soft text-go-on-soft" : "bg-go-surface text-go-ink",
+            )}
+          >
+            {tr("Arrived only")} ({atDock.filter(vehicleHere).length})
+          </button>
           {FILTERS.map((f) => (
             <button
               key={f.value}
@@ -154,19 +177,32 @@ export default function DockBoard({
           {friendlyError(trips.error)}
         </Notice>
       )}
+      {notHere && (
+        <Notice tone="warning" title={tr("{vehicle} has not arrived yet", { vehicle: notHere })} live>
+          {tr("Its driver reports at the depot first; then you can take the trip.")}
+        </Notice>
+      )}
       {!trips.data && !trips.error && <SkeletonRows label={tr("Loading trips…")} />}
       {trips.data && shown.length === 0 && (
         <div className="flex flex-col items-center gap-3 rounded-[32px] bg-go-card px-6 py-12 text-center text-go-ink shadow-go-card">
           <span className="flex size-14 items-center justify-center rounded-full bg-go-surface text-go-muted"><TruckIcon /></span>
           <p className="text-[19px] font-medium">
-            {all.length === 0 ? tr("No trips tonight yet") : emptyDock ? tr("No trips at {dock} right now", { dock }) : tr("No trips match")}
+            {all.length === 0
+              ? tr("No trips tonight yet")
+              : emptyDock
+                ? tr("No trips at {dock} right now", { dock })
+                : arrivedOnly && !atDock.some(vehicleHere)
+                  ? tr("No vehicle has arrived yet")
+                  : tr("No trips match")}
           </p>
           <p className="text-[15px] text-go-muted">
             {all.length === 0
               ? tr("They appear here once the plan is published.")
               : emptyDock && busyDocks.length > 0
                 ? tr("Nothing here tonight. Try {docks}.", { docks: busyDocks.join(tr(" or ")) })
-                : tr("Try another dock or filter.")}
+                : arrivedOnly && !atDock.some(vehicleHere)
+                  ? tr("Trips show here when the driver reports at the depot. Turn off Arrived only to see every trip.")
+                  : tr("Try another dock or filter.")}
           </p>
           {emptyDock && (
             <BigButton tone="ink" fit onClick={() => setPicking(true)}>
@@ -181,12 +217,12 @@ export default function DockBoard({
           <ul className="grid gap-3 md:hidden">
             {shown.map((trip) => (
               <li key={trip.tripId}>
-                <TripCard trip={trip} who={who(trip)} online={online} showDock={dock === ""} moving={trip.tripId === moving} onOpen={() => onOpen(trip.tripId)} />
+                <TripCard trip={trip} who={who(trip)} online={online} showDock={dock === ""} moving={trip.tripId === moving} onOpen={() => open(trip)} />
               </li>
             ))}
           </ul>
           <div className="hidden md:block">
-            <TripTable trips={shown} who={who} online={online} showDock={dock === ""} moving={moving} onOpen={onOpen} />
+            <TripTable trips={shown} who={who} online={online} showDock={dock === ""} moving={moving} onOpen={(tripId) => open(shown.find((t) => t.tripId === tripId)!)} />
           </div>
         </>
       )}

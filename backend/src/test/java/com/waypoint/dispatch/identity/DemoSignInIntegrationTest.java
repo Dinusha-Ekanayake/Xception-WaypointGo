@@ -69,8 +69,7 @@ class DemoSignInIntegrationTest {
         () -> new DemoView(demoOn.get(), Instant.now(), 0, true, 2000, 60000, 1, 1), Clock.system());
 
     var offered = query.view().orElseThrow();
-    // The administrator is never offered: here its password was changed, and an administrator is
-    // left out even while the demo password still opens it (below).
+    // An administrator is left out unless DEMO_SIGN_IN_ADMIN asks for it (below).
     assertEquals(List.of(dispatcher, dock), offered.accounts().stream().map(DemoSignInQuery.Account::email).toList());
     assertEquals(List.of("dispatcher", "loader"), offered.accounts().stream().map(DemoSignInQuery.Account::role).toList());
     assertEquals(PASSWORD, offered.password());
@@ -87,8 +86,12 @@ class DemoSignInIntegrationTest {
     assertTrue(adminListed.view().isEmpty(), "an administrator is not offered unless asked for");
     var adminAsked = new DemoSignInQuery(db, hasher, new DemoSignInProperties(List.of(seededAdmin, admin), PASSWORD, "", true, ""),
         () -> new DemoView(true, Instant.now(), 0, true, 2000, 60000, 1, 1), Clock.system());
-    assertEquals(List.of(seededAdmin), adminAsked.view().orElseThrow().accounts().stream().map(DemoSignInQuery.Account::email).toList(),
-        "asked for, the administrator is offered while the demo password opens it, never once it was changed");
+    var asked = adminAsked.view().orElseThrow();
+    assertEquals(List.of(seededAdmin, admin), asked.accounts().stream().map(DemoSignInQuery.Account::email).toList(),
+        "asked for, an administrator is listed whatever its password, as the list never carries it");
+    assertTrue(asked.accounts().stream().noneMatch(DemoSignInQuery.Account::fillsPassword));
+    assertNull(asked.password(), "with only administrators listed, no password leaves");
+    assertTrue(offered.accounts().stream().allMatch(DemoSignInQuery.Account::fillsPassword));
 
     var ended = new DemoSignInQuery(db, hasher, new DemoSignInProperties(List.of(dispatcher), PASSWORD, "", false, "2020-01-01"),
         () -> new DemoView(true, Instant.now(), 0, true, 2000, 60000, 1, 1), Clock.system());

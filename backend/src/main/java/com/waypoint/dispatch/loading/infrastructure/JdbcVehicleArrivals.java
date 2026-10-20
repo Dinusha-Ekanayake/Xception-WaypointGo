@@ -21,6 +21,14 @@ public class JdbcVehicleArrivals {
     this.database = database;
   }
 
+  /** Whether the vehicle's driver has reported at the depot for that day (R-LOD-13). */
+  public boolean arrived(String vehicleId, LocalDate serviceDate) {
+    return database.queryOne(
+            "SELECT 1 FROM loading.vehicle_arrivals WHERE vehicle_id = ? AND service_date = ?",
+            vehicleId, Date.valueOf(serviceDate))
+        != null;
+  }
+
   /** @return true when this is the vehicle's first report that day */
   public boolean record(String vehicleId, String depotCode, LocalDate serviceDate, UUID driverId, Instant arrivedAt) {
     return database.update(

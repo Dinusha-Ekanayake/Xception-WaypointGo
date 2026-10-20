@@ -83,7 +83,7 @@ The details, and which process reads which configuration file, are in [developme
 | --- | --- | --- | --- |
 | Dispatcher | `dispatcher@waypoint.local` | Peliyagoda depot | desktop, 1440 px |
 | Loader | `loader@waypoint.local` | Peliyagoda depot; dock PIN `DEMO_LOADER_PIN` (default `2468`) | phone or tablet |
-| Driver | `driver@waypoint.local` | Peliyagoda depot; every Peliyagoda vehicle on the seeded day | phone |
+| Driver | `driver@waypoint.local` | Peliyagoda depot; no vehicle until an administrator assigns one in People & access | phone |
 | Store manager | `store_manager@waypoint.local` | outlet `DEMO_OUTLET` (default `OUT001`, Waypoint Fresh, Colombo) | desktop or phone |
 
 `admin@waypoint.local` and `auditor@waypoint.local` exist too, with the same password, but are not part of the walkthrough. Locally every role is on http://localhost:3000.

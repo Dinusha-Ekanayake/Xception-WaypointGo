@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import type { OrderView, PlanView, StopView, VehicleView } from "@shared/domain/types";
 import { Segmented } from "@shared/ui";
-import { hhmm } from "@shared/wording";
+import { clockOn, hhmm } from "@shared/wording";
 import { after } from "../data/plan.ts";
 import { lastServedText } from "../data/planViews.ts";
 import { size } from "../data/orders.ts";
@@ -113,7 +113,7 @@ export default function SwapWindow({
     <TripWindow
       label="Swap window"
       kicker={`Swap ${incoming.orderRef} · ${incoming.brandCode} ${incoming.outletId} ${incoming.districtName}`}
-      title={`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.brandCode} ${trip.districtName} · departs ${hhmm(trip.plannedDeparture)}`}
+      title={`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.brandCode} ${trip.districtName} · departs ${clockOn(trip.plannedDeparture, plan.serviceDate)}`}
       onClose={leave}
       banner={
         <div className="flex flex-wrap items-center gap-4 rounded-go-input border border-go-teal/30 bg-go-success-tint px-4 py-3">
@@ -185,7 +185,7 @@ export default function SwapWindow({
         ),
       }}
       tiles={tripTiles(showing, orders, vehicle, !outId || (Boolean(preview.data) && !preview.loading))}
-      depart={{ place: `${(vehicle?.depotCode ?? plan.depotCode)} depot`, time: hhmm(trip.plannedDeparture) }}
+      depart={{ place: `${(vehicle?.depotCode ?? plan.depotCode)} depot`, time: hhmm(trip.plannedDeparture), day: plan.serviceDate }}
       back={{ time: after(trip.plannedDeparture, trip.plannedMinutes) }}
       stops={stopRows(plan, showing, orders, vehicle, outId ? incoming.orderId : null)}
       onDefer={outId ? undefined : choose}

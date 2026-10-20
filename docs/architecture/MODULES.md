@@ -515,9 +515,9 @@ The trip is found through the issue's trip, delivery or order subject (`Executio
 | infrastructure | Demo-owned tables in `demo` schema; the neutral Platform time port is implemented by the application query |
 | web | Authenticated runtime read and administrator run read |
 
-**Owns:** `demo.settings`, `demo.scenario_runs`, `demo.simulations`. **Commands:** `demo:Enable`, `demo:Disable`, `demo:SetClock`, `demo:UpdateSettings`, `demo:ResetDay`, `demo:StartSimulation`, `demo:ControlSimulations`. **Queries:** `GET /api/demo`, `GET /api/demo/scenario-runs`, `GET /api/demo/simulations`.
+**Owns:** `demo.settings`, `demo.scenario_runs`, `demo.simulations`. **Commands:** `demo:Enable`, `demo:Disable`, `demo:SetClock`, `demo:UpdateSettings`, `demo:ResetDay`, `demo:StartSimulation`, `demo:ControlSimulations`, `demo:SendDriverNotifications`. **Publishes:** `demo.driver_notifications_requested` (the demo driver's id and the day; Notification writes sample notices to that inbox, in app only). **Queries:** `GET /api/demo`, `GET /api/demo/scenario-runs`, `GET /api/demo/simulations`.
 
-**Connections.** Demo asks Ordering's `DemoDayQuery` about empty days and last close, and Reference's `ReferenceQuery` about the operating calendar. Its reset job sends `reference:PrepareDemoDay`, `iam:PrepareDemoDay` and `order:PrepareDemoDay` through the command bus, each in its owner's transaction. Starting a simulation reads Execution's `ExecutionQuery.runSheet`, Identity's `IdentityQuery.driverOn` and Reference locations; `SimulationJob` then sends `delivery:RecordPositions` as the assigned driver. Platform sees only the neutral `TimeAdjustment` port. Real-time security and audit use `Clock.realTime()`.
+**Connections.** Demo asks Ordering's `DemoDayQuery` about empty days and last close, and Reference's `ReferenceQuery` about the operating calendar. Its reset job sends `reference:PrepareDemoDay`, `iam:PrepareDemoDay` and `order:PrepareDemoDay` through the command bus, each in its owner's transaction. Send driver notifications asks Identity's `DemoAccounts` for the demo driver and publishes `demo.driver_notifications_requested`. Starting a simulation reads Execution's `ExecutionQuery.runSheet`, Identity's `IdentityQuery.driverOn` and Reference locations; `SimulationJob` then sends `delivery:RecordPositions` as the assigned driver. Platform sees only the neutral `TimeAdjustment` port. Real-time security and audit use `Clock.realTime()`.
 
 **Failure modes.** A missing database makes the business clock fall back to real time. A failed reset step stays recorded in `scenario_runs`; the coordinator retries a step with its stable command id up to three times and never deletes existing orders. See R-DEMO-01 to 03 and the [issue plan](../issues/231-demo-mode/PLAN.md).
 
@@ -627,6 +627,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `catalogue.synced` | Warehouse | Ordering |
 | `reference.version_published`, `vehicle.status_changed`, `calendar.overridden` | Reference | Planning, Notification |
 | `message.posted` | Messaging | Notification |
+| `demo.driver_notifications_requested` | Demo | Notification |
 | `order.outlook_changed` | Intelligence | Notification |
 | `stop.likely_late` | Intelligence | Notification |
 | `attention.raised`, `attention.reminded` | Intelligence | Notification; Issues (`attention.raised`: asks the store, R-ISS-15) |

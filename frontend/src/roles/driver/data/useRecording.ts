@@ -65,19 +65,21 @@ export function useEndedTrips(): [ReadonlySet<string>, (tripId: string) => void]
   return [ended, end];
 }
 
-const AT_DEPOT_KEY = (vehicleId: string, date: string) => `waypoint.driver.atDepot.${vehicleId}.${date}`;
+// Per account too: a demo reset gives every account a new id and starts with
+// nobody at the depot, so a check-in remembered from before must not hide the button.
+const AT_DEPOT_KEY = (accountId: string, vehicleId: string, date: string) => `waypoint.driver.atDepot.${accountId}.${vehicleId}.${date}`;
 
 /**
  * Whether the driver already said they are at the depot with this vehicle today
  * (R-EXE-24), kept on the phone so a reload neither asks again nor sends twice.
  */
-export function useAtDepot(vehicleId: string | null, date: string): [boolean, () => void] {
+export function useAtDepot(accountId: string, vehicleId: string | null, date: string): [boolean, () => void] {
   const [at, setAt] = useState(false);
-  useEffect(() => setAt(vehicleId ? stored<boolean>(AT_DEPOT_KEY(vehicleId, date), false) : false), [vehicleId, date]);
+  useEffect(() => setAt(vehicleId ? stored<boolean>(AT_DEPOT_KEY(accountId, vehicleId, date), false) : false), [accountId, vehicleId, date]);
   const mark = useCallback(() => {
     if (!vehicleId) return;
-    store(AT_DEPOT_KEY(vehicleId, date), true);
+    store(AT_DEPOT_KEY(accountId, vehicleId, date), true);
     setAt(true);
-  }, [vehicleId, date]);
+  }, [accountId, vehicleId, date]);
   return [at, mark];
 }

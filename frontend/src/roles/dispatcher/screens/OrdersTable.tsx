@@ -2,7 +2,7 @@
 
 import type { OrderView, RunSheetStopView } from "@shared/domain/types";
 import { Pill, cx } from "@shared/ui";
-import { clock, dayLabel, hhmm } from "@shared/wording";
+import { clock, clockOn, dayLabel, hhmm } from "@shared/wording";
 import { STATUS, size } from "../data/orders.ts";
 import { seriesColour } from "./ForecastChart.tsx";
 
@@ -76,17 +76,17 @@ function Row({ line, last, active, onSelect }: { line: OrderLine; last: LastColu
   const tone = issues > 0 ? "danger" : late ? "warning" : state.tone;
   const lastText =
     last === "placed"
-      ? clock(order.placedAt)
+      ? clockOn(order.placedAt)
       : last === "done"
         ? stop?.completedAt
-          ? `${dayLabel(order.deliveryDate).split(" ").slice(0, 2).join(" ")} ${clock(stop.completedAt)}`
+          ? `${dayLabel(order.deliveryDate).split(" ").slice(0, 2).join(" ")} ${clockOn(stop.completedAt)}`
           : "-"
         : stop?.completedAt
-          ? clock(stop.completedAt)
+          ? clockOn(stop.completedAt)
           : stop?.expectedArrival
-            ? `Expected ${clock(stop.expectedArrival)}`
+            ? `Expected ${clockOn(stop.expectedArrival)}`
             : stop
-              ? `Planned ${hhmm(stop.plannedArrival)}`
+              ? `Planned ${clockOn(stop.plannedArrival, order.deliveryDate)}`
               : "-";
   return (
     <button

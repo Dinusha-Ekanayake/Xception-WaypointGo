@@ -232,6 +232,12 @@ export default function LoadSheet({
           )
         }
         onReport={(line, item) => setIssueFor({ line, item })}
+        onLocked={status === "NOT_STARTED" ? () => setToast({
+          kind: "hint",
+          at: businessNow(),
+          title: tr("Take the trip first"),
+          detail: tr("Tap Start loading, then tick each item as it goes on."),
+        }) : undefined}
       />
       </div>
 

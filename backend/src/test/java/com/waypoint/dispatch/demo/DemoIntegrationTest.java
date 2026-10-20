@@ -149,8 +149,55 @@ class DemoIntegrationTest {
     assertThrows(DomainException.class, () -> bus.dispatch(admin,
         command("ResetDay", settings.view().rowVersion(),
             Map.of("reason", "Reject replacement of prepared day", "serviceDate", day.toString()))));
+    // With no date given, a seeded day is passed over for the next empty one, or refused when none is left.
+    try {
+      Map<?, ?> next = (Map<?, ?>) bus.dispatch(admin, command("ResetDay", settings.view().rowVersion(),
+          Map.of("reason", "Prepare the next empty day"))).value();
+      assertNotEquals(day.toString(), next.get("serviceDate"));
+      assertTrue(db.asSystem(ModuleRole.ORDERING, () -> db.queryOne(
+          "SELECT 1 FROM ordering.orders WHERE depot_code = 'Peliyagoda' AND delivery_date = ? LIMIT 1",
+          java.sql.Date.valueOf(next.get("serviceDate").toString()))) == null);
+      for (int i = 0; i < 3; i++) resetJob.run(Instant.now());
+    } catch (DomainException full) {
+      assertTrue(full.getMessage().contains("within seven days"), full.getMessage());
+    }
     bus.dispatch(admin, command("Disable", settings.view().rowVersion(),
         Map.of("reason", "End isolated demo test")));
+  }
+
+  @Autowired com.waypoint.dispatch.platform.messaging.OutboxRelay relay;
+
+  @Test
+  void driverNotificationsAreAdminOnlyRefusedWhileOffAndLandInTheDemoDriversInbox() {
+    migrator.migrate();
+    String suffix = UUID.randomUUID().toString();
+    Actor admin = Actor.user(accounts.createAccount(
+        "notes-admin-" + suffix + "@test.local", "Notes admin", "DemoPassword2026!", "admin"));
+    if (db.asSystem(ModuleRole.IAM, () -> db.queryOne("SELECT 1 FROM iam.users WHERE email = 'driver@waypoint.local'")) == null) {
+      accounts.createAccount("driver@waypoint.local", "Demo driver", "DemoPassword2026!", "driver");
+    }
+    UUID driver = (UUID) db.asSystem(ModuleRole.IAM, () -> db.queryOne(
+        "SELECT user_id FROM iam.users WHERE email = 'driver@waypoint.local'")).get("user_id");
+    if (settings.view().enabled()) {
+      bus.dispatch(admin, command("Disable", settings.view().rowVersion(), Map.of("reason", "Start from off")));
+    }
+    assertThrows(DomainException.class, () -> bus.dispatch(admin,
+        command("SendDriverNotifications", null, Map.of("reason", "Refused while off"))));
+    bus.dispatch(admin, command("Enable", settings.view().rowVersion(), Map.of("reason", "Notification test")));
+    assertThrows(DomainException.class, () -> bus.dispatch(Actor.user(driver),
+        command("SendDriverNotifications", null, Map.of("reason", "Drivers cannot send these"))));
+
+    Command send = command("SendDriverNotifications", null, Map.of("reason", "Show the driver's inbox"));
+    bus.dispatch(admin, send);
+    for (int pass = 0; pass < 200 && relay.deliverBatch() > 0; pass++) { }
+    var notes = db.asSystem(ModuleRole.NOTIFICATION, () -> db.query(
+        "SELECT event_type, title FROM notification.notifications n WHERE recipient_user_id = ? AND facts->>'demo' = 'true'"
+            + " AND event_id IN (SELECT event_id FROM notification.notifications WHERE target_key = 'demo:plan'"
+            + " AND recipient_user_id = ? ORDER BY created_at DESC LIMIT 1)", driver, driver));
+    assertEquals(4, notes.size(), "four sample notices land in the demo driver's inbox");
+    assertTrue(notes.stream().anyMatch(n -> "message.posted".equals(n.get("event_type"))));
+
+    bus.dispatch(admin, command("Disable", settings.view().rowVersion(), Map.of("reason", "End notification test")));
   }
 
   @Autowired SimulationJob simulationJob;

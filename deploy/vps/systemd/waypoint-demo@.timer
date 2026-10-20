@@ -1,0 +1,11 @@
+# Looks for a demo request every 10 seconds. Install: docs/deployment.md, Demo database.
+[Unit]
+Description=Waypoint demo database requests for %i
+
+[Timer]
+OnBootSec=60
+OnUnitInactiveSec=10
+AccuracySec=1
+
+[Install]
+WantedBy=timers.target

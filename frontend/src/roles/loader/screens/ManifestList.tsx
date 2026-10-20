@@ -18,12 +18,15 @@ export default function ManifestList({
   editable,
   onToggle,
   onReport,
+  onLocked,
 }: {
   lines: Line[];
   outlets: Map<string, OutletView>;
   editable: boolean;
   onToggle: (line: Line, item: ItemView | null) => void;
   onReport: (line: Line, item: ItemView | null) => void;
+  /** A tick before the trip is taken: says to take it first. */
+  onLocked?: () => void;
 }): React.JSX.Element {
   const tr = useT();
   const stops = byStop(lines);
@@ -74,7 +77,7 @@ export default function ManifestList({
               {expanded && (
                 <div className="mb-3 flex flex-col gap-2">
                   {stop.lines.map((line) => (
-                    <OrderBlock key={line.orderId} line={line} editable={editable} onToggle={onToggle} onReport={onReport} />
+                    <OrderBlock key={line.orderId} line={line} editable={editable} onToggle={onToggle} onReport={onReport} onLocked={onLocked} />
                   ))}
                 </div>
               )}
@@ -91,11 +94,13 @@ function OrderBlock({
   editable,
   onToggle,
   onReport,
+  onLocked,
 }: {
   line: Line;
   editable: boolean;
   onToggle: (line: Line, item: ItemView | null) => void;
   onReport: (line: Line, item: ItemView | null) => void;
+  onLocked?: () => void;
 }): React.JSX.Element {
   const tr = useT();
   const loaded = line.items.filter((i) => i.status === "LOADED").length;
@@ -127,7 +132,7 @@ function OrderBlock({
       </div>
       <ul className="flex flex-col gap-1">
         {line.items.map((item) => (
-          <ItemRow key={item.lineNo} line={line} item={item} editable={editable} onToggle={onToggle} onReport={onReport} />
+          <ItemRow key={item.lineNo} line={line} item={item} editable={editable} onToggle={onToggle} onReport={onReport} onLocked={onLocked} />
         ))}
       </ul>
     </div>
@@ -140,12 +145,14 @@ function ItemRow({
   editable,
   onToggle,
   onReport,
+  onLocked,
 }: {
   line: Line;
   item: ItemView;
   editable: boolean;
   onToggle: (line: Line, item: ItemView | null) => void;
   onReport: (line: Line, item: ItemView | null) => void;
+  onLocked?: () => void;
 }): React.JSX.Element {
   const tr = useT();
   const loaded = item.status === "LOADED";
@@ -156,8 +163,9 @@ function ItemRow({
       <button
         type="button"
         // A flagged item is reported, not ticked: re-ticking it goes through Report.
-        onClick={() => (flagged ? onReport(line, item) : onToggle(line, item))}
-        disabled={!editable}
+        // Before the trip is taken a tap says so, rather than doing nothing.
+        onClick={() => (!editable ? onLocked?.() : flagged ? onReport(line, item) : onToggle(line, item))}
+        disabled={!editable && !onLocked}
         aria-pressed={loaded}
         aria-label={tr(flagged ? "Edit report for {label}" : loaded ? "Undo loaded, {label}" : "Mark {label} loaded", { label })}
         className={cx(
