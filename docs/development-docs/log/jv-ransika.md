@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-20 - feat: Reset demo swaps in a spare demo database built ahead
+
+`claude/demo-day-plan` · @jv-ransika
+
+A reset stopped the backend for the whole fresh install, two to three minutes. With no request waiting, `deploy/vps/demo-reset.sh` now builds `waypoint_demo_next`, marked ready with the code version and the Colombo date; a reset renames it into place, copies the real accounts' passwords and PINs, and restarts the backend, and a spare from older code or another day is built again. Without a ready spare the install runs in place, as before. Only the two demo databases are ever dropped (R-DEMO-06).
+Verified: `bash -n`, on preview a spare built by the timer and a reset timed against the old one.
+
 ## 2026-10-20 - fix: Live opens on the day the work is on, not the calendar day
 
 `claude/demo-day-plan` · @jv-ransika
