@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-21 - feat: live refresh phase 1, every screen on the change stream
+
+`dev` · @Oxshadha
+
+- The loader's dock board and load sheet polled every 2 s and never listened to the change stream; trip messages polled every 10 s and the store's issues every 60 s. All four now re-read on the depot's (or the store's outlets') signal (F-07b). The safety-net poll is 60 s while the stream is up and at least 10 s while it is down (was 15 s and 2 s), so an idle loader tablet goes from about 60 reads a minute to about 1.
+- A dispatcher's command that went through tells every screen on the page showing its topic to read at once (`announceChange`), so their own change never waits for the signal or a poll.
+- `useResource` read nothing when a read was switched on under the same key (the Issues screen's Resolved tab) until the next poll; it now reads at once. The 2 s poll had hidden it.
+- Plan for the next phases: [docs/issues/live-refresh/PLAN.md](../../issues/live-refresh/PLAN.md). Open: the folder takes an issue number once the issue exists.
+
+---
+
 ## 2026-10-20 - fix: one temperature badge in every role
 
 `dev` · @Oxshadha

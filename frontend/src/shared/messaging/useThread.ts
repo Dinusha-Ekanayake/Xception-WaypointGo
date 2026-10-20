@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { request } from "@shared/api/client";
 import { newCommand, send, type Command } from "@shared/api/commands";
 import { parseProblem, ApiError } from "@shared/api/problem";
+import { announceChange, outletWatch } from "@shared/api/changes";
 import { useResource, type Resource } from "@shared/api/useResource";
 import { pendingEntries, QUEUED_EVENT, readThrough } from "@shared/offline";
 import {
@@ -79,6 +80,11 @@ export function useThread(threadId: string | null, accountId?: string): ThreadSt
           kept(accountId, `thread-members:${threadId}`, () => request<MemberView[]>(`/api/threads/${q(threadId)}/members`, { signal })),
     `thread-members|${threadId ?? ""}`,
   );
+  // On the change stream (F-07b): a message posted, resolved or redirected re-reads the
+  // thread. A store hears its own outlets, everyone else the trip's depot; the driver,
+  // who watches no depot, keeps the poll.
+  const head = thread.data;
+  const watch = !head || head.memberRole === "driver" ? [] : head.memberRole === "store_manager" ? head.myOutlets.map(outletWatch) : [head.depotCode];
   const latest = useResource(
     threadId === null
       ? null
@@ -88,6 +94,7 @@ export function useThread(threadId: string | null, accountId?: string): ThreadSt
           ),
     `thread-messages|${threadId ?? ""}`,
     POLL_MS,
+    watch.length > 0 ? { depots: watch, topics: ["message"] } : undefined,
   );
   const [older, setOlder] = useState<MessageView[][]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -237,6 +244,8 @@ export async function resolveIssueReport(issueId: string, messageId: string, not
     if (issue.status === "OPEN" || issue.status === "ASSIGNED") {
       const why = note.trim().length >= 3 ? note.trim() : RESOLVED_FROM_THREAD;
       await send(newCommand(IssueCommandKind.resolve, { issueId, action: "other", note: why }, issue.rowVersion));
+      // The Issues screen, open or not, shows it resolved at once.
+      announceChange({ topic: "issue" });
     }
   } catch (failure) {
     if (failure instanceof ApiError) throw new Error(failure.problem.violations[0]?.message ?? failure.message);

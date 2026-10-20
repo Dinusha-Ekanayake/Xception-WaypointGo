@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { announceChange } from "@shared/api/changes";
 import { newCommand, send, type Command } from "@shared/api/commands";
 import { ApiError } from "@shared/api/problem";
 
@@ -8,7 +9,8 @@ import { ApiError } from "@shared/api/problem";
 // an outage resends the same command id, so the server answers from its receipt
 // instead of applying the change twice; a rule refusal forgets the command, so
 // a corrected one goes out under a fresh id. The dispatcher is online only:
-// nothing is queued.
+// nothing is queued. A command that went through tells every screen on the page
+// that shows its topic ("issue:Resolve" is the issue topic) to read again at once.
 
 export type Sent<T> = { ok: true; result: T } | { ok: false; error: ApiError | Error };
 
@@ -27,6 +29,7 @@ export function useCommand(): {
     try {
       const ack = await send<T>(command);
       pending.current = null;
+      announceChange({ topic: kind.slice(0, kind.indexOf(":")) });
       return { ok: true, result: ack.result };
     } catch (failure) {
       if (failure instanceof ApiError && !failure.isRetryable) pending.current = null;

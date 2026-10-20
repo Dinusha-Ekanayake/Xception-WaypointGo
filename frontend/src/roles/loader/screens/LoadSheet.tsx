@@ -32,6 +32,7 @@ export default function LoadSheet({
   onBack,
   actingUserId,
   accountId,
+  depot,
 }: {
   gateway: LoadingGateway;
   trip: ReadyTripView;
@@ -47,9 +48,11 @@ export default function LoadSheet({
   actingUserId: string;
   /** The device's account: messages are kept on it with no signal. */
   accountId: string;
+  /** The depot's change stream re-reads the manifest when something commits there. */
+  depot?: string;
 }): React.JSX.Element {
   const tr = useT();
-  const t = useTrip(gateway, trip.tripId, online, waiting, onQueued, actingUserId);
+  const t = useTrip(gateway, trip.tripId, online, waiting, onQueued, actingUserId, depot);
   // An issue's optional voice note is posted on the trip's thread as the loader who entered their PIN.
   const tripThread = useTripThread(trip.tripId, accountId);
   const threadId = tripThread.data?.threadId ?? null;

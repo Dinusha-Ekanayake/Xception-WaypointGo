@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { request } from "./client.ts";
-import { LIVE_FALLBACK_MS, concerns, listenForChanges } from "./changes.ts";
+import { LIVE_DOWN_MS, LIVE_FALLBACK_MS, concerns, listenForChanges } from "./changes.ts";
 import { ApiError } from "./problem.ts";
 import { businessNow } from "../wording/now.ts";
 
@@ -103,7 +103,9 @@ export function useResource<T>(
       inFlight.current = false;
       controller.abort();
     };
-  }, [key, tick]);
+    // `load === null` too: a read switched on under the same key (a tab opened) reads at
+    // once, instead of waiting for the next poll.
+  }, [key, tick, load === null]);
 
   // F-07b: listen for the topics this read shows, and slow the poll while the stream is up.
   const [streaming, setStreaming] = useState(false);
@@ -121,7 +123,9 @@ export function useResource<T>(
     );
     // `load === null` only switches listening on and off; the loader itself changes every render.
   }, [liveDepots, liveTopics, load === null, refreshQuietly]);
-  const every = pollMs && streaming ? Math.max(pollMs, LIVE_FALLBACK_MS) : pollMs;
+  // A read on the stream polls only as a safety net: every 60 s while the stream is up, every 10 s at
+  // most while it is down. A read with no stream keeps its own interval.
+  const every = pollMs && liveDepots && liveTopics ? Math.max(pollMs, streaming ? LIVE_FALLBACK_MS : LIVE_DOWN_MS) : pollMs;
 
   useEffect(() => {
     if (!every) return;

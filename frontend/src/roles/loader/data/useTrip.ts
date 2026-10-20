@@ -15,6 +15,7 @@ import {
 } from "@shared/domain/types";
 import type { LoadingGateway } from "./gateway.ts";
 import { itemKey, orderStatusOf } from "./manifest.ts";
+import { LOADER_TOPICS } from "./live.ts";
 
 // One trip's load sheet and every write against it.
 //
@@ -62,8 +63,10 @@ export function useTrip(
   waiting: number,
   onQueued: () => void,
   actingUserId: string,
+  /** On the depot's change stream; without it the manifest polls every 2 s as before. */
+  depot?: string,
 ): Trip {
-  const manifest = useResource((signal) => gateway.manifest(tripId, signal), `${tripId}`, 2_000);
+  const manifest = useResource((signal) => gateway.manifest(tripId, signal), `${tripId}`, 2_000, depot ? { depots: [depot], topics: LOADER_TOPICS } : undefined);
   const [baseline, setBaseline] = useState<number | null>(null);
   const [local, setLocal] = useState<Record<string, Pick<ItemView, "status" | "loadedUnits">>>({});
   const [busy, setBusy] = useState(false);

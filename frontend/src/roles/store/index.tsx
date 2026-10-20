@@ -108,7 +108,8 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
     live(["delivery", "eta", "trip", "plan", "receipt"]),
   );
   const orderIds = recentOrderIds(orders.data ?? [], today);
-  const issues = useResource(orderIds.length ? (s) => issuesForOrders(gateway, orderIds, s) : null, orderIds.join(","), 60_000);
+  // A raised or resolved issue at the outlet re-reads the list at once (F-07b); 60 s is the safety net.
+  const issues = useResource(orderIds.length ? (s) => issuesForOrders(gateway, orderIds, s) : null, orderIds.join(","), 60_000, live(["issue", "receipt"]));
 
   const { refresh: refreshOrders } = orders;
   const { refresh: refreshPending } = pending;

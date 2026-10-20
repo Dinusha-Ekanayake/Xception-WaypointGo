@@ -26,6 +26,7 @@ import TripMessages from "./screens/TripMessages.tsx";
 import OperatorGate from "./screens/OperatorGate.tsx";
 import Settings from "./screens/Settings.tsx";
 import { useClockOffset } from "@shared/demo/useDemo";
+import { LOADER_TOPICS } from "./data/live.ts";
 
 // The loader workspace from Figma "08 Loader · Phone", "07 Loader · Tablet"
 // and "09 Loader · Tablet portrait". Resilient offline tier (src/shared/offline/tiers.ts):
@@ -96,7 +97,9 @@ function LoaderWorkspace({
   }, [userId]);
   const { theme } = useTheme();
 
-  const trips = useResource(depot ? (signal) => gateway.readyTrips(depot, date, signal) : null, `${depot}:${date}`, 2_000);
+  // On the depot's change stream (F-07b): a plan, a trip, a check, a shortfall or a driver
+  // reporting at the depot re-reads the board; the 2 s poll is only the stream-down fallback.
+  const trips = useResource(depot ? (signal) => gateway.readyTrips(depot, date, signal) : null, `${depot}:${date}`, 2_000, depot && !gateway.sample ? { depots: [depot], topics: LOADER_TOPICS } : undefined);
   // Found again on start, on reconnecting, and once the shown day has nothing left to load.
   const dayDone = trips.data !== null && !stillToLoad(trips.data);
   useEffect(() => {
@@ -311,6 +314,7 @@ function LoaderWorkspace({
           actingUserId={operator.userId}
           accountId={userId}
           refreshKey={syncKey}
+          {...(depot && !gateway.sample ? { depot } : {})}
         />
       ) : (
         <DockBoard depot={depot} meId={operator.userId} trips={trips} online={online} onOpen={openTrip} moving={moving} date={date} />
