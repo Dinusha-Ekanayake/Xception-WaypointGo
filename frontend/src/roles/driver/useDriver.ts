@@ -453,12 +453,15 @@ export function useDriver(userId: string, depot: string | null = null) {
   // trip to load it. Kept on the phone per vehicle and day, so a reload does not
   // ask again; sent through the queue, so it lands even with no signal at the dock.
   const today = operatingDate(now);
-  const waitingToday = run.nextRun && !run.nextRun.released && run.nextRun.date === today && run.nextRun.vehicleId ? run.nextRun.vehicleId : null;
-  const [atDepot, setAtDepot] = useAtDepot(waitingToday, today);
+  // Today's trip, or tomorrow's: it is loaded the evening before, after the
+  // cutoff, so the driver reports for it tonight (R-LOD-13: no loading before).
+  const waitingDay = run.nextRun && (run.nextRun.date === today || run.nextRun.date === addDays(today, 1)) ? run.nextRun.date : today;
+  const waitingToday = run.nextRun && !run.nextRun.released && waitingDay === run.nextRun.date && run.nextRun.vehicleId ? run.nextRun.vehicleId : null;
+  const [atDepot, setAtDepot] = useAtDepot(waitingToday, waitingDay);
   const reportAtDepot = async () => {
     if (!waitingToday) return;
     setError(null);
-    const outcome = await act(ExecutionCommandKind.arriveAtDepot, { vehicleId: waitingToday });
+    const outcome = await act(ExecutionCommandKind.arriveAtDepot, { vehicleId: waitingToday, serviceDate: waitingDay });
     if (!outcome.ok) return setError(words(outcome));
     setAtDepot();
     setNotice(outcome.queued ? t("Saved on this phone. The loader is told when the connection is back.") : t("The loader knows you are here."));
@@ -510,7 +513,7 @@ export function useDriver(userId: string, depot: string | null = null) {
     location,
     fuelPass,
     /** Today's trip waits for the loader: the driver can say they are at the depot (R-EXE-24). */
-    depotCheckIn: waitingToday ? { vehicleId: waitingToday, done: atDepot, report: reportAtDepot } : null,
+    depotCheckIn: waitingToday ? { vehicleId: waitingToday, done: atDepot, report: reportAtDepot, tomorrow: waitingDay !== today } : null,
     run,
     sync,
     view,

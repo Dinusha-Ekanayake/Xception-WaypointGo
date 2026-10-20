@@ -7,6 +7,7 @@ import com.waypoint.dispatch.loading.contract.LoadingCommands;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.LoadingStarted;
 import com.waypoint.dispatch.loading.domain.LoadingSession;
 import com.waypoint.dispatch.loading.infrastructure.JdbcLoadingRepository;
+import com.waypoint.dispatch.loading.infrastructure.JdbcVehicleArrivals;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.Command;
 import com.waypoint.dispatch.platform.messaging.CommandHandler;
@@ -14,6 +15,8 @@ import com.waypoint.dispatch.platform.messaging.CommandPayload;
 import com.waypoint.dispatch.platform.messaging.EventPublisher;
 import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.shared.domain.Actor;
+import com.waypoint.dispatch.shared.error.DomainException;
+import com.waypoint.dispatch.shared.error.ErrorCode;
 import com.waypoint.dispatch.shared.util.Clock;
 import java.time.Instant;
 import java.util.Optional;
@@ -23,19 +26,24 @@ import org.springframework.stereotype.Component;
 /**
  * Take a trip (Figma 01 "Take trip"). It locks to this loader until release or
  * hand back (R-LOD-11). The first take announces loading.started, which stops
- * the trip's orders being amended (ORD-06).
+ * the trip's orders being amended (ORD-06). A trip is taken only once its
+ * vehicle's driver has reported at the depot for that day (R-LOD-13): before
+ * then the vehicle is not there to load.
  */
 @Component
 public class StartLoadingHandler implements CommandHandler {
   private final JdbcLoadingRepository trips;
+  private final JdbcVehicleArrivals arrivals;
   private final PersonQuery people;
   private final EventPublisher events;
   private final Metrics metrics;
   private final Clock clock;
 
   public StartLoadingHandler(
-      JdbcLoadingRepository trips, PersonQuery people, EventPublisher events, Metrics metrics, Clock clock) {
+      JdbcLoadingRepository trips, JdbcVehicleArrivals arrivals, PersonQuery people, EventPublisher events,
+      Metrics metrics, Clock clock) {
     this.trips = trips;
+    this.arrivals = arrivals;
     this.people = people;
     this.events = events;
     this.metrics = metrics;
@@ -68,6 +76,13 @@ public class StartLoadingHandler implements CommandHandler {
     UUID tripId = CommandPayload.of(command).uuid("tripId");
     Instant now = clock.now();
     Loaded loaded = LoadingMessages.load(trips, tripId, expected);
+    if (!arrivals.arrived(loaded.trip().vehicleId(), loaded.trip().serviceDate())) {
+      metrics.increment("waypoint.loading.vehicle_not_arrived");
+      throw new DomainException(
+          ErrorCode.CONFLICT,
+          loaded.trip().vehicleId() + " has not arrived at the depot yet; its driver reports there first",
+          java.util.List.of("R-LOD-13"));
+    }
 
     PersonView person =
         people.person(actor.userId()).orElse(new PersonView(actor.userId(), "Loader", Optional.empty()));

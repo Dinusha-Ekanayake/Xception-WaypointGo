@@ -12,8 +12,11 @@ import { clock } from "@shared/wording";
 // 04 Trip already taken, and 23 Vehicle released.
 
 export type ToastMessage = {
-  /** "loaded" for a tick (green, the time); "saved" for an issue kept on this device (grey, Just now). */
-  kind: "loaded" | "saved";
+  /**
+   * "loaded" for a tick (green, the time); "saved" for an issue kept on this
+   * device (grey, Just now); "hint" for a tap that cannot count yet (amber).
+   */
+  kind: "loaded" | "saved" | "hint";
   title: string;
   detail?: string;
   /** A last line, such as who the issue goes to. */
@@ -34,15 +37,16 @@ export function Toast({ message, onDone }: { message: ToastMessage; onDone: () =
     return () => window.clearTimeout(timer);
   }, [message, onDone]);
   const loaded = message.kind === "loaded";
+  const hint = message.kind === "hint";
 
   return (
     <div role="status" aria-live="polite" className="fixed inset-x-0 bottom-0 z-30 flex justify-center">
       <div className="flex w-full max-w-[560px] animate-sheet-up flex-col gap-5 rounded-t-[32px] bg-go-card px-5 pt-5 pb-[max(1.75rem,env(safe-area-inset-bottom))] text-go-ink shadow-[0_-10px_30px_rgba(0,0,0,0.15)]">
         <div className="flex flex-col gap-1 rounded-[24px] bg-go-canvas px-4 py-3.5">
           <div className="flex items-center justify-between text-[13px]">
-            <span className={cx("flex items-center gap-1.5 font-medium", loaded ? "text-go-success" : "text-go-muted")}>
-              <span aria-hidden className={cx("size-2 rounded-full", loaded ? "bg-go-success" : "bg-go-muted")} />
-              {tr(loaded ? "Order loaded" : "Saved offline")}
+            <span className={cx("flex items-center gap-1.5 font-medium", loaded ? "text-go-success" : hint ? "text-go-warning-text" : "text-go-muted")}>
+              <span aria-hidden className={cx("size-2 rounded-full", loaded ? "bg-go-success" : hint ? "bg-go-warning" : "bg-go-muted")} />
+              {tr(loaded ? "Order loaded" : hint ? "Not yet" : "Saved offline")}
             </span>
             <span className="text-go-muted">{loaded ? clock(message.at) : tr("Just now")}</span>
           </div>

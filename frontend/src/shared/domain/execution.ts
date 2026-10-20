@@ -159,7 +159,8 @@ export const ExecutionCommandKind = {
   revokeFuelPass: "vehicle:RevokeFuelPass",
 } as const;
 
-export type ArriveAtDepot = { vehicleId: string };
+/** serviceDate: today unless tomorrow's trip is loaded tonight (R-LOD-13). */
+export type ArriveAtDepot = { vehicleId: string; serviceDate?: string };
 
 /** Why the driver moved on before the store answered: the closed list the server keeps. */
 export type StoreAnswerWaiverReason = "store_absent" | "no_signal" | "disagree";

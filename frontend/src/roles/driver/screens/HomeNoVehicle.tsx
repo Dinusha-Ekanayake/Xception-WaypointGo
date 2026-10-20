@@ -26,7 +26,7 @@ export type DriverHomeProps = {
   /** With nothing released today: the next trip, released or still at the dock. */
   nextRun?: NextRun | null;
   /** Today's trip waits for the loader: the driver says they are at the depot (R-EXE-24). */
-  depotCheckIn?: { vehicleId: string; done: boolean; report: () => void } | null;
+  depotCheckIn?: { vehicleId: string; done: boolean; report: () => void; tomorrow?: boolean } | null;
   /** The server could not be asked and this phone holds no copy of today. */
   unavailable: boolean;
   online: boolean;
@@ -275,7 +275,11 @@ export default function HomeNoVehicle({
                   // say so here, and a loader takes the trip to load it.
                   <>
                     <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
-                      {nextRun?.departure
+                      {depotCheckIn.tomorrow
+                        ? nextRun?.departure
+                          ? t("Tomorrow's trip on {vehicle} departs {time}. Collect the vehicle and tell the loader you are at the depot.", { vehicle: depotCheckIn.vehicleId, time: hhmm(nextRun.departure) })
+                          : t("Tomorrow's trip on {vehicle} is planned. Collect the vehicle and tell the loader you are at the depot.", { vehicle: depotCheckIn.vehicleId })
+                        : nextRun?.departure
                         ? t("Today's trip on {vehicle} departs {time}. Collect the vehicle and tell the loader you are at the depot.", { vehicle: depotCheckIn.vehicleId, time: hhmm(nextRun.departure) })
                         : t("Today's trip on {vehicle} is planned. Collect the vehicle and tell the loader you are at the depot.", { vehicle: depotCheckIn.vehicleId })}
                     </p>

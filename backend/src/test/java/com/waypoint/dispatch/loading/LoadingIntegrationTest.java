@@ -113,8 +113,15 @@ class LoadingIntegrationTest {
     }
   }
 
+  @Autowired com.waypoint.dispatch.loading.infrastructure.JdbcVehicleArrivals arrivals;
+
+  /** The vehicle's driver reports at the depot (R-EXE-24), without which no trip is taken (R-LOD-13). */
+  private void arrive() {
+    database.asSystem(ModuleRole.LOADING, () -> arrivals.record(vehicleId, depot, serviceDate, UUID.randomUUID(), clock.now()));
+  }
+
   @BeforeEach
-  void setUp() throws Exception {
+  void setUp(org.junit.jupiter.api.TestInfo info) throws Exception {
     clock.reset();
     migrator.migrate();
     referenceImport.importFrom(Path.of("../data"), null);
@@ -156,6 +163,20 @@ class LoadingIntegrationTest {
     tripId = UUID.randomUUID();
     deliver("loading.on-plan-published", new PlanPublished(planId, depot, serviceDate, 1, Optional.empty(),
         List.of(trip(List.of(stop(1, orderA), stop(2, orderB))))));
+    // Every test loads a vehicle that has arrived, except the one about arriving.
+    if (!info.getDisplayName().startsWith("aTripIsTakenOnlyOnceItsVehicleHasArrived")) arrive();
+  }
+
+  @Test
+  void aTripIsTakenOnlyOnceItsVehicleHasArrived() throws Exception {
+    JsonNode card = find(json(read(isuru, "/api/loading/trips?depot=" + depot + "&date=" + serviceDate, 200)), tripId);
+    assertTrue(card.get("driverAtDepotAt").isNull(), "the board says the vehicle is not there yet");
+    String refused = send(isuru, "loading:Start", 1L, "{\"tripId\":\"" + tripId + "\"}", 409);
+    assertTrue(refused.contains("R-LOD-13"), refused);
+    arrive();
+    card = find(json(read(isuru, "/api/loading/trips?depot=" + depot + "&date=" + serviceDate, 200)), tripId);
+    assertFalse(card.get("driverAtDepotAt").isNull());
+    send(isuru, "loading:Start", 1L, "{\"tripId\":\"" + tripId + "\"}", 200);
   }
 
   @AfterEach

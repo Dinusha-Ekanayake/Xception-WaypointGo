@@ -255,6 +255,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-LOD-10 | Release requires the loader to confirm doors sealed, orders secured and driver present. No reefer reading or seal number is required | Confirmed product decision | Binding |
 | R-LOD-11 | One loader holds a trip at a time; only that holder writes. Hand back retains the names and times on earlier checks. A hold with no accepted command from its holder for 30 minutes lapses and another loader may take the trip (decision 2026-10-01) | Confirmed product decision | Binding |
 | R-LOD-12 | A vehicle whose driver has reported at the depot (R-EXE-24) is marked "Driver at the dock" on the dock board and listed first until its trip is released, so the loader takes the trip whose vehicle is waiting. The first report of the day is kept | Main flow review 2026-10-05; `loading.vehicle_arrivals`, `OnVehicleAtDepot`, `TripRows.waiting` | Policy |
+| R-LOD-13 | A trip is taken for loading (`loading:Start`) only once its vehicle's driver has reported at the depot for that service date (R-EXE-24); before then it is refused `409` naming R-LOD-13. The driver reports for today's trip, or for tomorrow's, which is loaded the evening before. The dock board lists only arrived vehicles by default ("Arrived only", which the loader can turn off), marks the others "Vehicle not at the depot yet", and a tap on Take trip for one says it has not arrived; a tick on an item before Start loading says to take the trip first | Product decision 2026-10-20 | Policy |
 
 ## 5. Execution
 

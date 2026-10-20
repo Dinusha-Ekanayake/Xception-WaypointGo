@@ -46,16 +46,12 @@ public class DemoAccountPreparation implements CommandHandler,DemoAccounts {
     if(c.expectedVersion()==null || c.expectedVersion()!=0)throw new DomainException(ErrorCode.VERSION_CONFLICT,"New preparation requires version zero");
     var users=accounts(); var day=CommandPayload.of(c).date("serviceDate");
     if(users.size()!=4)throw new DomainException(ErrorCode.CONFLICT,"Create the four dedicated demo accounts with the normal setup first");
-    UUID manager=users.get("store_manager"),driver=users.get("driver");
+    UUID manager=users.get("store_manager");
     if(db.queryOne("SELECT 1 FROM iam.user_outlet_access WHERE user_id=? AND outlet_id='OUT001'",manager)==null)
       accounts.applyGrantOutlet(actor,manager,"OUT001",version(manager));
-    int assigned=0;
-    for(var v:ref.availableVehicles("Peliyagoda",day,null)) {
-      var existing=identity.driverOn(v.vehicleId(),day);
-      if(existing.isPresent())continue;
-      accounts.applyAssignDriver(actor,v.vehicleId(),driver,day,day.plusDays(1),version(driver));assigned++;
-    }
-    return Map.of("assigned",assigned,"serviceDate",day.toString(),"pin","Existing loader PIN preserved");
+    // No vehicle is given to the demo driver: one driver on every vehicle muddled the
+    // demo, so an administrator assigns drivers in People & access when needed.
+    return Map.of("assigned",0,"serviceDate",day.toString(),"pin","Existing loader PIN preserved");
   }
   private long version(UUID id){return ((Number)db.queryOne("SELECT row_version FROM iam.users WHERE user_id=?",id).get("row_version")).longValue();}
 }
