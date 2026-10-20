@@ -14,6 +14,7 @@ import { depotToday, depotsFor, nextRun, scopeLabel, type DepotFilter } from "./
 import type { SearchSource } from "./data/search.ts";
 import { useFleet } from "./data/fleet.ts";
 import { attention } from "./data/live.ts";
+import { liveDay } from "./data/liveDay.ts";
 import { flow } from "./data/orders.ts";
 import { useIssues, useLive, useOrders, usePlans, type DepotPlans } from "./data/useDay.ts";
 import Overview from "./screens/Overview.tsx";
@@ -75,17 +76,6 @@ export default function Dispatcher({
     wasRun.current = run;
     setDate((d) => (d === before ? run : d));
   }, [run]);
-  // Live is the vehicles on the road, so it opens on today, not on the run
-  // being planned; it moves to the next day at midnight unless the dispatcher
-  // chose another day.
-  const [liveDate, setLiveDate] = useState(today);
-  const wasToday = useRef(today);
-  useEffect(() => {
-    if (wasToday.current === today) return;
-    const before = wasToday.current;
-    wasToday.current = today;
-    setLiveDate((d) => (d === before ? today : d));
-  }, [today]);
   const fleet = useFleet(depots, today);
 
   // The sidebar's counts: orders that need a person, and stops that do. Only a
@@ -95,12 +85,23 @@ export default function Dispatcher({
   // Orders lists both days under Current, and search must not miss tomorrow's.
   const runOrders = useOrders(depots, run);
   const dayLive = useLive(depots, today);
+  // Live follows the work, not the calendar (data/liveDay.ts): today while any
+  // of today's trips is out, then the next run once one of its trips is being
+  // loaded or has left, which after the cutoff can be before midnight. A day the
+  // dispatcher picks is kept until they pick the active one again.
+  const runLive = useLive(depots, run);
+  const activeLive = liveDay(today, run, dayLive.data, runLive.data);
+  const [chosenLive, setChosenLive] = useState<string | null>(null);
+  const liveDate = chosenLive ?? activeLive;
+  const setLiveDate = (d: string) => setChosenLive(d === activeLive ? null : d);
+  // The sidebar counts the day Live opens on.
+  const shownLive = activeLive === run ? runLive : dayLive;
   const dayPlans = usePlans(depots, date);
   const planWord = dayPlans.data ? planBadge(dayPlans.data) : null;
   const badges: Badges = {
     orders: dayOrders.data ? flow(dayOrders.data).attention : 0,
     ...(planWord ? { plan: { text: planWord } } : {}),
-    live: dayLive.data ? attention(dayLive.data.sheets, businessNow()).length : 0,
+    live: shownLive.data ? attention(shownLive.data.sheets, businessNow()).length : 0,
   };
 
   // The search box's own read of open issues (issue #usability): every other
@@ -109,8 +110,8 @@ export default function Dispatcher({
   const searchSource: SearchSource = {
     orders: uniqueOrders([...(dayOrders.data ?? []), ...(runOrders.data ?? [])]),
     vehicles: fleet.data ?? [],
-    sheets: dayLive.data?.sheets ?? [],
-    dock: dayLive.data?.dock ?? [],
+    sheets: [...(dayLive.data?.sheets ?? []), ...(runLive.data?.sheets ?? [])],
+    dock: [...(dayLive.data?.dock ?? []), ...(runLive.data?.dock ?? [])],
     issues: dayIssues.data ?? [],
     depots: scope,
   };

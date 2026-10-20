@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-20 - fix: Live opens on the day the work is on, not the calendar day
+
+`claude/demo-day-plan` · @jv-ransika
+
+A trip belongs to its service date, but tomorrow's trips are planned, loaded and can leave after today's 16:00 cutoff, so Live, which opened on the calendar day, showed nothing while they were on the road. Live now opens on today while any of today's trips is still out, then on the next run once one of its trips is being loaded or has left (`data/liveDay.ts`); the day picker still chooses any day, and the sidebar badge and search follow. Dates keep their meaning everywhere else (EXE-45).
+Verified: `dispatcher-live-day.test.ts`, `npm test`, typecheck, build, the dispatcher browser suite.
+
 ## 2026-10-19 - fix: an empty catalogue syncs as soon as the backend serves
 
 `claude/demo-day-plan` · @jv-ransika
