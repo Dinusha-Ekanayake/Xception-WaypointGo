@@ -7,7 +7,7 @@ import type { DemoView } from "@shared/domain/types";
 import { clock, dayLabel } from "@shared/wording/time";
 import { Badge, Empty, card, field, primary, secondary } from "../access/components";
 import { depotParts } from "./clock";
-import { depotInstant, loadDemo, loadRuns, resetDay, setClock, setEnabled, startSimulation, updateSettings } from "./data";
+import { depotInstant, loadDemo, loadRuns, requestReset, resetDay, sendDriverNotifications, setClock, setEnabled, startSimulation, updateSettings } from "./data";
 import ScenarioDeck from "./ScenarioDeck";
 import type { SetupAction } from "./scenarios";
 import SimulationsPanel from "./SimulationsPanel";
@@ -40,8 +40,11 @@ export default function DemoControlRoom(): React.JSX.Element {
     setBusy(true);
     setMessage(null);
     try {
-      await action(view);
-      setMessage({ tone: "green", text: `${label}: done.` });
+      const ack = (await action(view)) as { result?: { switching?: boolean; status?: string } } | undefined;
+      // With a demo database (R-DEMO-06) the server carries the change out and restarts.
+      setMessage(ack?.result?.switching || ack?.result?.status === "requested"
+        ? { tone: "green", text: `${label}: on its way. The system restarts in about a minute (a reset takes two or three); then reload this page and sign in again.` }
+        : { tone: "green", text: `${label}: done.` });
     } catch (error) {
       setMessage({ tone: "red", text: `${label}: ${problemText(error)}` });
     } finally {
@@ -108,6 +111,23 @@ export default function DemoControlRoom(): React.JSX.Element {
                 Prepare demo day
               </button>
               <span className="text-sm text-go-secondary">Seeds the Peliyagoda peak day on the next empty operating day, with the demo accounts&rsquo; access.</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" className={secondary} disabled={busy}
+                onClick={() => void run("Driver notifications", () => sendDriverNotifications(r))}>
+                Send driver notifications
+              </button>
+              <span className="text-sm text-go-secondary">Puts four sample notices in the demo driver&rsquo;s inbox. Nothing else changes, so planning and loading stay free to try.</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" className={secondary} disabled={busy}
+                onClick={() => {
+                  if (window.prompt("Reset the demo to a fresh start? Everything done in the demo is removed; the real data is not touched. Type RESET to confirm.") === "RESET")
+                    void run("Reset demo", () => requestReset(r));
+                }}>
+                Reset demo
+              </button>
+              <span className="text-sm text-go-secondary">Starts the demo database again as on a fresh install, with the seeded day. Only where the deployment runs the demo in its own database; the real data is never touched.</span>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-sm text-go-secondary">
               <span>Driver position updates every</span>

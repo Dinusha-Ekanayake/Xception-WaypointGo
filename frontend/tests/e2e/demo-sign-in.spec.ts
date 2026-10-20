@@ -46,6 +46,26 @@ test("a demo account picked from the list fills the sign-in", async ({ page }) =
   expect(signIns[0]).toMatchObject({ email: "dock-demo@waypoint.local", password: "demo-secret" });
 });
 
+test("the administrator is listed without its password and points to the shared credentials", async ({ page }) => {
+  await serve(page, {
+    accounts: [
+      { email: "dispatcher-demo@waypoint.local", name: "Demo Dispatcher", role: "dispatcher", fillsPassword: true },
+      { email: "admin@waypoint.local", name: "Administrator", role: "admin", fillsPassword: false },
+    ],
+    password: "demo-secret",
+    pin: null,
+  });
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Use a demo account" }).click();
+  const list = page.getByRole("dialog", { name: "Demo accounts" });
+  await expect(list).toContainText("password in the shared credentials on GitHub");
+  await list.getByRole("button", { name: /Administrator/ }).first().click();
+  await expect(page.getByLabel("Email")).toHaveValue("admin@waypoint.local");
+  await expect(page.getByLabel("Password", { exact: true })).toHaveValue("");
+  await expect(page.getByRole("status")).toContainText("shared credentials on GitHub");
+});
+
 test("outside a demo there is nothing to pick, and the password can be shown and hidden", async ({ page }) => {
   await serve(page, { accounts: [], password: null, pin: null });
   await page.goto("/");

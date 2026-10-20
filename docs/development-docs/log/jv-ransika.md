@@ -4,6 +4,98 @@
 
 ---
 
+## 2026-10-20 - feat: deciding a deferred order shows matching trips and whom to call; times carry their day
+
+`claude/demo-day-plan` · @jv-ransika
+
+Candidate trips now lead with the trips the order can join, each with brand, district, temperature, stops, load and departure, marked "Same brand, district & temperature". The deferred order's panel (Decide and the board's sheet) shows the outlet's store managers with their profile phone and Call, and Message the store through `plan:ContactStore`; `GET /api/outlets/{id}/contacts` (`iam:ReadStoreContact`, migration `20261020T1800`) serves them for outlets in the dispatcher's depots only (R-IAM-41). Every time on the dispatcher screens now carries its day in small letters (`clockOn`, `<When>`), since a bare time was read as today's (PLN-49).
+Verified: `ExecutionIntegrationTest` (contacts, scope, policy), `ModuleBoundaryTest`, `FoundationIntegrationTest`, `npm test`, typecheck, build, the dispatcher browser suite (104).
+
+## 2026-10-20 - fix: a check-in remembered from before a demo reset no longer hides "I'm at the depot"
+
+`claude/demo-day-plan` · @jv-ransika
+
+The driver's phone kept "at the depot" per vehicle and day only, so after a demo reset (fresh database, new account ids, nobody checked in) it still showed the driver at the depot and hid the button, and the loader never saw the vehicle. The phone now keeps it per account as well, and "Tell the loader again" resends the check-in, which is harmless twice (R-EXE-24).
+Verified: `npm test`, typecheck, build, the driver browser suite (39).
+
+## 2026-10-20 - feat: Live's offline means the driver's phone is not connected
+
+`claude/demo-day-plan` · @jv-ransika
+
+Offline was a GPS judgement, so a driver whose phone was connected (hearing notifications, able to record stops) could show offline, and one whose phone had dropped could still look fine. `GET /api/execution/presence` answers, per vehicle on a depot's run sheets, whether the driver's app reached the server within two minutes, from Identity's session activity (`IdentityQuery.lastSeen`, real time); Live marks offline from it and says how long, falling back to the last fix if the read fails (R-EXE-25, EXE-46).
+Verified: `ExecutionIntegrationTest` (presence, scope), `ModuleBoundaryTest`, `dispatcher-live-desk.test.ts`, `npm test`, typecheck, build, the dispatcher browser suite.
+
+## 2026-10-20 - fix: Live no longer shows an online driver as offline when the demo clock moves
+
+`claude/demo-day-plan` · @jv-ransika
+
+Phones stamp fixes on real time, but positions were checked and judged on the business clock: with the demo clock set back every fix was rejected as from the future (`clock_skew`), and set forward every vehicle went offline after ten minutes. Positions now use real time throughout (accept, received, offline), a fix sent for a trip is filed under the trip's day, and simulated vehicles stamp real time (DEMO-12). Phone locked or in the background, and accuracy over 200 m, still read as offline, as they should.
+Verified: `ExecutionIntegrationTest` (41), `LiveDecisionIntegrationTest`, `DemoIntegrationTest`, `PositionPolicyTest`, `ModuleBoundaryTest`.
+
+## 2026-10-20 - feat: a trip is loaded only after its driver reports at the depot
+
+`claude/demo-day-plan` · @jv-ransika
+
+A loader could take a trip whose vehicle was not there, and the driver could report at the depot only for today's trip, not tomorrow's loaded tonight. `loading:Start` now needs the vehicle's arrival for that service date (R-LOD-13); `delivery:ArriveAtDepot` takes tomorrow's `serviceDate` too. The dock board lists arrived vehicles by default ("Arrived only"), marks the rest, says why one cannot be taken, and a tick before Start loading says to take the trip first (LOD-10). Setup and Prepare demo day no longer give the demo driver every vehicle; an administrator assigns drivers.
+The spare demo database is now marked with the init image that built it, not the git commit: one built during a deploy, by the old image, had handed out every vehicle again.
+Verified: `LoadingIntegrationTest` (23), `ExecutionIntegrationTest`, `DemoIntegrationTest`, `ModuleBoundaryTest`, `npm test`, typecheck, the loader (40) and driver (39) browser suites.
+
+## 2026-10-20 - feat: Reset demo swaps in a spare demo database built ahead
+
+`claude/demo-day-plan` · @jv-ransika
+
+A reset stopped the backend for the whole fresh install, two to three minutes. With no request waiting, `deploy/vps/demo-reset.sh` now builds `waypoint_demo_next`, marked ready with the code version and the Colombo date; a reset renames it into place, copies the real accounts' passwords and PINs, and restarts the backend, and a spare from older code or another day is built again. Without a ready spare the install runs in place, as before. Only the two demo databases are ever dropped (R-DEMO-06).
+Verified: `bash -n`, on preview a spare built by the timer and a reset timed against the old one.
+
+## 2026-10-20 - fix: Live opens on the day the work is on, not the calendar day
+
+`claude/demo-day-plan` · @jv-ransika
+
+A trip belongs to its service date, but tomorrow's trips are planned, loaded and can leave after today's 16:00 cutoff, so Live, which opened on the calendar day, showed nothing while they were on the road. Live now opens on today while any of today's trips is still out, then on the next run once one of its trips is being loaded or has left (`data/liveDay.ts`); the day picker still chooses any day, and the sidebar badge and search follow. Dates keep their meaning everywhere else (EXE-45).
+Verified: `dispatcher-live-day.test.ts`, `npm test`, typecheck, build, the dispatcher browser suite.
+
+## 2026-10-19 - fix: an empty catalogue syncs as soon as the backend serves
+
+`claude/demo-day-plan` · @jv-ransika
+
+A fresh database (a first install, or a demo database just reset) had no catalogue until the next quarter-hour run of `CatalogueSyncJob`, so the store said the warehouse was not answering for up to 15 minutes. `CatalogueStartupSync` runs one sync in the background when the backend starts serving and no sync ever succeeded there; the 15-minute refresh is unchanged. Off in tests (`app.warehouse.sync-on-start=false`).
+Verified: `ModuleBoundaryTest`, `FoundationIntegrationTest`, a demo reset on preview showing the catalogue straight after.
+
+## 2026-10-19 - fix: each frontend reaches its own stack's backend
+
+`claude/demo-day-plan` · @jv-ransika
+
+Both stacks' backends join the shared `waypoint-edge` network, where compose names each `backend`, and the frontends called `http://backend:8080`. A production page could be answered by the preview backend: a demo switch pressed on production was recorded in preview, and production's control room read preview's demo state. The VPS overlay now sets `BACKEND_URL` to the stack's unique `production-backend` or `preview-backend`.
+Verified: `docker compose config` for both environments, deploys, and the control room reading its own stack.
+
+## 2026-10-19 - feat: the demo runs in its own database, with a Reset demo button
+
+`claude/demo-day-plan` · @jv-ransika
+
+Demo data piled up in the real database, and its rules (no going back before a close, one seed per day) kept getting in the way of judging. With `DEMO_RESET=true` the demo runs in `waypoint_demo`: demo mode on asks the server to switch, Reset demo to recreate it from a fresh install, demo mode off to switch back to the real database, which the demo never wrote to. The app only records requests; `deploy/vps/demo-reset.sh` on a systemd timer carries them out and drops nothing but `waypoint_demo`. `compose.yaml` takes `DB_NAME`; `deploy.sh` keeps the live database and migrates both. R-DEMO-06, DEMO-11, Demo database in [deployment.md](../../deployment.md).
+Verified: `DemoSeparateDatabaseIntegrationTest`, `DemoIntegrationTest`, `FoundationIntegrationTest`, `ModuleBoundaryTest`, `SeededPolicyTest`, `bash -n`, typecheck, then on, reset and off on preview.
+
+## 2026-10-19 - fix: Prepare demo day moves on to the next empty day; the presenter guide names the working accounts
+
+`claude/demo-day-plan` · @jv-ransika
+
+Prepare demo day always aimed at the next operating day and was refused once that day held orders, so a second demo could not be prepared. With no date given it now takes the first empty operating day within seven days (R-DEMO-03, DEMO-03). The presenter guide listed `<role>@waypoint.local`, which the demo password does not open on the deployment; it now lists the accounts, password and loader PIN the sign-in page offers (`GET /api/session/demo`).
+Verified: `DemoIntegrationTest`, `npm test`, typecheck, build, a preview then production deploy.
+
+## 2026-10-19 - fix: the database comes back after a host restart
+
+`claude/demo-day-plan` · @jv-ransika
+
+The VPS was powered off from the provider's side on 2026-10-18 18:34 and booted 25 minutes later; every container came back except both `db`, which had no restart policy, so production and preview answered 503 to every sign-in for about 21 hours. `db` now has `restart: unless-stopped` like the other services. Both databases were started by hand first; Postgres reported a clean shutdown.
+Verified: `docker compose config`, a preview then production deploy, sign-in on both.
+
+## 2026-10-11 - feat: sample driver notifications for judges; the demo list names the administrator
+
+`claude/demo-day-plan` · @jv-ransika
+
+Judges could not see the driver's notifications without a plan published and loaded, and a demo that published the day for them blocked planning instead. Send driver notifications (`demo:SendDriverNotifications`, migration `20261011T1400`) publishes `demo.driver_notifications_requested`; Notification writes four sample notices to the demo driver's inbox, in app only, and nothing else changes. Prepare demo day still only seeds orders, now for the first of `DEMO_SIGN_IN_ACCOUNTS` per role. A short-lived plan step (`plan:PrepareDemoDay`, `demo:PublishDay`, migrations `20261011T1200` and `T1300`, already applied on preview and production) was removed and its actions marked unimplemented. The demo sign-in list shows the administrator with `DEMO_SIGN_IN_ADMIN` but never its password, and points to the shared credentials on GitHub. R-DEMO-03, R-DEMO-05, DEMO-09, DEMO-10.
+Verified: `DemoIntegrationTest`, `DemoSignInIntegrationTest`, `FoundationIntegrationTest`, `EventCatalogueTest`, `ModuleBoundaryTest`, `SeededPolicyTest`, `npm test`, typecheck, build, `demo-sign-in.spec.ts`.
+
 ## 2026-10-09 - deploy: spoken messages run on the VPS
 
 `dev` · @jv-ransika

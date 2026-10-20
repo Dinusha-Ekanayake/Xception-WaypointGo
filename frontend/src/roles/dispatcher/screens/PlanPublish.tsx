@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { OrderView, PlanView } from "@shared/domain/types";
 import { PrimaryButton, SecondaryButton, cx } from "@shared/ui";
-import { clock, dayLabel, hhmm, ruleLabel } from "@shared/wording";
+import { clock, clockOn, dayLabel, hhmm, ruleLabel } from "@shared/wording";
 import { leftOutLine, type PlanSummary, type Working } from "../data/plan.ts";
 import { SLACK_TIGHT_MINUTES, SLACK_WATCH_MINUTES, daysBetween, publishBlocker, slackLabel, tightStops, type DecisionRow } from "../data/planViews.ts";
 import { useComparison } from "../data/usePlanReads.ts";
@@ -88,7 +88,7 @@ export default function PlanPublish({
   const outletCount = new Set(deferred.map((a) => orders.get(a.orderId)?.outletId).filter(Boolean)).size;
 
   const headline = published
-    ? `Published at ${state.plan.publishedAt ? clock(new Date(state.plan.publishedAt)) : "-"}`
+    ? `Published at ${state.plan.publishedAt ? clockOn(new Date(state.plan.publishedAt)) : "-"}`
     : blocked
       ? "Publishing is blocked"
       : revises
@@ -174,7 +174,7 @@ export default function PlanPublish({
               {tight.map(({ trip, stop, slack }) => (
                 <p key={stop.orderId} className="flex flex-wrap gap-x-3 border-t border-go-rule py-1.5 text-xs text-go-ink">
                   <span className="w-[100px] font-medium">{stop.outletId}</span>
-                  <span className="flex-1 text-go-secondary">{`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.temperature === "chilled" ? "Chilled" : "Ambient"} · arrives ${hhmm(stop.plannedArrival)}, closes ${hhmm(stop.windowClose)}`}</span>
+                  <span className="flex-1 text-go-secondary">{`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.temperature === "chilled" ? "Chilled" : "Ambient"} · arrives ${clockOn(stop.plannedArrival, state.plan.serviceDate)}, closes ${hhmm(stop.windowClose)}`}</span>
                   <span className={slack.tone === "high" ? "text-go-danger-strong" : "text-go-warning-text"}>{slackLabel(slack)}</span>
                 </p>
               ))}

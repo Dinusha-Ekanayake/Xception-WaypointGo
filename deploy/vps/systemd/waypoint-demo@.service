@@ -1,0 +1,12 @@
+# Carries out the Demo control room's switch and reset requests for one checkout
+# (/opt/waypoint/<instance>); see deploy/vps/demo-reset.sh. Does nothing unless
+# that checkout's .env sets DEMO_RESET=true.
+[Unit]
+Description=Waypoint demo database requests for %i
+After=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+ExecStart=/opt/waypoint/%i/deploy/vps/demo-reset.sh
+TimeoutStartSec=900

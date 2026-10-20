@@ -22,9 +22,11 @@ import org.springframework.stereotype.Component;
  * is on. The only secrets that can leave are the configured demo password and
  * PIN, and only while they work, never a password the server does not hold.
  *
- * <p>Field roles are offered; an administrator only when {@code DEMO_SIGN_IN_ADMIN}
- * is on, because it changes accounts and policies and the list is public. An
- * auditor or operations account, or one holding several roles, is never offered.
+ * <p>Field roles are offered with the demo password. An administrator is listed
+ * only when {@code DEMO_SIGN_IN_ADMIN} is on, and never with a password, because
+ * it changes accounts and policies and the list is public: picking it fills the
+ * email and the page points to the team's shared credentials. An auditor or
+ * operations account, or one holding several roles, is never offered.
  *
  * <p>Checking a password costs an Argon2 verification, and the read is public,
  * so the answer is kept for {@link #KEEP} rather than worked out per request.
@@ -36,7 +38,8 @@ public class DemoSignInQuery {
   /** The roles a demo may offer: the four field applications, never one that administers or audits. */
   static final java.util.Set<String> OFFERED_ROLES = java.util.Set.of("dispatcher", "driver", "store_manager", "loader");
 
-  public record Account(String email, String name, String role) {}
+  /** @param fillsPassword false for an administrator, whose password the list never gives */
+  public record Account(String email, String name, String role, boolean fillsPassword) {}
 
   public record DemoSignIn(List<Account> accounts, String password, Optional<String> pin) {}
 
@@ -87,13 +90,16 @@ public class DemoSignInQuery {
         // One role, a field one, or an administrator when asked for; nothing that audits.
         boolean offeredRole = OFFERED_ROLES.contains(roles.get(0)) || (properties.admin() && "admin".equals(roles.get(0)));
         if (roles.size() != 1 || !offeredRole) continue;
-        if (!hasher.matches(properties.password(), String.valueOf(user.get("password_hash")))) continue;
-        offered.add(new Account(email, String.valueOf(user.get("display_name")), roles.get(0)));
+        boolean admin = "admin".equals(roles.get(0));
+        if (!admin && !hasher.matches(properties.password(), String.valueOf(user.get("password_hash")))) continue;
+        offered.add(new Account(email, String.valueOf(user.get("display_name")), roles.get(0), !admin));
       }
       if (offered.isEmpty()) {
         return Optional.<DemoSignIn>empty();
       }
-      return Optional.of(new DemoSignIn(List.copyOf(offered), properties.password(), pinThatOpens(offered)));
+      // The password leaves only beside an account it fills, never for an administrator alone.
+      String password = offered.stream().anyMatch(Account::fillsPassword) ? properties.password() : null;
+      return Optional.of(new DemoSignIn(List.copyOf(offered), password, pinThatOpens(offered)));
     });
   }
 

@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import type { OrderView, PlanView, StopView, VehicleView } from "@shared/domain/types";
-import { hhmm } from "@shared/wording";
+import { clockOn, hhmm } from "@shared/wording";
 import { size } from "../data/orders.ts";
 import { after, type TripLoad } from "../data/plan.ts";
 import { lastServedText } from "../data/planViews.ts";
@@ -119,7 +119,7 @@ export default function EditTrip({
     <TripWindow
       label="Edit trip"
       kicker={`Edit trip · ${(vehicle?.depotCode ?? plan.depotCode)}`}
-      title={`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.brandCode} ${trip.districtName} · departs ${hhmm(trip.plannedDeparture)}`}
+      title={`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.brandCode} ${trip.districtName} · departs ${clockOn(trip.plannedDeparture, plan.serviceDate)}`}
       onClose={leave}
       banner={
         <div className="flex flex-col gap-3">
@@ -187,7 +187,7 @@ export default function EditTrip({
         ),
       }}
       tiles={tripTiles(stops, orders, vehicle, !changed || (Boolean(preview.data) && !preview.loading))}
-      depart={{ place: `${(vehicle?.depotCode ?? plan.depotCode)} depot`, time: hhmm(trip.plannedDeparture) }}
+      depart={{ place: `${(vehicle?.depotCode ?? plan.depotCode)} depot`, time: hhmm(trip.plannedDeparture), day: plan.serviceDate }}
       back={{ time: changed ? "…" : after(trip.plannedDeparture, trip.plannedMinutes) }}
       stops={stopRows(plan, stops, orders, vehicle).map((row) => (added.includes(row.orderId) ? { ...row, tag: "NEW · added by you" } : row))}
       onReorder={canEdit ? (from, to) => setIds((list) => moveItem(list, from, to)) : undefined}

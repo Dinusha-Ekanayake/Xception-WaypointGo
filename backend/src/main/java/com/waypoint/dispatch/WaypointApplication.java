@@ -249,13 +249,8 @@ public class WaypointApplication implements ApplicationRunner {
     // The shared dock screen asks for a PIN before any loading.
     operators.setPin("loader@waypoint.local", loaderPin, null);
     log.info("Set the demo loader's PIN.");
-    // Run sheets exist only for released trips, so the driver sees the trip the loader released.
-    List<String> vehicles =
-        reference.availableVehicles(outcome.depotCode(), outcome.serviceDate(), null).stream()
-            .map(v -> v.vehicleId())
-            .toList();
-    int driven = accounts.assignDriverForDay("driver@waypoint.local", vehicles, outcome.serviceDate());
-    log.info("Assigned the demo driver to {} vehicles on {}.", driven, outcome.serviceDate());
+    // No vehicle gets a driver here: one driver on every vehicle muddled the demo,
+    // so an administrator assigns drivers in People & access when they are needed.
   }
 
   int buildLoadingFixture(String depot, java.time.LocalDate date) {

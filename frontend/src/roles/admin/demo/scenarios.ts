@@ -49,6 +49,19 @@ export const SCENARIOS: Scenario[] = [
     register: "Task 2B",
   },
   {
+    key: "driver-notifications",
+    title: "Driver notifications",
+    situation: "The driver's inbox, shown at any time, even while planning or loading is still under way.",
+    roles: ["Driver"],
+    steps: [
+      "Control room: Send driver notifications",
+      "Driver: Home lists the new notices, each with its label and time; Messages shows one unread",
+      "Driver: play a notice aloud, then open the bell to mark them read",
+    ],
+    expected: "The driver sees and hears each notice; nothing else in the system changes.",
+    setup: [],
+  },
+  {
     key: "late-arrival",
     title: "Late delivery and mall window",
     situation: "A vehicle is on the road and a mall store's window is about to close.",

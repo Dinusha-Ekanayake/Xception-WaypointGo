@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { OrderView, StopOrderSuggestion } from "@shared/domain/types";
 import type { Resource } from "@shared/api/useResource";
-import { hhmm } from "@shared/wording";
+import { hhmm, shortDay } from "@shared/wording";
 
 // The suggested stop order in Edit trip (R-PLN-43). The server times every order
 // of a short trip (a local search on a longer one) with the timeline the plan
@@ -82,7 +82,7 @@ export default function StopOrderAdvice({
             )}
             <div className="flex gap-1">
               <dt>Back at the depot</dt>
-              <dd className="font-medium text-go-ink">{`${hhmm(data.finishBefore)} → ${hhmm(data.finishAfter)}`}</dd>
+              <dd className="font-medium text-go-ink">{`${hhmm(data.finishBefore)} → ${hhmm(data.finishAfter)}`}{orders.get(current[0] ?? "")?.deliveryDate && <span className="ml-1 text-[0.75em] font-normal text-go-secondary">{shortDay(orders.get(current[0] ?? "")!.deliveryDate)}</span>}</dd>
             </div>
             <div className="flex gap-1">
               <dt>Compared</dt>

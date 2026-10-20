@@ -1081,7 +1081,30 @@ class ExecutionIntegrationTest {
 
   /** Whether either vehicle already has a driver somewhere in {@code [from, until)}. */
 
+  // ---- store contacts (R-IAM-41) ----
+
+  @Test
+  void aDispatcherReadsTheStoreManagersOfAnOutletInTheirDepotOnly() throws Exception {
+    database.asModule(ModuleRole.IAM, null, () -> database.update(
+        "UPDATE iam.users SET phone = '+94771234567' WHERE email = ?", manager));
+    JsonNode contacts = json(read(dispatcher, "/api/outlets/" + OUTLET + "/contacts", 200));
+    boolean found = false;
+    for (JsonNode c : contacts) {
+      found |= "Store".equals(c.get("name").asText()) && "+94771234567".equals(c.path("phone").asText());
+    }
+    assertTrue(found, "the outlet's store manager, with the phone on their profile: " + contacts);
+    read(farDispatcher, "/api/outlets/" + OUTLET + "/contacts", 404);
+    read(manager, "/api/outlets/" + OUTLET + "/contacts", 403);
+  }
+
   // ---- positions (issue #161) ----
+
+  private JsonNode presenceOf(String vehicle) throws Exception {
+    for (JsonNode p : json(read(dispatcher, "/api/execution/presence?date=" + day + "&depot=" + depot, 200))) {
+      if (vehicle.equals(p.get("vehicleId").asText())) return p;
+    }
+    throw new AssertionError("no presence for " + vehicle);
+  }
 
   @Test
   void aDriverRecordsPositionsAndOnlyTheirScopeSeesThem() throws Exception {
@@ -1114,6 +1137,13 @@ class ExecutionIntegrationTest {
     at("05:20");
     assertTrue(json(read(dispatcher, "/api/execution/positions?date=" + day + "&depot=" + depot, 200))
         .get(0).get("offline").asBoolean(), "ten minutes without a good fix on a trip in progress");
+
+    // R-EXE-25: connected is the driver's app reaching the server, not the last fix. Ten minutes
+    // after the driver's last request the vehicle is not connected; one request and it is.
+    assertFalse(presenceOf(vehicleId).get("connected").asBoolean(), "no request from the driver for ten minutes");
+    read(driver, "/api/execution/run-sheets?date=" + day, 200);
+    assertTrue(presenceOf(vehicleId).get("connected").asBoolean(), "the driver's phone just reached the server");
+    read(farDispatcher, "/api/execution/presence?date=" + day + "&depot=" + depot, 403);
 
     read(farDispatcher, "/api/execution/positions?date=" + day + "&depot=" + depot, 403);
     assertEquals(1, json(read(manager, "/api/execution/positions?date=" + day + "&outlet=" + OUTLET, 200)).size());

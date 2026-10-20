@@ -2,7 +2,7 @@
 
 import type { IssueView, OrderStatus } from "@shared/domain/types";
 import { Drawer, Icon, Pill, SecondaryButton, cx } from "@shared/ui";
-import { clock, dayLabel, hhmm, units } from "@shared/wording";
+import { clock, clockOn, dayLabel, hhmm, shortDay, units } from "@shared/wording";
 import { TYPE } from "../data/issues.ts";
 import { STATUS, size } from "../data/orders.ts";
 import type { OrderLine } from "./OrdersTable.tsx";
@@ -36,21 +36,21 @@ export default function OrderDrawer({
   const decidable = order.status === "CONFIRMED" || order.status === "DEFERRED" || order.status === "ALLOCATED" || order.status === "UNSERVABLE";
 
   const steps: Step[] = [
-    { title: "Placed", note: `${dayLabel(order.placedAt.slice(0, 10))} ${clock(order.placedAt)}`, state: "done" },
+    { title: "Placed", note: `${dayLabel(order.placedAt.slice(0, 10))} ${clockOn(order.placedAt)}`, state: "done" },
     {
       title: "Planned",
       note: ride ? `${ride}${stop ? ` · stop ${stop.sequence}` : ""}` : order.status === "DEFERRED" ? `Deferred ${order.deferralCount}×` : "Not on a published plan yet",
       state: PLANNED.includes(order.status) ? "done" : order.status === "DEFERRED" || order.status === "UNSERVABLE" ? "warn" : "todo",
     },
-    { title: "Loaded", note: stop?.startedAt ? `Left the depot ${clock(stop.startedAt)}` : "At the dock", state: LOADED.includes(order.status) ? "done" : "todo" },
+    { title: "Loaded", note: stop?.startedAt ? `Left the depot ${clockOn(stop.startedAt)}` : "At the dock", state: LOADED.includes(order.status) ? "done" : "todo" },
     {
       title: order.status === "FAILED" ? "Not delivered" : "Delivered",
       note: stop?.completedAt
-        ? `${clock(stop.completedAt)}${stop.lateMinutes ? ` · ${stop.lateMinutes} min late` : " · on time"}`
+        ? `${clockOn(stop.completedAt)}${stop.lateMinutes ? ` · ${stop.lateMinutes} min late` : " · on time"}`
         : stop?.expectedArrival
-          ? `Expected ${clock(stop.expectedArrival)}`
+          ? `Expected ${clockOn(stop.expectedArrival)}`
           : stop
-            ? `Planned ${hhmm(stop.plannedArrival)}`
+            ? `Planned ${clockOn(stop.plannedArrival, order.deliveryDate)}`
             : "Not yet",
       state: order.status === "FAILED" ? "fail" : DELIVERED.includes(order.status) ? (order.status === "PARTIALLY_DELIVERED" ? "warn" : "done") : "todo",
     },
@@ -66,7 +66,7 @@ export default function OrderDrawer({
       <header className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <h2 className="text-[24px] font-medium text-go-ink">{order.orderRef}</h2>
-          <p className="text-[13px] text-go-secondary">{`${order.brandCode} · ${order.outletId} ${order.districtName}${stop ? ` · ${hhmm(stop.windowOpen)}-${hhmm(stop.windowClose)}` : ""}`}</p>
+          <p className="text-[13px] text-go-secondary">{`${order.brandCode} · ${order.outletId} ${order.districtName}${stop ? ` · ${hhmm(stop.windowOpen)}-${hhmm(stop.windowClose)} ${shortDay(order.deliveryDate)}` : ""}`}</p>
         </div>
         <button type="button" onClick={onClose} aria-label="Close" className="rounded-full bg-go-surface p-2.5">
           <Icon name="close" />

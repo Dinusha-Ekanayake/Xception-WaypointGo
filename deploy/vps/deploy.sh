@@ -146,6 +146,10 @@ main() {
   git lfs pull --include="ml-server/models/*" || die "git lfs pull failed"
 
   compose=(docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml)
+  # During a demo the backend runs on the demo database (deploy/vps/demo-reset.sh,
+  # R-DEMO-06), so a deploy keeps it there. The dump below is always of the real one.
+  export DB_NAME=waypoint
+  [[ "$(cat "$APP_DIR/.demo-database" 2>/dev/null || true)" == waypoint_demo ]] && DB_NAME=waypoint_demo
   # nginx runs once, with production, and fronts both environments.
   [[ "$environment" == production ]] && compose+=(--profile edge)
 
@@ -201,6 +205,10 @@ main() {
   # `init` migrates and imports in a container of its own while the running
   # stack keeps serving. A failed migration stops here with nothing replaced.
   "${compose[@]}" run --rm -T init
+  # The real database is migrated too while a demo runs, so switching back finds it current.
+  if [[ "$DB_NAME" != waypoint ]]; then
+    DB_NAME=waypoint "${compose[@]}" run --rm -T init
+  fi
 
   # Only now are the changed containers replaced. init has just run, so it is
   # left out, and --wait holds until the backend reports ready and the frontend

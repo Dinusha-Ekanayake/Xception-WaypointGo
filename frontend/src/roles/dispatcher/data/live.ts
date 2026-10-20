@@ -12,6 +12,8 @@ export type Risk = "ok" | "late" | "failed";
 
 export type VehicleDay = {
   vehicleId: string;
+  /** The day the run belongs to, so its times are written with it. */
+  serviceDate?: string;
   stops: RunSheetStopView[];
   done: number;
   failed: number;
@@ -46,6 +48,7 @@ export function vehicleDay(sheet: RunSheetView, now: Date): VehicleDay {
   const state: RoadState = !current ? "finished" : current.outcome === "ARRIVED" ? "at-stop" : started ? "driving" : "not-started";
   return {
     vehicleId: sheet.vehicleId,
+    serviceDate: sheet.serviceDate,
     stops,
     done: stops.filter(finished).length,
     failed,

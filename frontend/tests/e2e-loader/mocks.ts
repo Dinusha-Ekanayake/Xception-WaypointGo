@@ -93,6 +93,8 @@ export function board(m: ManifestView): ReadyTripView[] {
       holder: m.holder,
       releasedAt: m.releasedAt,
       rowVersion: m.rowVersion,
+      // The driver has reported at the depot, so the trip can be taken (R-LOD-13).
+      driverAtDepotAt: "2026-07-02T10:00:00Z",
     },
   ];
 }

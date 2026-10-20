@@ -37,6 +37,10 @@ function TripAction({ trip, who, online, onOpen }: Omit<RowProps, "showDock">): 
   if (who === "other") {
     return <BigButton tone="muted" icon="lock" disabled>{tr("In use")}</BigButton>;
   }
+  // R-LOD-13: not before the vehicle is here. The button stays, so a tap says why.
+  if (!vehicleHere(trip)) {
+    return <BigButton tone="muted" icon="hand" onClick={onOpen}>{tr("Take trip")}</BigButton>;
+  }
   return online ? (
     <BigButton icon="hand" onClick={onOpen}>{tr("Take trip")}</BigButton>
   ) : (
@@ -48,7 +52,16 @@ function tripLine(trip: ReadyTripView, showDock: boolean, tr: ReturnType<typeof 
   const n = tr("Trip {n} of {m}", { n: trip.tripNumber, m: trip.tripsForVehicle });
   const line = showDock ? `${n} · ${trip.dockCode}` : n;
   // R-LOD-12: the driver has brought the vehicle; the board puts this trip first to take.
-  return waiting(trip) ? `${line} · ${tr("Driver at the dock")}` : line;
+  if (waiting(trip)) return `${line} · ${tr("Driver at the dock")}`;
+  return vehicleHere(trip) ? line : `${line} · ${tr("Vehicle not at the depot yet")}`;
+}
+
+/**
+ * The vehicle is at the depot: its driver has reported there (R-EXE-24), or its
+ * loading is already under way or done. Only then can a trip be taken (R-LOD-13).
+ */
+export function vehicleHere(trip: ReadyTripView): boolean {
+  return Boolean(trip.driverAtDepotAt) || trip.status !== "NOT_STARTED";
 }
 
 /** The driver is at the depot and the trip is not yet released. */

@@ -28,11 +28,15 @@ class DrivenVehicle {
 
   /** One refusal for an unknown vehicle and for one the actor does not drive, so neither is disclosed. */
   Today require(String vehicleId, Instant now) {
-    LocalDate today = now.atZone(Clock.OPERATING_ZONE).toLocalDate();
+    return require(vehicleId, now.atZone(Clock.OPERATING_ZONE).toLocalDate());
+  }
+
+  /** The same, for one service date the caller has already bounded. */
+  Today require(String vehicleId, LocalDate serviceDate) {
     var vehicle = reference.vehicle(vehicleId, null);
-    if (vehicle.isEmpty() || !deliveries.mayRecordFor(vehicleId, today)) {
-      throw new DomainException(ErrorCode.FORBIDDEN, "You are not assigned to this vehicle today");
+    if (vehicle.isEmpty() || !deliveries.mayRecordFor(vehicleId, serviceDate)) {
+      throw new DomainException(ErrorCode.FORBIDDEN, "You are not assigned to this vehicle on " + serviceDate);
     }
-    return new Today(vehicle.get().depotCode(), today);
+    return new Today(vehicle.get().depotCode(), serviceDate);
   }
 }

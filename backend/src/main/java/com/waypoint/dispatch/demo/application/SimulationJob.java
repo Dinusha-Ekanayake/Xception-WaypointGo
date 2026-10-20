@@ -76,7 +76,8 @@ public class SimulationJob implements ScheduledJob {
     }
     Waypoint here = path.get(tick);
     Map<String, Object> point = new LinkedHashMap<>();
-    point.put("recordedAt", clock.now().toString());
+    // Real time, as a phone stamps its fixes (DEMO-12).
+    point.put("recordedAt", clock.realTime().now().toString());
     point.put("latitude", round(here.latitude()));
     point.put("longitude", round(here.longitude()));
     point.put("accuracyM", 5);

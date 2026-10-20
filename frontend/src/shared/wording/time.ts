@@ -10,6 +10,7 @@ export const DEPOT_ZONE = "Asia/Colombo";
 const TIME = new Intl.DateTimeFormat("en-GB", { timeZone: DEPOT_ZONE, hour: "2-digit", minute: "2-digit", hour12: false });
 const DAY = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
 const LONG_DAY = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "long" });
+const SHORT_DAY = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "numeric", month: "short" });
 const TODAY = new Intl.DateTimeFormat("en-CA", { timeZone: DEPOT_ZONE });
 const HOUR = new Intl.DateTimeFormat("en-GB", { timeZone: DEPOT_ZONE, hour: "numeric", hourCycle: "h23" });
 
@@ -24,6 +25,30 @@ export function clock(value: string | Date | null | undefined): string {
   if (typeof value === "string" && /^\d{2}:\d{2}/.test(value)) return value.slice(0, 5);
   const date = typeof value === "string" ? new Date(value) : value;
   return Number.isNaN(date.getTime()) ? "--:--" : TIME.format(date);
+}
+
+/** "21 Oct": the short day written beside a time, so the time reads as that day's. */
+export function shortDay(date: IsoDate): string {
+  return SHORT_DAY.format(new Date(`${date}T00:00:00Z`));
+}
+
+/**
+ * "05:10 · 21 Oct": a time with its day, so a time is never read as today's by
+ * mistake. An instant takes its own depot day; a wall-clock time ("05:10:00")
+ * needs the day it belongs to, and without one shows the time alone.
+ */
+export function clockOn(value: string | Date | null | undefined, day?: IsoDate | null): string {
+  const time = clock(value);
+  const date = dayOf(value, day);
+  return date ? `${time} · ${shortDay(date)}` : time;
+}
+
+/** The depot day of an instant, or the given day for a wall-clock time. */
+export function dayOf(value: string | Date | null | undefined, day?: IsoDate | null): IsoDate | null {
+  if (!value) return null;
+  if (typeof value === "string" && /^\d{2}:\d{2}/.test(value)) return day ?? null;
+  const date = typeof value === "string" ? new Date(value) : value;
+  return Number.isNaN(date.getTime()) ? null : depotToday(date);
 }
 
 /** "05:00" from a depot wall-clock time such as "05:00:00". */

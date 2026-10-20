@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ComparisonView, OrderView, PlanView } from "@shared/domain/types";
 import { Segmented } from "@shared/ui";
-import { dayLabel, hhmm, ruleLabel, temperatureLabel } from "@shared/wording";
+import { clockOn, dayLabel, hhmm, ruleLabel, temperatureLabel } from "@shared/wording";
 import { useNextDelivery } from "../data/usePlanReads.ts";
 
 // Figma "Plan · 3 Publish", right card: who is told what when the plan goes
@@ -87,7 +87,7 @@ export default function PublishAudience({
             return (
               <li key={vehicleId} className="flex justify-between gap-2 rounded-go-input bg-go-surface px-3 py-2">
                 <span className="font-medium">{vehicleId}</span>
-                <span className="text-go-secondary">{`${own.length} ${own.length === 1 ? "trip" : "trips"} · departs ${hhmm(own[0]!.plannedDeparture)}`}</span>
+                <span className="text-go-secondary">{`${own.length} ${own.length === 1 ? "trip" : "trips"} · departs ${clockOn(own[0]!.plannedDeparture, plan.serviceDate)}`}</span>
               </li>
             );
           })}
@@ -97,7 +97,7 @@ export default function PublishAudience({
 
       {tab === "loaders" && (
         <p className="rounded-go-input bg-go-surface px-3 py-2.5 text-[13px] text-go-ink">
-          {`Dock board at ${plan.depotCode}: ${trips.length} ${trips.length === 1 ? "trip" : "trips"} to load${trips[0] ? `, first departs ${hhmm([...trips].sort((a, b) => a.plannedDeparture.localeCompare(b.plannedDeparture))[0]!.plannedDeparture)}` : ""}.`}
+          {`Dock board at ${plan.depotCode}: ${trips.length} ${trips.length === 1 ? "trip" : "trips"} to load${trips[0] ? `, first departs ${clockOn([...trips].sort((a, b) => a.plannedDeparture.localeCompare(b.plannedDeparture))[0]!.plannedDeparture, plan.serviceDate)}` : ""}.`}
         </p>
       )}
     </section>

@@ -1,6 +1,6 @@
 "use client";
 
-import { stops } from "@shared/wording";
+import { clockOn, stops } from "@shared/wording";
 import type { ReportMarkView, RunSheetStopView } from "@shared/domain/types";
 import { REPORT_LABEL, ROLE_LABEL } from "@shared/messaging/thread";
 import { ChatIcon, cx } from "@shared/ui";
@@ -61,7 +61,7 @@ export function RoadCard({ run, onSelect }: { run: Run; onSelect: () => void }):
         {run.status === "returning"
           ? `All ${run.day.stops.length} stops closed · back to ${run.depot ?? "the depot"}`
           : next
-            ? `Expected ${etaOf(next)} · window ${hhmm(next.windowClose)}`
+            ? `Expected ${etaOf(next, run.day.serviceDate)} · window ${clockOn(next.windowClose, run.day.serviceDate)}`
             : `${run.day.done} of ${run.day.stops.length} closed`}
       </span>
       <Bar share={run.status === "returning" ? 1 : progress(run)} className={look.bar} />
@@ -218,7 +218,7 @@ export default function LiveTimeline({
                     : run.status === "returning"
                       ? `${day.done} of ${day.stops.length} delivered · returning`
                       : day.current && last
-                        ? `${day.stops.length - day.done === 1 ? "Last stop" : `${day.stops.length - day.done} stops`} · expected ${etaOf(last)} · window ${hhmm(last.windowClose)}`
+                        ? `${day.stops.length - day.done === 1 ? "Last stop" : `${day.stops.length - day.done} stops`} · expected ${etaOf(last, day.serviceDate)} · window ${clockOn(last.windowClose, day.serviceDate)}`
                         : "Run finished"}
                 </span>
               </button>
