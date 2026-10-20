@@ -301,6 +301,12 @@ export default function HomeNoVehicle({
                       : nextRun && !nextRun.released && nextRun.vehicleId && nextRun.departure
                         ? t("Next trip {day} · {vehicle} · departs {time}. It is planned and waiting for the loader to release it; your stops appear here then.", { day: dayLabel(nextRun.date), vehicle: nextRun.vehicleId, time: hhmm(nextRun.departure) })
                         : t("No trip planned for {vehicle} today. Your stops appear here when the loader releases the vehicle.", { vehicle: vehicle.vehicleId })}
+                    {depotCheckIn?.done && (
+                      // Saying it again is harmless (R-EXE-24), so a check-in that did not land can be sent again.
+                      <button type="button" onClick={depotCheckIn.report} className="mt-2 block min-h-11 text-[14px] font-medium underline underline-offset-2">
+                        {t("Tell the loader again")}
+                      </button>
+                    )}
                   </p>
                 )}
               </>

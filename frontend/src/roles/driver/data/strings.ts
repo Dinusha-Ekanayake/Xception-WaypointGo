@@ -310,6 +310,7 @@ export const STRINGS: Record<string, [string, string]> = {
   "Today's trip on {vehicle} is planned. Collect the vehicle and tell the loader you are at the depot.": ["{vehicle} හි අද ගමන සැලසුම් කර ඇත. වාහනය රැගෙන ඔබ ගබඩාවේ සිටින බව පටවන්නාට කියන්න.", "{vehicle}-இல் இன்றைய பயணம் திட்டமிடப்பட்டுள்ளது. வாகனத்தை எடுத்துக்கொண்டு நீங்கள் கிடங்கில் இருப்பதை ஏற்றுபவரிடம் சொல்லுங்கள்."],
   "Tomorrow's trip on {vehicle} departs {time}. Collect the vehicle and tell the loader you are at the depot.": ["{vehicle} හි හෙට ගමන {time}ට පිටත් වේ. වාහනය රැගෙන ඔබ ගබඩාවේ සිටින බව පටවන්නාට කියන්න.", "{vehicle}-இல் நாளைய பயணம் {time}-க்குப் புறப்படும். வாகனத்தை எடுத்துக்கொண்டு நீங்கள் கிடங்கில் இருப்பதை ஏற்றுபவரிடம் சொல்லுங்கள்."],
   "Tomorrow's trip on {vehicle} is planned. Collect the vehicle and tell the loader you are at the depot.": ["{vehicle} හි හෙට ගමන සැලසුම් කර ඇත. වාහනය රැගෙන ඔබ ගබඩාවේ සිටින බව පටවන්නාට කියන්න.", "{vehicle}-இல் நாளைய பயணம் திட்டமிடப்பட்டுள்ளது. வாகனத்தை எடுத்துக்கொண்டு நீங்கள் கிடங்கில் இருப்பதை ஏற்றுபவரிடம் சொல்லுங்கள்."],
+  "Tell the loader again": ["පටවන්නාට නැවත දන්වන්න", "ஏற்றுபவரிடம் மீண்டும் சொல்லுங்கள்"],
   "Toggle theme": ["තේමාව මාරු කරන්න", "தோற்றத்தை மாற்று"],
   "Too many wrong tries. The store manager can issue a new PIN; the delivery is recorded either way.": ["වැරදි උත්සාහයන් වැඩියි. වෙළඳසැල් කළමනාකරුට අලුත් PIN එකක් දිය හැක; කෙසේ වෙතත් බෙදාහැරීම සටහන් වේ.", "தவறான முயற்சிகள் அதிகம். கடை மேலாளர் புதிய PIN-ஐத் தரலாம்; எப்படியும் விநியோகம் பதிவாகும்."],
   "Trip summary": ["ගමනේ සාරාංශය", "பயணச் சுருக்கம்"],

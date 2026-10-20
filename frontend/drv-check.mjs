@@ -1,0 +1,14 @@
+import { chromium } from "@playwright/test";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 400, height: 860 } });
+const sent = [];
+p.on("response", async (r) => { if (r.url().includes("/api/commands") || r.url().includes("/api/sync")) sent.push(`${r.status()} ${r.url().split("/api/")[1]} ${(await r.text().catch(() => "")).slice(0, 300)}`); });
+await p.goto("https://driver-preview.waypointgo.live/");
+await p.getByLabel("Email").fill("rashmikadilshan@waypoint.local");
+await p.getByLabel("Password", { exact: true }).fill("123456789123");
+await p.getByRole("button", { name: "Sign in" }).click();
+await p.getByRole("button", { name: "I'm at the depot" }).click({ timeout: 30000 });
+await p.waitForTimeout(6000);
+console.log(sent.join("\n"));
+console.log((await p.locator("body").innerText()).replace(/\n+/g, " | ").slice(0, 700));
+await b.close();

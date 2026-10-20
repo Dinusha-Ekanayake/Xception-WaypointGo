@@ -457,7 +457,7 @@ export function useDriver(userId: string, depot: string | null = null) {
   // cutoff, so the driver reports for it tonight (R-LOD-13: no loading before).
   const waitingDay = run.nextRun && (run.nextRun.date === today || run.nextRun.date === addDays(today, 1)) ? run.nextRun.date : today;
   const waitingToday = run.nextRun && !run.nextRun.released && waitingDay === run.nextRun.date && run.nextRun.vehicleId ? run.nextRun.vehicleId : null;
-  const [atDepot, setAtDepot] = useAtDepot(waitingToday, waitingDay);
+  const [atDepot, setAtDepot] = useAtDepot(userId, waitingToday, waitingDay);
   const reportAtDepot = async () => {
     if (!waitingToday) return;
     setError(null);

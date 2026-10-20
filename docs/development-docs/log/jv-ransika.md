@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-20 - fix: a check-in remembered from before a demo reset no longer hides "I'm at the depot"
+
+`claude/demo-day-plan` · @jv-ransika
+
+The driver's phone kept "at the depot" per vehicle and day only, so after a demo reset (fresh database, new account ids, nobody checked in) it still showed the driver at the depot and hid the button, and the loader never saw the vehicle. The phone now keeps it per account as well, and "Tell the loader again" resends the check-in, which is harmless twice (R-EXE-24).
+Verified: `npm test`, typecheck, build, the driver browser suite (39).
+
 ## 2026-10-20 - feat: Live's offline means the driver's phone is not connected
 
 `claude/demo-day-plan` · @jv-ransika
