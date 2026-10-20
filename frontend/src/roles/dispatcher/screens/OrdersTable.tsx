@@ -65,7 +65,8 @@ export default function OrdersTable({
   );
 }
 
-const IN_DRAFT = { label: "In the draft plan · publish to confirm", tone: "info" as const };
+// Short enough for the column; the drawer says the rest (published, it is planned).
+const IN_DRAFT = { label: "In draft", tone: "info" as const };
 
 function Row({ line, last, active, onSelect }: { line: OrderLine; last: LastColumn; active: boolean; onSelect: () => void }): React.JSX.Element {
   const { order, ride, stop, issues } = line;

@@ -173,7 +173,8 @@ export function TripTable({ trips, who, online, showDock, moving, onOpen }: {
                 <td className="hidden px-3 py-3 text-[15px] tabular-nums lg:table-cell">{loadText(trip)}</td>
                 <td className="hidden px-3 py-3 lg:table-cell"><LoaderCell trip={trip} who={w} /></td>
                 <td className="px-3 py-3"><StatusChip status={trip.status} /></td>
-                <td className="w-[136px] px-3 py-3">
+                {/* One line: the label never breaks "Take / trip" in a narrow column; the column grows to fit it. */}
+                <td className="w-[136px] px-3 py-3 whitespace-nowrap">
                   <TripAction trip={trip} who={w} online={online} onOpen={() => onOpen(trip.tripId)} />
                 </td>
               </tr>
