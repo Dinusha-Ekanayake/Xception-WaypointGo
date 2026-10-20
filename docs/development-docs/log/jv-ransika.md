@@ -9,6 +9,7 @@
 `claude/demo-day-plan` · @jv-ransika
 
 A loader could take a trip whose vehicle was not there, and the driver could report at the depot only for today's trip, not tomorrow's loaded tonight. `loading:Start` now needs the vehicle's arrival for that service date (R-LOD-13); `delivery:ArriveAtDepot` takes tomorrow's `serviceDate` too. The dock board lists arrived vehicles by default ("Arrived only"), marks the rest, says why one cannot be taken, and a tick before Start loading says to take the trip first (LOD-10). Setup and Prepare demo day no longer give the demo driver every vehicle; an administrator assigns drivers.
+The spare demo database is now marked with the init image that built it, not the git commit: one built during a deploy, by the old image, had handed out every vehicle again.
 Verified: `LoadingIntegrationTest` (23), `ExecutionIntegrationTest`, `DemoIntegrationTest`, `ModuleBoundaryTest`, `npm test`, typecheck, the loader (40) and driver (39) browser suites.
 
 ## 2026-10-20 - feat: Reset demo swaps in a spare demo database built ahead

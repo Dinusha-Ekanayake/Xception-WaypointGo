@@ -53,8 +53,17 @@ flock -n 9 || exit 0
 backups="$(dirname "$APP_DIR")/backups/$environment"
 mkdir -p "$backups"
 
-# What a ready spare is marked with: the code it was built by and its day.
-stamp() { echo "ready $(git -C "$APP_DIR" rev-parse --short HEAD) $(TZ=Asia/Colombo date +%F)"; }
+# What a ready spare is marked with: the init image that built it and its day.
+# The image, not the git commit: during a deploy the checkout moves before the
+# image is rebuilt, and a spare built then by the old image must not count.
+stamp() {
+  # The tag compose builds, <project>-init; not `compose images`, which names the
+  # image of the last init container, however old.
+  local image
+  image="$(docker image inspect -f '{{.Id}}' "$(basename "$APP_DIR")-init" 2>/dev/null || echo none)"
+  image="${image#sha256:}"
+  echo "ready ${image:0:16} $(TZ=Asia/Colombo date +%F)"
+}
 spare_ready() {
   [[ "$(sql postgres -c "SELECT shobj_description(oid, 'pg_database') FROM pg_database WHERE datname = '$SPARE'")" == "$(stamp)" ]]
 }
@@ -133,9 +142,12 @@ fi
 if [[ -z "$request" ]]; then
   spare_ready && exit 0
   exec >>"$backups/demo.log" 2>&1
-  echo "==> $(date -u +%Y%m%dT%H%M%SZ) building the spare $SPARE ($(stamp))"
+  marked="$(stamp)"
+  echo "==> $(date -u +%Y%m%dT%H%M%SZ) building the spare $SPARE ($marked)"
   drop_db "$SPARE"
-  if build "$SPARE" && sql postgres -c "COMMENT ON DATABASE $SPARE IS '$(stamp)'"; then
+  # Marked with the image read before the build: if a deploy brings a newer one
+  # meanwhile, the mark no longer matches and the next run builds again.
+  if build "$SPARE" && sql postgres -c "COMMENT ON DATABASE $SPARE IS '$marked'"; then
     echo "==> $(date -u +%Y%m%dT%H%M%SZ) spare ready"
   else
     echo "!!  the spare could not be built; the next reset installs in place"
