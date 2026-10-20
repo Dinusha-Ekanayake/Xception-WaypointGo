@@ -267,3 +267,9 @@ export type FuelPassStatusView = {
 
 /** `vehicle:RevokeFuelPass`; expectedVersion is the pass's row version. */
 export type RevokeFuelPass = { vehicleId: string; passId: Uuid; reason: string };
+
+/**
+ * R-EXE-25: whether a vehicle's driver is connected right now, their app having
+ * reached the server within two minutes. Mirrors execution's PresenceView.
+ */
+export type PresenceView = { vehicleId: string; driverId: Uuid | null; lastSeenAt: IsoInstant | null; connected: boolean };

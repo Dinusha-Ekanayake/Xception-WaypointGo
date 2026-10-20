@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-20 - feat: Live's offline means the driver's phone is not connected
+
+`claude/demo-day-plan` · @jv-ransika
+
+Offline was a GPS judgement, so a driver whose phone was connected (hearing notifications, able to record stops) could show offline, and one whose phone had dropped could still look fine. `GET /api/execution/presence` answers, per vehicle on a depot's run sheets, whether the driver's app reached the server within two minutes, from Identity's session activity (`IdentityQuery.lastSeen`, real time); Live marks offline from it and says how long, falling back to the last fix if the read fails (R-EXE-25, EXE-46).
+Verified: `ExecutionIntegrationTest` (presence, scope), `ModuleBoundaryTest`, `dispatcher-live-desk.test.ts`, `npm test`, typecheck, build, the dispatcher browser suite.
+
 ## 2026-10-20 - fix: Live no longer shows an online driver as offline when the demo clock moves
 
 `claude/demo-day-plan` · @jv-ransika

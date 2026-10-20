@@ -146,6 +146,23 @@ public class IdentityDataQuery implements IdentityQuery {
     return database.query(sql, params).stream().map(row -> (String) row.get("v")).toList();
   }
 
+  @Override
+  public java.util.Map<UUID, java.time.Instant> lastSeen(java.util.Collection<UUID> userIds) {
+    if (userIds.isEmpty()) return java.util.Map.of();
+    String marks = String.join(",", java.util.Collections.nCopies(userIds.size(), "?"));
+    return read(() -> {
+      java.util.Map<UUID, java.time.Instant> seen = new java.util.HashMap<>();
+      for (var row : database.query(
+          "SELECT user_id, max(last_seen_at) AS seen FROM iam.sessions"
+              + " WHERE user_id IN (" + marks + ") AND idle_expiry > now() AND absolute_expiry > now()"
+              + " GROUP BY user_id",
+          userIds.toArray())) {
+        seen.put((UUID) row.get("user_id"), ((java.sql.Timestamp) row.get("seen")).toInstant());
+      }
+      return java.util.Map.copyOf(seen);
+    });
+  }
+
   private <T> T read(java.util.function.Supplier<T> work) {
     return database.readAs(ModuleRole.IAM, database.ambientActor().orElse(null), work);
   }

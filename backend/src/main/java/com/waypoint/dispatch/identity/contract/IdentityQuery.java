@@ -32,6 +32,13 @@ public interface IdentityQuery {
   Optional<UUID> driverOn(String vehicleId, LocalDate date);
 
   /**
+   * When each person's app last reached the server, from their live sessions'
+   * activity (real time, written at most once a minute). A person with no live
+   * session is absent. Says whether a phone is connected, never where it is.
+   */
+  java.util.Map<UUID, java.time.Instant> lastSeen(java.util.Collection<UUID> userIds);
+
+  /**
    * Active accounts with a role and a scope, for Notification to route to.
    *
    * @param scopeType {@code depot}, {@code outlet} or {@code vehicle}

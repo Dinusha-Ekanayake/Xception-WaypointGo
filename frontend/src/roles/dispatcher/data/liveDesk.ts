@@ -1,4 +1,4 @@
-import type { FuelView, IssueView, ReadyTripView, RunSheetStopView, StoreAnswerWaiverReason, VehiclePositionView } from "@shared/domain/types";
+import type { FuelView, IssueView, ReadyTripView, RunSheetStopView, PresenceView, StoreAnswerWaiverReason, VehiclePositionView } from "@shared/domain/types";
 import { mapStatus, type MapStatus, type VehicleDay } from "./live.ts";
 
 // The Figma "05 Live" frames (189:20983 to 189:21943) read from what the
@@ -33,6 +33,8 @@ export type Run = {
   /** The loading trip the vehicle is on, matched by the stop's trip; null when Loading did not answer. */
   trip: ReadyTripView | null;
   position: VehiclePositionView | null;
+  /** Whether the driver's phone is connected (R-EXE-25); null when it could not be read. */
+  presence: PresenceView | null;
   status: MapStatus;
   depot: string | null;
 };
@@ -45,9 +47,11 @@ export function runsOf(
   depotOf: Record<string, string>,
   date: string,
   now: Date,
+  presences: PresenceView[] = [],
 ): Run[] {
   const byTrip = new Map(trips.map((t) => [t.tripId, t]));
   const byVehicle = new Map(positions.map((p) => [p.vehicleId, p]));
+  const connection = new Map(presences.map((p) => [p.vehicleId, p]));
   return days.map((day) => {
     const tripId = (day.current ?? day.stops[day.stops.length - 1])?.tripId;
     const trip =
@@ -55,7 +59,11 @@ export function runsOf(
       trips.filter((t) => t.vehicleId === day.vehicleId && t.releasedAt !== null).sort((a, b) => b.tripNumber - a.tripNumber)[0] ??
       null;
     const position = byVehicle.get(day.vehicleId) ?? null;
-    return { day, trip, position, status: mapStatus(date, day, position, now), depot: depotOf[day.vehicleId] ?? null };
+    // Offline is the driver's phone not reaching the server (R-EXE-25): it cannot hear
+    // notifications or record stops. Only without that read does a stale fix decide.
+    const presence = connection.get(day.vehicleId) ?? null;
+    const offline = presence ? !presence.connected : Boolean(position?.offline);
+    return { day, trip, position, presence, status: mapStatus(date, day, { offline }, now), depot: depotOf[day.vehicleId] ?? null };
   });
 }
 
@@ -71,9 +79,12 @@ export function runTitle(run: Run): string {
 }
 
 /** Minutes since the last position, when the phone has gone quiet. */
-export function silentMinutes(run: Run, now: Date): number | null {
-  if (!run.position?.offline) return null;
-  return Math.max(0, Math.round((now.getTime() - new Date(run.position.recordedAt).getTime()) / 60_000));
+export function silentMinutes(run: Run, _now: Date): number | null {
+  if (run.status !== "offline") return null;
+  const since = run.presence ? run.presence.lastSeenAt : run.position?.recordedAt ?? null;
+  if (!since) return null;
+  // Both are real time (DEMO-12), so the gap is measured on real time, not the demo clock.
+  return Math.max(0, Math.round((Date.now() - new Date(since).getTime()) / 60_000));
 }
 
 export type Tone = "danger" | "warning" | "muted" | "success" | "info";

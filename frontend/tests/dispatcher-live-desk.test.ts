@@ -85,3 +85,16 @@ test("needs you groups a trip's cards under its most urgent one, issues on their
   const groups = groupByTrip([card("a1", "VEH001"), card("b1", "VEH002"), card("i1", null), card("a2", "VEH001"), card("a3", "VEH001")]);
   assert.deepEqual(groups.map((g) => [g.lead.id, g.more.map((m) => m.id)]), [["a1", ["a2", "a3"]], ["b1", []], ["i1", []]]);
 });
+
+test("R-EXE-25: offline is the driver's phone not reaching the server, not a stale fix", () => {
+  const stale: VehiclePositionView = { vehicleId: "VEH020", tripId: "t-VEH020", latitude: "6.0", longitude: "80.4", headingDeg: null, accuracyM: null, recordedAt: at("10:00"), offline: true };
+  const fresh: VehiclePositionView = { ...stale, recordedAt: at("10:41"), offline: false };
+  const run = (pos: VehiclePositionView, connected: boolean) =>
+    runsOf(days([sheet("VEH020", [stop("VEH020", 1)])]), [trip("VEH020")], [pos], {}, DATE, NOW, [
+      { vehicleId: "VEH020", driverId: "u-1", lastSeenAt: at("10:41"), connected },
+    ])[0]!;
+  assert.notEqual(run(stale, true).status, "offline", "connected, though the last fix is old: the driver still hears notifications");
+  assert.equal(run(fresh, false).status, "offline", "not connected, though the last fix is fresh");
+  // Without a presence read, the last fix still decides.
+  assert.equal(runsOf(days([sheet("VEH020", [stop("VEH020", 1)])]), [trip("VEH020")], [stale], {}, DATE, NOW)[0]!.status, "offline");
+});

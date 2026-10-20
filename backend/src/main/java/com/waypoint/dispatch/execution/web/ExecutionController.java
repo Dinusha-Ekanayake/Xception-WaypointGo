@@ -45,10 +45,13 @@ public class ExecutionController {
   private final ProofUploads uploads;
   private final ProofLinks links;
   private final RequestAuthorizer authorizer;
+  private final com.waypoint.dispatch.execution.application.PresenceQuery presence;
 
   public ExecutionController(
-      ExecutionDataQuery execution, ProofUploads uploads, ProofLinks links, RequestAuthorizer authorizer) {
+      ExecutionDataQuery execution, ProofUploads uploads, ProofLinks links, RequestAuthorizer authorizer,
+      com.waypoint.dispatch.execution.application.PresenceQuery presence) {
     this.execution = execution;
+    this.presence = presence;
     this.uploads = uploads;
     this.links = links;
     this.authorizer = authorizer;
@@ -70,6 +73,16 @@ public class ExecutionController {
     }
     var actor = authorizer.require(request, READ, "wpt:execution:depot:" + depot);
     return execution.runSheetsOfDepot(actor, depot, date);
+  }
+
+  /** Whether each vehicle's driver is connected right now, for a depot's run sheets that day (R-EXE-25). */
+  @GetMapping("/presence")
+  public List<com.waypoint.dispatch.execution.application.PresenceQuery.PresenceView> presence(
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+      @RequestParam String depot,
+      HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:execution:depot:" + depot);
+    return presence.ofDepot(actor, depot, date);
   }
 
   /** The vehicles the caller is assigned to drive on a date, before any trip has left. */

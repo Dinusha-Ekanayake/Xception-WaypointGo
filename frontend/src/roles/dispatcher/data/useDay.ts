@@ -7,7 +7,7 @@ import { ApiError } from "@shared/api/problem";
 import { useResource, type Resource } from "@shared/api/useResource";
 import { usePositionStream, type PositionStream } from "@shared/live/usePositionStream";
 import { addDays } from "@shared/wording";
-import type { ReportMarkView, DepotView, DeferralView, FuelView, IssueHistoryView, IssueView, OrderView, PlanView, ReadyTripView, RunSheetView } from "@shared/domain/types";
+import type { ReportMarkView, DepotView, DeferralView, FuelView, IssueHistoryView, IssueView, OrderView, PlanView, PresenceView, ReadyTripView, RunSheetView } from "@shared/domain/types";
 
 // The dispatcher's reads for a depot and a day. Each polls while the tab is
 // visible and online, so the screen follows the loaders, the drivers and any
@@ -131,6 +131,8 @@ export type LiveDay = {
   dock: ReadyTripView[];
   /** The depot each vehicle's run sheet was read under, for the map's depot filter. */
   depotOf: Record<string, string>;
+  /** Whether each driver's phone is connected (R-EXE-25); empty when it could not be read. */
+  presence: PresenceView[];
 };
 
 /** Vehicles on the road from Execution, and the day's trips at the dock from Loading. */
@@ -146,7 +148,11 @@ export function useLive(depots: string[], date: string): Resource<LiveDay> {
           ]);
           const depotOf: Record<string, string> = {};
           sheets.forEach((list, i) => list.forEach((sheet) => (depotOf[sheet.vehicleId] = depots[i]!)));
-          return { sheets: sheets.flat(), dock: dock.flat(), depotOf };
+          // Presence is extra: a failed read falls back to the last fix, never fails Live.
+          const presence = await Promise.all(
+            depots.map((depot) => request<PresenceView[]>(`/api/execution/presence?${where(depot)}`, { signal }).catch(() => [] as PresenceView[])),
+          );
+          return { sheets: sheets.flat(), dock: dock.flat(), depotOf, presence: presence.flat() };
         };
   return useResource(load, `live|${depots.join(",")}|${date}`, POLL_MS, { depots, topics: ["trip", "loading", "delivery", "vehicle", "eta", "receipt", "plan"] });
 }

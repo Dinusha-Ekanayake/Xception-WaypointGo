@@ -72,7 +72,7 @@ export default function Live({
   const sheets = live.data?.sheets ?? [];
   const depotOf = live.data?.depotOf ?? {};
   const runs = useMemo(
-    () => runsOf(byUrgency(sheets.map((s) => vehicleDay(s, now))), live.data?.dock ?? [], positions.data ?? [], live.data?.depotOf ?? {}, date, now),
+    () => runsOf(byUrgency(sheets.map((s) => vehicleDay(s, now))), live.data?.dock ?? [], positions.data ?? [], live.data?.depotOf ?? {}, date, now, live.data?.presence ?? []),
     [sheets, live.data, positions.data, date, now],
   );
   const depotNames = [...new Set(Object.values(depotOf))].sort();
