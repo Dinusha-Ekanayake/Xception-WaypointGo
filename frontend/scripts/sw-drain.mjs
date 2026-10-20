@@ -24,10 +24,11 @@ const BATCH = 100;
 /** The position command; must equal POSITION_KIND in src/shared/offline/lanes.ts. */
 export const POSITION_KIND = "delivery:RecordPositions";
 
-export function outcomeOf(status) {
+export function outcomeOf(status, kind) {
   if (status === "APPLIED") return "sent";
   if (status === "DISCARDED" || status === "RESOLVED") return "dropped";
-  if (status === "CONFLICT" || status === "REJECTED") return "review";
+  // As src/shared/offline/outcome.ts: a refused batch of positions is no one's work.
+  if (status === "CONFLICT" || status === "REJECTED") return kind === POSITION_KIND ? "dropped" : "review";
   return "wait";
 }
 
@@ -78,7 +79,7 @@ export async function drainAccount(io) {
   for (const result of answer.json.results || []) {
     const entry = byId.get(result.operationId);
     if (!entry) continue;
-    const action = outcomeOf(result.status);
+    const action = outcomeOf(result.status, entry.kind);
     if (action === "sent" || action === "dropped") {
       await io.remove(entry.commandId);
     } else if (action === "review") {

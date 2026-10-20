@@ -18,10 +18,13 @@ import { useT } from "../i18n.tsx";
 // One loader per trip, until release or hand back (R-LOD-11), so a trip someone
 // else holds shows "In use" and cannot be opened for loading.
 
-type Filter = "all" | "available" | "mine" | "inUse";
+// One filter at a time: "Arrived only" is one of the choices, not a switch beside
+// them, so the board never shows two chips picked at once.
+type Filter = "arrived" | "all" | "available" | "mine" | "inUse";
 type WhoOf = (trip: ReadyTripView) => Who;
 
 const FILTERS: Array<{ value: Filter; label: string; match: (t: ReadyTripView, who: WhoOf) => boolean }> = [
+  { value: "arrived", label: "Arrived only", match: (t) => vehicleHere(t) },
   { value: "all", label: "All", match: () => true },
   { value: "available", label: "Available", match: (t, who) => t.status !== "COMPLETED" && who(t) === "free" },
   { value: "mine", label: "Mine", match: (t, who) => who(t) === "mine" },
@@ -51,9 +54,9 @@ export default function DockBoard({
   const tr = useT();
   const today = depotToday();
   const leavesLater = date !== undefined && date !== today && date !== addDays(today, 1);
-  const [filter, setFilter] = usePersistentState<Filter>("loader:board:filter", "all");
   // R-LOD-13: by default the board lists only vehicles that are here to load.
-  const [arrivedOnly, setArrivedOnly] = usePersistentState<boolean>("loader:board:arrived", true);
+  const [filter, setFilter] = usePersistentState<Filter>("loader:board:show", "arrived");
+  const arrivedOnly = filter === "arrived";
   const [notHere, setNotHere] = useState<string | null>(null);
   const open = (trip: ReadyTripView) => {
     if (vehicleHere(trip)) {
@@ -91,7 +94,6 @@ export default function DockBoard({
   const shown = atDock.filter(
     (t) =>
       match(t, who) &&
-      (!arrivedOnly || vehicleHere(t)) &&
       (q === "" || [t.vehicleId, t.districtName, t.holder?.name ?? "", t.holder?.employeeCode ?? ""].some((v) => v.toLowerCase().includes(q))),
   );
 
@@ -131,17 +133,6 @@ export default function DockBoard({
           />
         </label>
         <div aria-label={tr("Filter trips")} className="-mx-5 flex gap-2 overflow-x-auto px-5 md:mx-0 md:px-0 lg:col-start-2 lg:row-start-2 lg:justify-self-end">
-          <button
-            type="button"
-            aria-pressed={arrivedOnly}
-            onClick={() => setArrivedOnly(!arrivedOnly)}
-            className={cx(
-              "min-h-12 shrink-0 rounded-full px-[18px] text-[15px] font-medium whitespace-nowrap min-[1700px]:text-[17px] max-md:px-2.5 max-md:text-[14px]",
-              arrivedOnly ? "bg-go-soft text-go-on-soft" : "bg-go-surface text-go-ink",
-            )}
-          >
-            {tr("Arrived only")} ({atDock.filter(vehicleHere).length})
-          </button>
           {FILTERS.map((f) => (
             <button
               key={f.value}
@@ -201,7 +192,7 @@ export default function DockBoard({
               : emptyDock && busyDocks.length > 0
                 ? tr("Nothing here tonight. Try {docks}.", { docks: busyDocks.join(tr(" or ")) })
                 : arrivedOnly && !atDock.some(vehicleHere)
-                  ? tr("Trips show here when the driver reports at the depot. Turn off Arrived only to see every trip.")
+                  ? tr("Trips show here when the driver reports at the depot. Choose All to see every trip.")
                   : tr("Try another dock or filter.")}
           </p>
           {emptyDock && (

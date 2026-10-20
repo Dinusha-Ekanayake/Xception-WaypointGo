@@ -101,7 +101,7 @@ export default function Track({
                 {refrigerated && <Chip outline>{t("Refrigerated vehicle")}</Chip>}
               </div>
               {first && <NextStop stop={stops[0] ?? null} order={first} outlet={outlet} />}
-              {first && <Progress status={first.status} />}
+              {first && <Progress status={first.status} arrivedAt={stops[0]?.arrivedAt ?? null} />}
             </Card>
 
             {stops[0] && <LiveMapCard outlet={outlet} stop={stops[0]} />}

@@ -25,6 +25,7 @@ const KINDS: Record<string, { label: string; tone: Tone }> = {
   "eta.changed": { label: "Arrival changed", tone: "warning" },
   "issue.raised": { label: "Issue raised", tone: "urgent" },
   "issue.escalated": { label: "Issue escalated", tone: "urgent" },
+  "issue.resolved": { label: "Issue resolved", tone: "good" },
   "vehicle.fault_reported": { label: "Vehicle fault", tone: "urgent" },
   "road.disruption_reported": { label: "Road disruption", tone: "warning" },
   "receipt.disputed": { label: "Receipt disputed", tone: "warning" },
@@ -38,10 +39,13 @@ export function kindOf(eventType: string): { label: string; tone: Tone } {
 }
 
 /**
- * How loud a notification is. Anything about an issue is urgent, whatever event
- * raised it, so an issue always reads red; the rest take their event's tone.
+ * How loud a notification is. Anything about an open issue is urgent, whatever
+ * event raised it, so an issue reads red until it is resolved; the rest take
+ * their event's tone.
  */
 export function toneOf(n: Pick<NotificationView, "eventType" | "subjectType"> & { title?: string }): Tone {
+  // A resolved issue is good news (R-NOT-19), the one issue event that is not an alarm.
+  if (n.eventType === "issue.resolved") return "good";
   if (n.subjectType === "issue" || n.eventType.startsWith("issue.")) return "urgent";
   // A report on a trip's thread is titled "<Role> report · VEH" (R-NOT-14).
   if (n.eventType === "message.posted" && / report\b/.test(n.title ?? "")) return "urgent";

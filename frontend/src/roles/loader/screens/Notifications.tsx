@@ -20,14 +20,20 @@ import { clock, businessNow } from "@shared/wording";
 // language, filled from the facts the server kept (data/messages.ts).
 
 
+/** A message's thread, opened from its notification at that message. */
+export type ThreadTarget = { threadId: string; messageId: string | null; vehicleId: string | null };
+
 export default function Notifications({
   inbox,
   accountId,
+  onOpenThread,
   onClose,
 }: {
   inbox: Inbox;
   /** Whose saved copies of voice messages play with no signal (R-MSG-11). */
   accountId?: string;
+  /** A message opens its trip's thread, to hear it again and answer; absent while nobody is signed in with a PIN. */
+  onOpenThread?: (target: ThreadTarget) => void;
   onClose: () => void;
 }): React.JSX.Element {
   const tr = useT();
@@ -43,6 +49,16 @@ export default function Notifications({
   };
   const open = (n: NotificationView) => {
     if (isUnread(n) && inbox.online) act(inbox.markRead([n.notificationId]));
+  };
+  // A message is read in its thread, where it can be heard and answered.
+  const thread = (n: NotificationView): ThreadTarget | null =>
+    onOpenThread && n.eventType === "message.posted" && n.subjectType === "thread" && n.subjectId
+      ? { threadId: n.subjectId, messageId: n.facts?.messageId ?? null, vehicleId: n.facts?.vehicleId ?? null }
+      : null;
+  const openRow = (n: NotificationView) => {
+    open(n);
+    const target = thread(n);
+    if (target) onOpenThread?.(target);
   };
 
   return (
@@ -107,6 +123,11 @@ export default function Notifications({
                             <span className="text-go-muted">{ago(n.createdAt, now)}</span>
                           </span>
                           <VoiceNotice item={n} tr={tr} {...(accountId ? { accountId } : {})} />
+                          {thread(n) && (
+                            <button type="button" onClick={() => openRow(n)} className="min-h-11 self-start text-[14px] font-medium text-go-teal">
+                              {tr("Open messages")}
+                            </button>
+                          )}
                         </div>
                       </ScrollRevealCard>
                     </li>
@@ -117,7 +138,7 @@ export default function Notifications({
                     <ScrollRevealCard scrollContainerRef={feed.scrollRef} pullY={feed.pullY}>
                       <button
                         type="button"
-                        onClick={() => open(n)}
+                        onClick={() => openRow(n)}
                         aria-label={`${fresh ? tr("Unread") + ". " : ""}${tr(kind.label)}. ${text.title}. ${text.body}`}
                         className="flex w-full flex-col gap-1 rounded-[22px] bg-go-canvas px-[18px] py-4 text-left"
                       >
@@ -130,6 +151,7 @@ export default function Notifications({
                         </span>
                         <span className={cx("text-[16px] text-go-ink", fresh && "font-semibold")}>{text.title}</span>
                         <span className="text-[14px] text-go-muted">{text.body}</span>
+                        {thread(n) && <span className="text-[14px] font-medium text-go-teal">{tr("Open messages")}</span>}
                       </button>
                     </ScrollRevealCard>
                   </li>

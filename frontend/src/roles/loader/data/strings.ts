@@ -96,7 +96,7 @@ export const STRINGS: Record<string, [string, string]> = {
   "{vehicle} has not arrived yet": ["{vehicle} තවම පැමිණ නැත", "{vehicle} இன்னும் வரவில்லை"],
   "Its driver reports at the depot first; then you can take the trip.": ["මුලින්ම එහි රියදුරු ගබඩාවට පැමිණි බව දන්වයි; ඉන්පසු ඔබට ගමන ගත හැක.", "முதலில் அதன் ஓட்டுநர் கிடங்கில் வந்ததைத் தெரிவிப்பார்; பிறகு நீங்கள் பயணத்தை எடுக்கலாம்."],
   "No vehicle has arrived yet": ["තවම කිසිදු වාහනයක් පැමිණ නැත", "இன்னும் எந்த வாகனமும் வரவில்லை"],
-  "Trips show here when the driver reports at the depot. Turn off Arrived only to see every trip.": ["රියදුරු ගබඩාවට පැමිණි බව දැන්වූ විට ගමන් මෙහි පෙනේ. සියලු ගමන් බැලීමට \"පැමිණි ඒවා පමණි\" අක්‍රිය කරන්න.", "ஓட்டுநர் கிடங்கில் வந்ததைத் தெரிவித்ததும் பயணங்கள் இங்கே தோன்றும். எல்லா பயணங்களையும் பார்க்க \"வந்தவை மட்டும்\" என்பதை அணைக்கவும்."],
+  "Trips show here when the driver reports at the depot. Choose All to see every trip.": ["රියදුරු ගබඩාවට පැමිණි බව දැන්වූ විට ගමන් මෙහි පෙනේ. සියලු ගමන් බැලීමට \"සියල්ල\" තෝරන්න.", "ஓட்டுநர் கிடங்கில் வந்ததைத் தெரிவித்ததும் பயணங்கள் இங்கே தோன்றும். எல்லா பயணங்களையும் பார்க்க \"அனைத்தும்\" என்பதைத் தேர்ந்தெடுக்கவும்."],
   "Take the trip first": ["මුලින්ම ගමන ගන්න", "முதலில் பயணத்தை எடுங்கள்"],
   "Tap Start loading, then tick each item as it goes on.": ["\"පැටවීම අරඹන්න\" ඔබන්න, ඉන්පසු එක් එක් අයිතමය පටවන විට සලකුණු කරන්න.", "\"ஏற்றத் தொடங்கு\" என்பதைத் தட்டி, ஒவ்வொரு பொருளையும் ஏற்றும்போது குறியிடுங்கள்."],
   "Departed": ["පිටත් විය", "புறப்பட்டது"],
@@ -463,6 +463,7 @@ export const STRINGS: Record<string, [string, string]> = {
   // Trip messages (issue #136)
   "Messages": ["පණිවිඩ", "செய்திகள்"],
   "Messages for {vehicle}": ["{vehicle} සඳහා පණිවිඩ", "{vehicle} க்கான செய்திகள்"],
+  "Open messages": ["පණිවිඩ විවෘත කරන්න", "செய்திகளைத் திற"],
   "Write to the dispatcher, or leave the driver a note about the load. A report of missing or damaged items goes to the dispatcher only.": [
     "යැවීම් භාරකරුට ලියන්න, නැතහොත් පැටවීම ගැන රියදුරුට සටහනක් තබන්න. අඩු හෝ හානි වූ භාණ්ඩ ගැන වාර්තාවක් යන්නේ යැවීම් භාරකරුට පමණි.",
     "அனுப்புநருக்கு எழுதுங்கள், அல்லது ஏற்றுதல் பற்றி ஓட்டுநருக்கு ஒரு குறிப்பு விடுங்கள். காணாமல் போன அல்லது சேதமான பொருட்களின் அறிக்கை அனுப்புநருக்கு மட்டுமே செல்லும்.",

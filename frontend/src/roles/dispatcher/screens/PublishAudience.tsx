@@ -15,6 +15,12 @@ import { useNextDelivery } from "../data/usePlanReads.ts";
 
 type Tab = "outlets" | "drivers" | "loaders";
 
+/** The outlets a first publish tells: each on a trip (R-NOT-15) and each whose order waits. */
+export function toldOutlets(plan: Pick<PlanView, "trips">, waiting: Array<string | undefined>): string[] {
+  const onTrips = plan.trips.flatMap((t) => t.stops.map((s) => s.outletId));
+  return [...new Set([...onTrips, ...waiting.filter((id): id is string => Boolean(id))])];
+}
+
 export default function PublishAudience({
   plan,
   orders,
@@ -28,9 +34,10 @@ export default function PublishAudience({
   const [tab, setTab] = useState<Tab>("outlets");
   const next = useNextDelivery(plan.serviceDate);
   const deferred = plan.allocations.filter((a) => a.decision === "DEFERRED");
-  const outlets = changes
-    ? changes.affectedOutlets
-    : [...new Set(deferred.map((a) => orders.get(a.orderId)?.outletId).filter((id): id is string => Boolean(id)))];
+  const waiting = [...new Set(deferred.map((a) => orders.get(a.orderId)?.outletId).filter((id): id is string => Boolean(id)))];
+  // Every outlet on a trip is told its delivery is planned (R-NOT-15).
+  const planned = [...new Set(plan.trips.flatMap((t) => t.stops.map((s) => s.outletId)))].filter((id) => !waiting.includes(id));
+  const outlets = changes ? changes.affectedOutlets : toldOutlets(plan, waiting);
   // Outlets are named as everywhere else: the id with its district.
   const districtOf = new Map([...orders.values()].map((order) => [order.outletId, order.districtName] as const));
   const trips = changes ? plan.trips.filter((t) => changes.changedTrips.includes(t.tripId)) : plan.trips;
@@ -54,9 +61,19 @@ export default function PublishAudience({
 
       {tab === "outlets" &&
         (outlets.length === 0 ? (
-          <p className="text-[13px] text-go-secondary">{changes ? "No outlet is affected by this change." : "No outlet waits: every order is on a trip."}</p>
+          <p className="text-[13px] text-go-secondary">{changes ? "No outlet is affected by this change." : "No outlet is on this plan."}</p>
         ) : (
           <>
+            {!changes && planned.length > 0 && (
+              <div>
+                <p className="pb-1 text-[13px] font-medium text-go-ink">Told their delivery is planned</p>
+                <ul className="flex flex-col gap-1 text-[13px] text-go-ink">
+                  {planned.map((outlet) => (
+                    <li key={outlet}>{`· ${outlet}${districtOf.get(outlet) ? ` ${districtOf.get(outlet)}` : ""}`}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {firstOrder && first && !changes && (
               <div className="rounded-go-card bg-go-surface p-3">
                 <p className="pb-2 text-xs text-go-secondary">{`GO · to ${firstOrder.outletId} ${firstOrder.districtName}`}</p>
@@ -67,15 +84,21 @@ export default function PublishAudience({
                 </div>
               </div>
             )}
-            <p className="text-xs text-go-secondary">{changes ? "Outlets whose delivery changes" : "One message per outlet · reason from Decide · an example, the notification service words it"}</p>
-            <div>
-              <p className="pb-1 text-[13px] font-medium text-go-ink">{changes ? "Sent to" : "Also sent to"}</p>
-              <ul className="flex flex-col gap-1 text-[13px] text-go-ink">
-                {(changes ? outlets : outlets.slice(1)).map((outlet) => (
-                  <li key={outlet}>{`· ${outlet}${districtOf.get(outlet) ? ` ${districtOf.get(outlet)}` : ""}`}</li>
-                ))}
-              </ul>
-            </div>
+            {(changes || waiting.length > 0) && (
+              <>
+                <p className="text-xs text-go-secondary">{changes ? "Outlets whose delivery changes" : "One message per outlet whose order waits · reason from Decide · an example, the notification service words it"}</p>
+                {(changes ? outlets : waiting.slice(1)).length > 0 && (
+                  <div>
+                    <p className="pb-1 text-[13px] font-medium text-go-ink">{changes ? "Sent to" : "Also told their order waits"}</p>
+                    <ul className="flex flex-col gap-1 text-[13px] text-go-ink">
+                      {(changes ? outlets : waiting.slice(1)).map((outlet) => (
+                        <li key={outlet}>{`· ${outlet}${districtOf.get(outlet) ? ` ${districtOf.get(outlet)}` : ""}`}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
           </>
         ))}
 

@@ -21,7 +21,8 @@ import { redoVersion, tripOf } from "./data/redo.ts";
 import DockBoard from "./screens/DockBoard.tsx";
 import Locked from "./screens/Locked.tsx";
 import LoadSheet from "./screens/LoadSheet.tsx";
-import Notifications from "./screens/Notifications.tsx";
+import Notifications, { type ThreadTarget } from "./screens/Notifications.tsx";
+import TripMessages from "./screens/TripMessages.tsx";
 import OperatorGate from "./screens/OperatorGate.tsx";
 import Settings from "./screens/Settings.tsx";
 import { useClockOffset } from "@shared/demo/useDemo";
@@ -111,6 +112,8 @@ function LoaderWorkspace({
   // Notifications for this device's account (issue #118); none in the sample.
   const inbox = useInbox(userId, !gateway.sample);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  // A message notification opens its trip's thread over whatever is on screen.
+  const [threadOpen, setThreadOpen] = useState<ThreadTarget | null>(null);
   // "Synced 02:23" syncs now: send what waits, read the board and an open trip again.
   const [syncKey, setSyncKey] = useState(0);
   const syncNow = () => {
@@ -219,7 +222,33 @@ function LoaderWorkspace({
         onSync={syncNow}
         syncing={sync.syncing || trips.loading}
       />}
-      {notificationsOpen && <Notifications inbox={inbox} accountId={userId} onClose={() => setNotificationsOpen(false)} />}
+      {notificationsOpen && (
+        <Notifications
+          inbox={inbox}
+          accountId={userId}
+          {...(operator
+            ? {
+                onOpenThread: (target: ThreadTarget) => {
+                  setNotificationsOpen(false);
+                  setThreadOpen(target);
+                },
+              }
+            : {})}
+          onClose={() => setNotificationsOpen(false)}
+        />
+      )}
+      {threadOpen && operator && (
+        <TripMessages
+          accountId={userId}
+          actingUserId={operator.userId}
+          threadId={threadOpen.threadId}
+          focusMessageId={threadOpen.messageId}
+          vehicleId={threadOpen.vehicleId ?? ""}
+          online={online}
+          onQueued={sync.syncNow}
+          onClose={() => setThreadOpen(null)}
+        />
+      )}
       {lockError && (
         <div className="px-5 pb-3">
           <Notice

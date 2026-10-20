@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { said, tripThread } from "../thread-mocks.ts";
-import { LIVE_NOW, liveDay, serve, type Desk } from "./mocks.ts";
+import { LIVE_NOW, issue, liveDay, serve, type Desk } from "./mocks.ts";
 
 // Issue #136: one thread per trip. A report on it is the timeline's red sign,
 // which opens the thread at the report; the dispatcher writes to the driver, a
@@ -135,6 +135,41 @@ test("the dispatcher resolves a report: it stays on the thread, marked, and its 
 
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(timeline.getByTestId("report-sign")).toHaveCount(1);
+});
+
+test("resolving a report made from an issue resolves the issue too, so the Issues screen and the store hear it", async ({ page }) => {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
+    said("r9", at("10:05"), {
+      kind: "report", reportType: "receipt_dispute", authorName: "Store", authorRole: "store_manager", audience: "dispatch",
+      body: "shortage investigation: partial receipt. Store's note: Missing: ADAPT_FRESH_263_AMB x1.", issueId: "issue-9",
+    }),
+  ]);
+  const disputed = issue(9, { type: "RECEIPT_DISPUTE", outletId: "OUT061", rowVersion: 4 });
+  const desk = await serve(page, { ...liveDay(), threads: [thread], issues: [disputed] });
+  await page.goto("/#/live");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("region", { name: "Timeline" }).getByTestId("report-sign").first().click();
+
+  const report = page.getByRole("dialog", { name: "Trip messages" }).locator("#message-r9");
+  // The stored product id reads as words, labelled inferred (catalogue rule 3).
+  await expect(report).toContainText("Shortage to check: partial receipt. Store's note: Missing: Fresh dry goods 263 (inferred) x1.");
+  await report.getByRole("button", { name: "Mark resolved" }).click();
+  await report.getByRole("button", { name: "Resolve", exact: true }).click();
+  await expect(report.getByTestId("resolution")).toBeVisible();
+
+  const resolved = desk.commands.find((c) => c.kind === "issue:Resolve");
+  expect(resolved?.payload).toEqual({ issueId: "issue-9", action: "other", note: "Resolved from the trip's messages" });
+  expect(resolved?.expectedVersion).toBe(4);
+  expect(desk.issues[0]!.status).toBe("RESOLVED");
+  expect(desk.commands.find((c) => c.kind === "message:Resolve")?.payload).toEqual({ messageId: "r9" });
+
+  // The Issues screen agrees with the thread: nothing open, the issue under Resolved.
+  await page.getByRole("dialog", { name: "Trip messages" }).getByRole("button", { name: "Close" }).click();
+  await page.goto("/#/issues");
+  await expect(page.getByRole("radio", { name: /Open \(0\)/ })).toBeVisible();
+  await page.getByRole("radio", { name: "Resolved" }).click();
+  await expect(page.getByText("Receipt disputed").first()).toBeVisible();
 });
 
 test("every run on the timeline opens its thread from a messages icon, reports or not", async ({ page }) => {

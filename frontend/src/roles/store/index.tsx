@@ -359,7 +359,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
   }
 
   return (
-    <div className="relative mx-auto flex min-h-dvh w-full max-w-[720px] flex-col gap-5 bg-go-canvas px-4 pt-5 pb-36 font-go text-go-ink sm:px-[25px] lg:max-w-none lg:pt-8 lg:pr-10 lg:pb-10 lg:pl-[300px]">
+    <div className="relative mx-auto flex min-h-[calc(100dvh-var(--demo-banner-h,0px))] w-full max-w-[720px] flex-col gap-5 bg-go-canvas px-4 pt-5 pb-36 font-go text-go-ink sm:px-[25px] lg:max-w-none lg:pt-8 lg:pr-10 lg:pb-10 lg:pl-[300px]">
       <TopBar
         online={online}
         syncedAt={orders.loadedAt}

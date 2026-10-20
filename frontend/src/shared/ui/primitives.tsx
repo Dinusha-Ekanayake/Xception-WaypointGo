@@ -74,14 +74,23 @@ const PILL_TONE: Record<Tone, string> = {
 export function Pill({
   tone = "neutral",
   icon,
+  wrap = false,
   children,
 }: {
   tone?: Tone;
   icon?: IconName;
+  /** Lets a long label wrap inside a narrow cell (a table column) instead of running past it. */
+  wrap?: boolean;
   children: ReactNode;
 }): React.JSX.Element {
   return (
-    <span className={cx("inline-flex shrink-0 items-center gap-[5px] rounded-full px-[9px] py-[3px] text-[11px] font-medium whitespace-nowrap", PILL_TONE[tone])}>
+    <span
+      className={cx(
+        "inline-flex items-center gap-[5px] rounded-full px-[9px] py-[3px] text-[11px] font-medium",
+        wrap ? "min-w-0 rounded-[10px] leading-snug" : "shrink-0 whitespace-nowrap",
+        PILL_TONE[tone],
+      )}
+    >
       {icon && <Icon name={icon} />}
       {children}
     </span>

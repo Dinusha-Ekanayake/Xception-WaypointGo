@@ -20,7 +20,8 @@ export type OrderLine = {
   issues: number;
 };
 
-const COLUMNS = "grid grid-cols-[120px_minmax(170px,1.4fr)_84px_140px_110px_minmax(170px,1fr)_112px] items-center gap-3 px-1";
+// The order column fits a whole reference (WPO- and 12 characters) on one line.
+const COLUMNS = "grid grid-cols-[150px_minmax(170px,1.4fr)_84px_140px_110px_minmax(190px,1fr)_112px] items-center gap-3 px-1";
 
 export default function OrdersTable({
   groups,
@@ -37,7 +38,7 @@ export default function OrdersTable({
   const heading = last === "eta" ? "Expected / done" : last === "placed" ? "Placed" : "Delivered";
   return (
     <div className="overflow-x-auto">
-      <div role="table" aria-label="Orders due" className="min-w-[900px]">
+      <div role="table" aria-label="Orders due" className="min-w-[960px]">
         <div role="row" className={`${COLUMNS} border-b border-go-rule pb-2 text-[13px] text-go-secondary`}>
           {["Order", "Outlet", "Type", "Size", "Vehicle · trip", "Status", heading].map((label) => (
             <span key={label} role="columnheader" className="whitespace-nowrap">
@@ -72,8 +73,9 @@ function Row({ line, last, active, onSelect }: { line: OrderLine; last: LastColu
   // published: it is allocated only when the plan is published (R-PLN-41).
   const state = order.status === "CONFIRMED" && ride ? IN_DRAFT : STATUS[order.status];
   const late = stop && order.status === "IN_TRANSIT" && (stop.lateMinutes ?? 0) > 0;
-  const detail = [late ? "at risk" : null, issues > 0 ? `${issues} ${issues === 1 ? "issue" : "issues"}` : null].filter(Boolean).join(" · ");
-  const tone = issues > 0 ? "danger" : late ? "warning" : state.tone;
+  // The state keeps its own colour; at risk and issues are pills of their own beside it,
+  // so a long state never runs into the next column.
+  const tone = late ? "warning" : state.tone;
   const lastText =
     last === "placed"
       ? clockOn(order.placedAt)
@@ -96,7 +98,7 @@ function Row({ line, last, active, onSelect }: { line: OrderLine; last: LastColu
       onClick={onSelect}
       className={cx(`${COLUMNS} min-h-[43px] w-full border-b border-go-rule py-2 text-left text-[13px] text-go-ink`, active ? "bg-go-success-tint" : "hover:bg-go-subtle")}
     >
-      <span role="cell" className="font-medium">
+      <span role="cell" className="font-medium whitespace-nowrap tabular-nums">
         {order.orderRef}
       </span>
       <span role="cell" className="flex min-w-0 items-center gap-2">
@@ -113,8 +115,10 @@ function Row({ line, last, active, onSelect }: { line: OrderLine; last: LastColu
       <span role="cell" className={ride ? "" : "text-go-secondary"}>
         {ride ?? "-"}
       </span>
-      <span role="cell" className="flex flex-wrap items-center gap-1.5">
-        <Pill tone={tone}>{detail ? `${state.label} · ${detail}` : state.label}</Pill>
+      <span role="cell" className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <Pill tone={tone} wrap>{state.label}</Pill>
+        {late && <Pill tone="warning">at risk</Pill>}
+        {issues > 0 && <Pill tone="danger">{`${issues} ${issues === 1 ? "issue" : "issues"}`}</Pill>}
         {order.deferralCount > 0 && <span className="text-xs text-go-warning-text">{`deferred ${order.deferralCount}×`}</span>}
         {order.dateRolled && <span className="text-xs text-go-secondary">{`moved from ${dayLabel(order.requestedDate)}`}</span>}
       </span>

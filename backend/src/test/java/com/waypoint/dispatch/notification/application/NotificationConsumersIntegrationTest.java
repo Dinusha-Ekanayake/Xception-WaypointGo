@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.EtaChanged;
+import com.waypoint.dispatch.issues.contract.IssueEvents.IssueResolved;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.ReleasedStop;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.TripReleased;
 import com.waypoint.dispatch.notification.NotificationSupport;
@@ -290,6 +291,22 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
 
     assertTrue(recipientsOf(eventId).containsAll(Set.of(driver.id(), loader.id())), "as it always did");
     assertFalse(recipientsOf(eventId).contains(manager.id()), "no outlet is named, so none is told separately");
+  }
+
+  @Test
+  void aResolvedIssueTellsItsStoreWhatWasDoneAndNotTheDispatcherWhoResolvedIt() {
+    UUID eventId =
+        deliver(
+            "notification.on-issue-resolved",
+            new IssueResolved(
+                UUID.randomUUID(), outlet.depotCode(), Optional.of(outlet.outletId()), "WRITE_OFF", Instant.now()),
+            dispatcher.id());
+
+    Map<String, Object> mine = notificationFor(eventId, manager);
+    assertEquals("Issue resolved", mine.get("title"));
+    assertEquals("Written off", mine.get("body"), "an issue that cannot be read still says what was done");
+    assertFalse(recipientsOf(eventId).contains(stranger.id()), "another outlet's manager");
+    assertFalse(recipientsOf(eventId).contains(dispatcher.id()), "the dispatcher resolved it (R-NOT-07)");
   }
 
   @Test

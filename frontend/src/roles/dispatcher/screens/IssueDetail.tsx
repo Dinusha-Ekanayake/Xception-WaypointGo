@@ -3,7 +3,7 @@
 import { Pill } from "@shared/ui";
 import { SYSTEM_ACTOR_ID, issueText } from "@shared/wording";
 import { SEVERITY, STATUS, TYPE, age, shortId } from "../data/issues.ts";
-import { useIssue } from "../data/useDay.ts";
+import { useIssue, useOrdersById } from "../data/useDay.ts";
 import IssueActions from "./IssueActions.tsx";
 import { Retry } from "./Orders.tsx";
 import Refusal from "./Refusal.tsx";
@@ -51,6 +51,19 @@ export default function IssueDetail({
     return words.replace(UUID, (id) => person(id));
   };
   const person = (id: string | null) => (id === null || id === SYSTEM_ACTOR_ID ? "the system" : id === userId ? "you" : shortId(id));
+  // What it is about, in the handles people use: the order's reference and the vehicle.
+  // A delivery, receipt, trip or shortfall is an internal record with no name of its own.
+  const orderIds = issue ? issue.subjects.filter((ref) => ref.type === "order").map((ref) => ref.id) : [];
+  const named = useOrdersById(orderIds);
+  const about = issue
+    ? issue.subjects.flatMap((ref) =>
+        ref.type === "order"
+          ? [`order ${named.data?.find((o) => o.orderId === ref.id)?.orderRef ?? "…"}`]
+          : ref.type === "vehicle"
+            ? [`vehicle ${ref.id}`]
+            : [],
+      )
+    : [];
 
   return (
     <section aria-label="Selected issue" className="flex flex-col gap-3 rounded-go-panel bg-go-card p-5">
@@ -78,8 +91,12 @@ export default function IssueDetail({
               {issue.depotCode}
               {issue.outletId ? ` · outlet ${issue.outletId}` : ""}
             </dd>
-            <dt className="text-go-secondary">About</dt>
-            <dd className="text-go-ink">{issue.subjects.map((ref) => `${ref.type} ${shortId(ref.id)}`).join(" · ")}</dd>
+            {about.length > 0 && (
+              <>
+                <dt className="text-go-secondary">About</dt>
+                <dd className="text-go-ink">{about.join(" · ")}</dd>
+              </>
+            )}
             <dt className="text-go-secondary">Raised</dt>
             <dd className="text-go-ink">
               {age(issue.raisedAt, now)} ago by {person(issue.raisedBy)}

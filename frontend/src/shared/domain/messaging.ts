@@ -76,6 +76,8 @@ export type MessageView = {
   seenByDriverAt?: IsoInstant | null;
   /** FF-05: a voice note's machine transcript; absent for a typed message. */
   transcript?: TranscriptView | null;
+  /** The issue a report was made from (R-MSG-05): resolving the report resolves it (R-MSG-07). Absent from an older server. */
+  issueId?: Uuid | null;
 };
 
 /** Newest first; nextCursor reads older messages. */

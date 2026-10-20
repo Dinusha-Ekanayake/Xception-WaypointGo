@@ -136,7 +136,8 @@ export default function Dispatcher({
     <ToastProvider>
     <NotificationsPanel onNavigate={navigate} />
     <ThreadSheet online={online} />
-    <div className="flex min-h-dvh w-full flex-col bg-go-canvas font-go text-go-ink lg:h-dvh lg:flex-row">
+    {/* Fills what the demo bar leaves (--demo-banner-h, DemoBanner), so the sidebar's foot is never pushed off the screen. */}
+    <div className="flex min-h-[calc(100dvh-var(--demo-banner-h,0px))] w-full flex-col bg-go-canvas font-go text-go-ink lg:h-[calc(100dvh-var(--demo-banner-h,0px))] lg:flex-row">
       <CompactNav view={view} onNavigate={navigate} depots={scope} depotFilter={depotFilter} onDepotFilter={setDepotFilter} badges={badges} displayName={displayName} />
       <Sidebar
         view={view}

@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-20 - fix: field flow bugs from a demo walk-through
+
+`dev` · @Oxshadha
+
+- Resolving a report in a trip's messages left its issue open, because R-MSG-07 only went from issue to report. A report made from an issue now carries `issueId` (`MessageView`), and the dispatcher's Mark resolved sends `issue:Resolve` with the issue's version, then resolves the report at once. The store was never told an issue was resolved: MODULES.md listed Notification as a consumer of `issue.resolved`, but none existed. `OnIssueResolved` and routing version 14 tell the outlet's store managers (R-NOT-19).
+- The driver's "21 to review": the demo drive stamped positions with the demo clock, which the server refuses as more than five minutes ahead (DEMO-12), and each refused batch was held for review. Points now carry real time, and a refused position batch leaves the phone (`outcome.ts`, `sw-drain.mjs`), including ones already held.
+- The dispatcher's sidebar foot ran off the screen under the demo bar (`lg:h-dvh` under the bar); the dispatcher, admin and store shells now subtract `--demo-banner-h`. The publish step counted only outlets whose order waits, so it said "0 store managers" when every order was on a trip; it now counts every outlet on a trip too (R-NOT-15).
+- The loader's "Arrived only" was an independent switch styled like the one-of-five filters, so two chips looked picked; it is now one of them. A loader's message notification now opens the trip's messages at that message, to hear and answer it.
+- Wording: reconstructed product ids read "Fresh dry goods 263 (inferred)" in notes, issues and the thread; issue detail names the order by its reference and drops internal ids; the admin profile drops the account id and row version; the orders table keeps the state, at risk and issues as separate pills. The error pages lay out in two columns on a wide screen, say "this device", and use the sign-in's sun and moon toggle (`ThemeToggle`). Decide's "How the engine decides what waits" is folded to one line until opened.
+- Open: the loader tablet shifted sideways on one Android tablet but fits at every width from 768 to 1280 px in a browser, so it is not reproduced; the store timeline now completes "Arriving" on the stop's arrival, and any other timeline fault needs a reproduction. Order references stay `WPO-` and 12 characters (they are sent to the warehouse); a shorter format is a decision for the team.
+
+---
+
 ## 2026-10-10 - feat: demo sign-in for judges; Decide never shows an order id
 
 `dev` · @Oxshadha

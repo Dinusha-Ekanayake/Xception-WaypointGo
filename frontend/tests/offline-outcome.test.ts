@@ -18,3 +18,8 @@ test("conflicts and refusals wait for a person", () => {
 test("a write recorded but not decided is sent again later", () => {
   assert.equal(outcomeAction("RECEIVED"), "wait");
 });
+
+test("a refused batch of positions leaves the device: it is no one's work to review", () => {
+  assert.equal(outcomeAction("REJECTED", "delivery:RecordPositions"), "dropped");
+  assert.equal(outcomeAction("REJECTED", "delivery:Record"), "review");
+});

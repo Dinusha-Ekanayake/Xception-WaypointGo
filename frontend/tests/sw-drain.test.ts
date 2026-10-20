@@ -38,6 +38,7 @@ const results = (statuses: Record<string, { status: string; problemCode?: string
 test("the worker treats every answer exactly as the page's queue does", () => {
   for (const status of ["RECEIVED", "APPLIED", "CONFLICT", "REJECTED", "DISCARDED", "RESOLVED"] as OperationStatus[]) {
     assert.equal(outcomeOf(status), outcomeAction(status), status);
+    assert.equal(outcomeOf(status, "delivery:RecordPositions"), outcomeAction(status, "delivery:RecordPositions"), `${status} positions`);
   }
 });
 

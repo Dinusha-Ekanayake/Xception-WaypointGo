@@ -27,7 +27,10 @@ test("a vehicle not at the depot is left off the board, and taking its trip says
   await page.goto("/");
   await expect(page.getByText("No vehicle has arrived yet")).toBeVisible();
 
-  await page.getByRole("button", { name: /Arrived only/ }).click();
+  // One filter at a time (the board never shows two picked): All lists every trip.
+  await expect(page.getByRole("button", { name: /Arrived only/ })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: /^All \(/ }).click();
+  await expect(page.getByRole("button", { name: /Arrived only/ })).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByText("Vehicle not at the depot yet").first()).toBeVisible();
   await page.getByRole("button", { name: "Take trip" }).first().click();
   await expect(page.getByText(`${m.vehicleId} has not arrived yet`)).toBeVisible();

@@ -15,6 +15,9 @@ import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionExpired;
 import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionRequested;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueEscalated;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueRaised;
+import com.waypoint.dispatch.issues.contract.IssueEvents.IssueResolved;
+import com.waypoint.dispatch.issues.contract.IssueQuery;
+import com.waypoint.dispatch.issues.contract.IssueViews.IssueView;
 import com.waypoint.dispatch.messaging.contract.MessagingEvents.MessagePosted;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.LoadingShortfall;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.ReleasedStop;
@@ -812,6 +815,61 @@ final class NotificationConsumers {
           .fact("depotCode", e.depotCode()).fact("outletId", e.outletId())
           .to(ScopeKind.DEPOT, e.depotCode(), "issue", e.issueId())
           .to(ScopeKind.OUTLET, e.outletId(), "issue", e.issueId());
+    }
+  }
+
+  /**
+   * R-NOT-19: the store hears that an issue at its outlet is resolved, and what
+   * was done, so it is not left reading "Sent" on a problem the dispatcher has
+   * closed. The dispatcher who resolved it is the author and is not told (R-NOT-07).
+   */
+  @Component
+  static class OnIssueResolved extends NotificationConsumer<IssueResolved> {
+    private final IssueQuery issues;
+
+    OnIssueResolved(Notifier notifier, IssueQuery issues) {
+      super(notifier);
+      this.issues = issues;
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-issue-resolved";
+    }
+
+    @Override
+    public Class<IssueResolved> eventType() {
+      return IssueResolved.class;
+    }
+
+    @Override
+    Routed route(IssueResolved e) {
+      Optional<IssueView> issue = issues.issue(e.issueId());
+      // The dispatcher's own words when there are any, else what the outcome means.
+      String outcome =
+          issue.flatMap(IssueView::resolutionNote).filter(n -> !n.isBlank())
+              .orElse(outcomeWords(e.action()));
+      // "Receipt dispute: Written off"; just the outcome when the issue cannot be read.
+      Optional<String> type = issue.map(i -> sentence(words(i.type())));
+      return new Routed()
+          .fact("issueType", type).fact("outcome", outcome)
+          .fact("summary", type.map(t -> t + ": " + outcome).orElse(outcome))
+          .fact("outletId", e.outletId()).fact("depotCode", e.depotCode())
+          .to(ScopeKind.OUTLET, e.outletId(), "issue", e.issueId());
+    }
+
+    private static String outcomeWords(String action) {
+      return switch (action) {
+        case "REPLACEMENT" -> "A replacement was loaded";
+        case "REDELIVERY" -> "A new delivery is arranged";
+        case "WRITE_OFF" -> "Written off";
+        case "NO_FAULT_FOUND" -> "No fault was found";
+        default -> "Resolved by the dispatcher";
+      };
+    }
+
+    private static String sentence(String words) {
+      return words.isEmpty() ? words : Character.toUpperCase(words.charAt(0)) + words.substring(1);
     }
   }
 

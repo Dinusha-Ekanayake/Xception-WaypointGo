@@ -457,7 +457,7 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
     </>;
   };
 
-  return <main aria-label="Admin workspace" className="access-demo flex min-h-dvh w-full flex-col bg-go-canvas font-go text-go-ink lg:h-dvh lg:flex-row">
+  return <main aria-label="Admin workspace" className="access-demo flex min-h-[calc(100dvh-var(--demo-banner-h,0px))] w-full flex-col bg-go-canvas font-go text-go-ink lg:h-[calc(100dvh-var(--demo-banner-h,0px))] lg:flex-row">
     <aside className={cx("hidden h-full shrink-0 flex-col bg-white pt-7 pb-6 lg:flex", rail ? "w-[84px] items-center gap-[5px] px-3 overflow-y-auto" : "w-[260px] gap-1 overflow-y-auto px-5")}>
       <div className={cx("flex items-center gap-2.5", rail ? "justify-center pb-[13px]" : "px-2 pb-5")}>
         <span className="text-[34px] leading-none font-extrabold text-go-ink">GO</span>

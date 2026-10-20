@@ -355,7 +355,7 @@ export function SideNav({
   const [account, setAccount] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col gap-6 bg-white px-5 pt-8 pb-6 lg:flex">
+    <aside className="fixed top-[var(--demo-banner-h,0px)] bottom-0 left-0 z-30 hidden w-[260px] flex-col gap-6 bg-white px-5 pt-8 pb-6 lg:flex">
       <div className="flex items-center gap-2.5 px-2">
         <span className="text-[40px] leading-none font-extrabold text-black">GO</span>
         <span className="rounded-full bg-go-mint px-3 py-[5px] text-[13px] font-medium text-black">{tr("WayPoint Store")}</span>

@@ -24,8 +24,24 @@ export const trips = (n: number): string => `${n} ${n === 1 ? "trip" : "trips"}`
 export function productLabel(productId: string): string {
   const seed = /^SEED-[A-Za-z]+-(ambient|chilled)$/.exec(productId);
   if (seed) return seed[1] === "chilled" ? "Chilled goods (mixed)" : "Dry goods (mixed)";
+  const candidate = CANDIDATE.exec(productId);
+  if (candidate) {
+    const [, brand, number, kind] = candidate;
+    const goods = kind ? GOODS[kind] : undefined;
+    // No comma or full stop: a store's note lists products as "Missing: A x1, B x2." (noteOf).
+    return `${brand!.charAt(0)}${brand!.slice(1).toLowerCase()} ${goods ?? "item"} ${number} (inferred)`;
+  }
   return productId;
 }
+
+/**
+ * A product id the warehouse catalogue reconstructed from order totals, such as
+ * `ADAPT_FRESH_263_AMB`: brand, a number and the temperature. It has no name, so
+ * it reads as "Fresh dry goods 263 (inferred)", never as a real SKU (catalogue rule 3).
+ */
+const CANDIDATE = /^ADAPT_([A-Z]+)_(\d+)(?:_([A-Z]+))?$/;
+const CANDIDATES = /\bADAPT_[A-Z]+_\d+(?:_[A-Z]+)?\b/g;
+const GOODS: Record<string, string> = { AMB: "dry goods", CHL: "chilled goods", CHI: "chilled goods", FRZ: "frozen goods" };
 
 const LOADING_KIND: Record<string, string> = { SHORT: "Short", MISSING: "Missing", DAMAGED: "Damaged", DOES_NOT_FIT: "Doesn't fit" };
 
@@ -39,7 +55,8 @@ export function issueText(description: string): string {
   return description
     .replace(/^([A-Z_]+) at loading: (\d+) units?\./, (_, kind: string, n: string) => `${LOADING_KIND[kind] ?? kind} at loading: ${units(Number(n))}.`)
     .replace(/^shortage investigation: /, "Shortage to check: ")
-    .replace(/SEED-[A-Za-z]+-(?:ambient|chilled)/g, (id) => productLabel(id));
+    .replace(/SEED-[A-Za-z]+-(?:ambient|chilled)/g, (id) => productLabel(id))
+    .replace(CANDIDATES, (id) => productLabel(id));
 }
 
 /** The id the server acts under for its own jobs and consumers. */

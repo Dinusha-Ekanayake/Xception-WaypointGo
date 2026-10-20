@@ -6,7 +6,7 @@ import { outcomeAction } from "./outcome.ts";
 import { discardCommand, nextOrder, recordedOrder, redoCommands } from "./review.ts";
 import type { RedoBasis } from "./resolvers.ts";
 import { all, allUploads, put, putSnapshot, remove, type StoredEntry } from "./store.ts";
-import { extendBacklog, inSendOrder } from "./lanes.ts";
+import { extendBacklog, inSendOrder, isPosition } from "./lanes.ts";
 import { nextAttemptAt, retryAfterOf, waiting } from "./retry.ts";
 import { drainUploads } from "./uploads.ts";
 import { queuesWrites, type Role } from "./tiers.ts";
@@ -169,6 +169,11 @@ async function keepDeviceForWorker(accountId: string, id: string): Promise<void>
 
 async function drainOnce(accountId: string): Promise<DrainReport> {
   await beforeDrain.get(accountId)?.();
+  // Position batches held before a refused one was dropped (outcome.ts) wait for
+  // nobody: they leave the device instead of sitting under "to review".
+  for (const stale of (await all(accountId)).filter((e) => e.needsReview && isPosition(e))) {
+    await remove(accountId, stale.commandId);
+  }
   const entries = await all(accountId);
   // Uploads a write names go first (issue #136); a write whose upload is still
   // here waits, and so does everything after it.
@@ -223,7 +228,7 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
   for (const result of ack.results) {
     const entry = byId.get(result.operationId);
     if (!entry) continue;
-    const action = outcomeAction(result.status);
+    const action = outcomeAction(result.status, entry.kind);
     if (action === "sent") {
       await remove(accountId, entry.commandId);
       sent++;

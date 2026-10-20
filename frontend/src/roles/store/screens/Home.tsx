@@ -18,9 +18,11 @@ import { cutoffWords, useT, useCounts } from "../i18n.tsx";
 const STEPS = ["Confirmed", "Loaded", "Left", "Arriving", "Received"] as const;
 const REACHED: Partial<Record<OrderStatus, number>> = { CONFIRMED: 1, ALLOCATED: 1, LOADING: 1, IN_TRANSIT: 3, DELIVERED: 4, PARTIALLY_DELIVERED: 4, RECEIVED: 5 };
 
-export function Progress({ status }: { status: OrderStatus }): React.JSX.Element {
+export function Progress({ status, arrivedAt = null }: { status: OrderStatus; arrivedAt?: string | null }): React.JSX.Element {
   const t = useT();
-  const done = REACHED[status] ?? 0;
+  // The order stays on the road until the delivery is recorded; the stop's arrival
+  // completes "Arriving" as soon as the driver is at the door.
+  const done = status === "IN_TRANSIT" && arrivedAt ? 4 : (REACHED[status] ?? 0);
   // The next step is ringed only once it is under way; an order still waiting
   // for the plan shows its next step as not started, matching its status pill.
   const underWay = status === "LOADING" || status === "IN_TRANSIT" || status === "DELIVERED" || status === "PARTIALLY_DELIVERED";
@@ -136,7 +138,7 @@ export default function Home({
           {coming ? (
             <>
               <NextStop stop={stop} order={coming} outlet={outlet} />
-              <Progress status={coming.status} />
+              <Progress status={coming.status} arrivedAt={stop?.arrivedAt ?? null} />
               {/* "Shortage notice" of "02 Home": a grey card, not a warning; the loader already told dispatch. */}
               {shortage && (
                 <button type="button" onClick={() => onOpen(coming.orderId)} className="flex flex-col gap-1.5 rounded-[18px] bg-go-surface px-4 py-3.5 text-left">

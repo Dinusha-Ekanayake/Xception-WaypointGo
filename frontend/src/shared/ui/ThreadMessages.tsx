@@ -5,6 +5,7 @@ import type { MessageView, TranscriptView } from "../domain/messaging.ts";
 import { audienceLabel, byDay, plain, REPORT_LABEL, ROLE_LABEL, voiceLength, type Translate } from "../messaging/thread.ts";
 import { voiceUrl } from "../messaging/useThread.ts";
 import { clock, dayLabel } from "../wording/time.ts";
+import { issueText } from "../wording/terms.ts";
 import { ChannelRedirect } from "./ChannelRedirect.tsx";
 import { ListenButton } from "./ListenButton.tsx";
 import { cx } from "./primitives.tsx";
@@ -144,6 +145,8 @@ function Message({
   const report = m.kind === "report";
   const resolved = report && m.resolvedAt !== null;
   const open = report && !resolved;
+  // A report made from an issue carries its stored words; they read as on the Issues screen.
+  const body = report ? issueText(m.body) : m.body;
   const [resolving, setResolving] = useState(false);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -212,8 +215,8 @@ function Message({
         )}
         {/* FF-05: the dispatcher reads what was said without playing every note; the phone screens are unchanged. */}
         {m.voiceNoteId && <Transcript transcript={m.transcript ?? null} compact={compact} tr={tr} />}
-        {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
-        {m.body && !m.voiceNoteId && !m.mine && <ListenButton text={m.body} threadId={m.threadId} messageId={m.messageId} {...(accountId ? { accountId } : {})} tr={tr} className="-ml-2 -mb-1" />}
+        {body && <p className="whitespace-pre-wrap break-words">{body}</p>}
+        {body && !m.voiceNoteId && !m.mine && <ListenButton text={body} threadId={m.threadId} messageId={m.messageId} {...(accountId ? { accountId } : {})} tr={tr} className="-ml-2 -mb-1" />}
         {resolved && (
           <p data-testid="resolution" className="flex flex-col gap-0.5 border-t border-go-divider pt-2 text-xs text-go-secondary">
             <span className="flex items-center gap-1.5 font-semibold text-go-teal">

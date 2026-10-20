@@ -79,7 +79,13 @@ public final class MessagingViews {
       Optional<Boolean> seenByDriver,
       Optional<Instant> seenByDriverAt,
       /** FF-05: a voice note's machine transcript; empty for a typed message. */
-      Optional<TranscriptView> transcript) {
+      Optional<TranscriptView> transcript,
+      /**
+       * The issue a report was made from (R-MSG-05). Resolving that report is
+       * resolving the issue (R-MSG-07), so the dispatcher's screen acts on the
+       * issue; empty for a message a person wrote.
+       */
+      Optional<UUID> issueId) {
     public MessageView {
       voicePeaks = List.copyOf(voicePeaks);
     }

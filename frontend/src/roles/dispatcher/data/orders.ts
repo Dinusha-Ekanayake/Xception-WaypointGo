@@ -15,7 +15,7 @@ export const STATUS: Record<OrderStatus, { label: string; tone: Tone }> = {
   DELIVERED: { label: "Delivered · awaiting the store manager", tone: "neutral" },
   PARTIALLY_DELIVERED: { label: "Partly delivered", tone: "warning" },
   FAILED: { label: "Not delivered", tone: "danger" },
-  RECEIVED: { label: "Confirmed by the store manager", tone: "success" },
+  RECEIVED: { label: "Confirmed by store", tone: "success" },
   UNCONFIRMED: { label: "Store manager did not confirm", tone: "warning" },
   CANCELLED: { label: "Cancelled", tone: "muted" },
 };

@@ -11,12 +11,15 @@ import { useT } from "../i18n.tsx";
 // alone, a report of missing or damaged items included (R-MSG-02, R-MSG-03).
 // An item flagged on the load sheet already reaches the thread as a report.
 // Messages are written as the loader who entered their PIN (actingUserId), and
-// kept on the device with no signal, like the load sheet's own work.
+// kept on the device with no signal, like the load sheet's own work. A message
+// notification opens the same sheet at that message.
 
 export default function TripMessages({
   accountId,
   actingUserId,
   tripId,
+  threadId: knownThread,
+  focusMessageId = null,
   vehicleId,
   online,
   onQueued,
@@ -24,24 +27,29 @@ export default function TripMessages({
 }: {
   accountId: string;
   actingUserId: string;
-  tripId: string;
+  /** From the load sheet: the trip, whose thread is looked up. */
+  tripId?: string;
+  /** From a notification: the thread itself, opened at the message it was about. */
+  threadId?: string;
+  focusMessageId?: string | null;
   vehicleId: string;
   online: boolean;
   onQueued: () => void;
   onClose: () => void;
 }): React.JSX.Element {
   const tr = useT();
-  const thread = useTripThread(tripId, accountId);
+  const thread = useTripThread(knownThread ? null : (tripId ?? null), accountId);
   const sender = useMemo(
     () => queuedSender({ accountId, role: "loader", online, onQueued, actingUserId }),
     [accountId, online, onQueued, actingUserId],
   );
-  const threadId = thread.data?.threadId ?? null;
+  const threadId = knownThread ?? thread.data?.threadId ?? null;
+  const title = vehicleId ? tr("Messages for {vehicle}", { vehicle: vehicleId }) : tr("Messages");
   return (
-    <Sheet label={tr("Messages for {vehicle}", { vehicle: vehicleId })} onClose={onClose}>
+    <Sheet label={title} onClose={onClose}>
       <header className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h2 className="text-[20px] font-medium text-go-ink">{tr("Messages for {vehicle}", { vehicle: vehicleId })}</h2>
+          <h2 className="text-[20px] font-medium text-go-ink">{title}</h2>
           <p className="text-[13px] text-go-secondary">{tr("Write to the dispatcher, or leave the driver a note about the load. A report of missing or damaged items goes to the dispatcher only.")}</p>
         </div>
         <button type="button" onClick={onClose} className="min-h-11 shrink-0 rounded-full bg-go-surface px-4 text-sm font-medium text-go-teal">
@@ -50,7 +58,7 @@ export default function TripMessages({
       </header>
       <div className="flex h-[62dvh] min-h-0 flex-col">
         {threadId ? (
-          <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} tr={tr} />
+          <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} tr={tr} focusMessageId={focusMessageId} />
         ) : (
           <p className="py-8 text-center text-sm text-go-secondary">{thread.loading ? "…" : tr("This trip has no messages yet.")}</p>
         )}

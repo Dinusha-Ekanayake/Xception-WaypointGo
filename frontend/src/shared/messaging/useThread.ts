@@ -7,7 +7,9 @@ import { parseProblem, ApiError } from "@shared/api/problem";
 import { useResource, type Resource } from "@shared/api/useResource";
 import { pendingEntries, QUEUED_EVENT, readThrough } from "@shared/offline";
 import {
+  IssueCommandKind,
   MessageCommandKind,
+  type IssueView,
   type MemberView,
   type MessagePage,
   type MessageView,
@@ -216,6 +218,31 @@ export async function resolveReport(messageId: string, note: string): Promise<vo
     throw failure;
   }
   globalThis.dispatchEvent?.(new CustomEvent(REPORT_RESOLVED_EVENT, { detail: { messageId } }));
+}
+
+/** What an issue resolved from its report says, when the dispatcher wrote nothing (R-ISS-02 wants three characters). */
+const RESOLVED_FROM_THREAD = "Resolved from the trip's messages";
+
+/**
+ * The dispatcher resolves a report made from an issue (R-MSG-07): that is
+ * resolving the issue, so the Issues screen and the store hear it too
+ * (issue.resolved). The issue goes first, under its own version; the report is
+ * then resolved at once with the same note rather than waiting for the event,
+ * which finds it already resolved and changes nothing. An issue already settled
+ * is left as it is.
+ */
+export async function resolveIssueReport(issueId: string, messageId: string, note: string): Promise<void> {
+  try {
+    const issue = await request<IssueView>(`/api/issues/${encodeURIComponent(issueId)}`);
+    if (issue.status === "OPEN" || issue.status === "ASSIGNED") {
+      const why = note.trim().length >= 3 ? note.trim() : RESOLVED_FROM_THREAD;
+      await send(newCommand(IssueCommandKind.resolve, { issueId, action: "other", note: why }, issue.rowVersion));
+    }
+  } catch (failure) {
+    if (failure instanceof ApiError) throw new Error(failure.problem.violations[0]?.message ?? failure.message);
+    throw failure;
+  }
+  await resolveReport(messageId, note);
 }
 
 /** The dispatcher moves a post off the trip's channel (R-MSG-08); the message itself never changes. */

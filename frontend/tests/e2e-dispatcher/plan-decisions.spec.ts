@@ -363,6 +363,10 @@ test("the Decide step shows how the engine decides what waits, in the order it a
   await serve(page, { draft: draftPlan() });
   await page.goto("/#/plan");
   const policy = page.getByRole("region", { name: "How the engine decides what waits" });
+  // Folded to one line until the dispatcher opens it.
+  await expect(policy).toContainText("First: Deferred on an earlier run · 9 rules in order");
+  await expect(policy.getByRole("listitem")).toHaveCount(0);
+  await policy.getByText("How the engine decides what waits").click();
   await expect(policy.getByRole("listitem")).toHaveCount(9);
   await expect(policy.getByRole("listitem").first()).toHaveText("1.Deferred on an earlier run · no store is skipped twice in a row");
   await expect(policy.getByRole("listitem").nth(1)).toContainText("Fresh before other brands");

@@ -7,7 +7,7 @@ import { clock, clockOn, dayLabel, hhmm, ruleLabel } from "@shared/wording";
 import { leftOutLine, type PlanSummary, type Working } from "../data/plan.ts";
 import { SLACK_TIGHT_MINUTES, SLACK_WATCH_MINUTES, daysBetween, publishBlocker, slackLabel, tightStops, type DecisionRow } from "../data/planViews.ts";
 import { useComparison } from "../data/usePlanReads.ts";
-import PublishAudience from "./PublishAudience.tsx";
+import PublishAudience, { toldOutlets } from "./PublishAudience.tsx";
 import PublishRiskReview from "./PublishRiskReview.tsx";
 import Row from "./PublishRow.tsx";
 import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
@@ -85,7 +85,12 @@ export default function PlanPublish({
   const published = state.stage === "published";
   const tight = state.stage === "draft" ? tightStops(plan) : [];
   const tightChilled = tight.filter((t) => t.trip.temperature === "chilled").length;
-  const outletCount = new Set(deferred.map((a) => orders.get(a.orderId)?.outletId).filter(Boolean)).size;
+  // Who the store managers are: on a first publish every outlet on a trip hears its
+  // delivery is planned (R-NOT-15) and every outlet whose order waits hears why; a
+  // revision tells only the outlets it changes (R-NOT-12).
+  const outletCount = revises
+    ? (changes.data?.affectedOutlets.length ?? 0)
+    : toldOutlets(plan, deferred.map((a) => orders.get(a.orderId)?.outletId)).length;
 
   const headline = published
     ? `Published at ${state.plan.publishedAt ? clockOn(new Date(state.plan.publishedAt)) : "-"}`

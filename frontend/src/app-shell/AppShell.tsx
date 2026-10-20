@@ -189,7 +189,7 @@ export default function AppShell(): React.JSX.Element {
       sync.pending > 0
         ? `Having trouble connecting right now.\nDon't worry: ${sync.pending} ${
             sync.pending === 1 ? "change is" : "changes are"
-          } saved safely on this phone.`
+          } saved safely on this device.`
         : undefined;
 
     return (

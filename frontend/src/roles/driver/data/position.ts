@@ -86,7 +86,7 @@ export type PositionRecorder = {
   decline: () => void;
   /**
    * Demo mode only (issue #231): drive this vehicle to a point, sending the
-   * same RecordPositions commands a phone would, stamped with the demo clock.
+   * same RecordPositions commands a phone would, stamped with real time (DEMO-12).
    * Null when demo mode is off, so nothing of it exists in real use.
    */
   simulate: ((to: LatLon) => void) | null;
@@ -253,7 +253,10 @@ export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | 
         const where = { lat: from.lat + (to.lat - from.lat) * t, lon: from.lon + (to.lon - from.lon) * t };
         const east = (to.lon - from.lon) * Math.cos((from.lat * Math.PI) / 180);
         const heading = ((Math.atan2(east, to.lat - from.lat) * 180) / Math.PI + 360) % 360;
-        const at = Date.now() + demo.offsetSeconds * 1000;
+        // A fix carries real time, never the demo clock: the server checks fixes on real
+        // time (DEMO-12) and refuses one more than five minutes ahead, so demo-clock
+        // stamps were refused batch after batch and piled up under "to review".
+        const at = Date.now();
         setState("on");
         setHere({ ...where, heading });
         setTrail((trail) => [...trail, { ...where, at }]);
