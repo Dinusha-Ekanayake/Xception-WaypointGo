@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-20 - fix: Live no longer shows an online driver as offline when the demo clock moves
+
+`claude/demo-day-plan` · @jv-ransika
+
+Phones stamp fixes on real time, but positions were checked and judged on the business clock: with the demo clock set back every fix was rejected as from the future (`clock_skew`), and set forward every vehicle went offline after ten minutes. Positions now use real time throughout (accept, received, offline), a fix sent for a trip is filed under the trip's day, and simulated vehicles stamp real time (DEMO-12). Phone locked or in the background, and accuracy over 200 m, still read as offline, as they should.
+Verified: `ExecutionIntegrationTest` (41), `LiveDecisionIntegrationTest`, `DemoIntegrationTest`, `PositionPolicyTest`, `ModuleBoundaryTest`.
+
 ## 2026-10-20 - feat: a trip is loaded only after its driver reports at the depot
 
 `claude/demo-day-plan` · @jv-ransika

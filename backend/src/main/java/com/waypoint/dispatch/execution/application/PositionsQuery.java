@@ -95,7 +95,8 @@ public class PositionsQuery {
    * travel from the fixes before it (R-EXE-22), not the phone's compass.
    */
   private List<VehiclePositionView> latest(List<Map<String, Object>> rows) {
-    Instant now = clock.now();
+    // Real time: fixes are stamped on it (DEMO-12).
+    Instant now = clock.realTime().now();
     Map<String, List<Map<String, Object>>> byVehicle = new LinkedHashMap<>();
     for (Map<String, Object> r : rows) {
       byVehicle.computeIfAbsent((String) r.get("vehicle_id"), k -> new ArrayList<>()).add(r);

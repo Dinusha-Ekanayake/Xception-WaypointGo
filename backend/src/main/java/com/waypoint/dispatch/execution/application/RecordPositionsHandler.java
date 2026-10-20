@@ -95,7 +95,11 @@ public class RecordPositionsHandler implements CommandHandler {
     CommandPayload payload = CommandPayload.of(command);
     String vehicleId = payload.requiredText("vehicleId");
     UUID tripId = payload.optionalUuid("tripId");
-    Instant now = clock.now();
+    // Fixes carry the phone's real time, so they are checked, stamped and later
+    // judged fresh on real time, never the demo clock (DEMO-12): a demo clock set
+    // back would reject every fix as from the future, and one set forward would
+    // show every vehicle offline.
+    Instant now = clock.realTime().now();
     List<PositionFix> accepted;
     try {
       accepted = PositionPolicy.accept(points(command.payload().get("points")), now);
@@ -119,7 +123,8 @@ public class RecordPositionsHandler implements CommandHandler {
     String depotCode = vehicle.get().depotCode();
     Set<LocalDate> storedDays = new HashSet<>();
     for (PositionFix fix : accepted) {
-      LocalDate day = fix.recordedAt().atZone(Clock.OPERATING_ZONE).toLocalDate();
+      // A fix sent for a trip is that trip's, whatever day the demo clock shows.
+      LocalDate day = tripDate != null ? tripDate : fix.recordedAt().atZone(Clock.OPERATING_ZONE).toLocalDate();
       if (!deliveries.mayRecordFor(vehicleId, day)) {
         throw new DomainException(ErrorCode.FORBIDDEN, "You are not assigned to this vehicle on that day");
       }
