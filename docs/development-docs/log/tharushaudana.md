@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-21 - feat(ml): scan every model file before it is loaded
+
+`feat/model-file-scan` · @tharushaudana · [#5](https://github.com/jv-ransika/yi-yi/issues/5)
+
+Loading a pickle runs what it names, and these files come from outside the codebase. `app/pickle_scan.py` reads each model file's opcodes without loading it and refuses any file naming a (module, name) pair outside `model-globals.txt`, or that it cannot read to the end. It runs in CI before the model tests, in the image build that every deploy runs, and in the service before `joblib.load` (R-ML-28, ML-44). An allowlist, not picklescan or modelscan: both are blocklists, and both stop at the first numpy array of a joblib file (byte 5,378 of the Task 1 model's 23 MB), with picklescan reporting a planted `os.system` file clean. Also moves the CI model job to Python 3.12, missed in the model swap.
+Verified: `ml-server` pytest (44), the scan on the served models and on a planted payload.
+
+---
+
 ## 2026-10-21 - feat(ml): serve the final Datathon models
 
 `feat/final-datathon-models` · @tharushaudana · [#5](https://github.com/jv-ransika/yi-yi/issues/5)

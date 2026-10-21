@@ -14,12 +14,16 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --disable-pip-version-check -r requirements.txt
 
-COPY manifest.json .
+COPY manifest.json model-globals.txt ./
 COPY app ./app
 COPY datathon ./datathon
 # The planning-time features: one definition for retraining and serving (MF-05).
 COPY training ./training
 COPY models ./models
+# Every deploy builds this image, so a model file naming a class or function outside
+# model-globals.txt fails the build before anything loads it, and the running
+# service stays as it was. Read statically: nothing in the file is called.
+RUN python -m app.pickle_scan models
 
 RUN useradd --uid 10002 --no-create-home ml && chown -R ml /srv
 USER ml

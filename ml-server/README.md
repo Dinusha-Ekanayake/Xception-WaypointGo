@@ -93,6 +93,24 @@ Dry run on the Datathon data, in the export's shape (`python -m training.datatho
 
 Eighteen plain features come within 0.008 of log loss of the earlier Datathon pipeline without road conditions, with nothing learned after the plan. The reference tables a run trains on are the ones in `data/`; if production imports a newer reference version, retrain after it.
 
+## Model file safety
+
+Loading a pickle runs the classes and functions it names, so no model file is loaded until it is shown to name only what `model-globals.txt` allows (R-ML-28):
+
+```bash
+python -m app.pickle_scan models/            # exit 0 clean, 1 refused, with the file and the pair
+python -m app.pickle_scan --list models/     # every pair each file names, for review
+```
+
+`app/pickle_scan.py` reads the opcodes without loading anything. It undoes joblib's compression (zlib, gzip, bz2, xz), steps over each numpy array's raw bytes using the shape and dtype recorded before them, walks an object array's nested pickle, and tracks the stack so a `STACK_GLOBAL` is named exactly. A file it cannot read to the end, or that names any pair not on the list, is refused. It runs in three places: the CI job before the model tests ("Scan model files"), the image build (so every deploy refuses the file and keeps the running service), and the service itself before `joblib.load` (`registry.UnsafeModel`).
+
+The list holds exact pairs, never a whole module, and grows only in a reviewed change after reading what the new pair does when called with the file's arguments. This is on purpose:
+
+- The public scanners are blocklists, and bypasses through helpers inside trusted libraries are found regularly.
+- They cannot read these files. Measured 2026-10-21: picklescan 1.0.5 and modelscan 0.8.8 cannot parse the zlib-compressed Task 1 model at all, and on the decompressed stream both stop at byte 5,378 of 23 MB, where the first array begins. On a joblib file with an `os.system` payload after an array, picklescan reports no infected file; this scan names `os.system`.
+
+What it does not cover: an allowlisted class can still misbehave on hostile state when it is rebuilt. The list keeps that set to the libraries the models are built from, and the hash in `manifest.json` ties each served file to the reviewed change that brought it in.
+
 ## Reproducibility
 
 - Every random seed is fixed, so the same request always gives the same answer.
@@ -130,7 +148,7 @@ def predict_task2a(rows, models, calendar, outlets) -> DataFrame:
 
 ### Wiring it in
 
-1. Put the files and the package in place, and fill `manifest.json` with the new version and each file's SHA-256 (`shasum -a 256 models/*`).
+1. Put the files and the package in place, and fill `manifest.json` with the new version and each file's SHA-256 (`shasum -a 256 models/*`). Run `python -m app.pickle_scan models/`. If it names a pair that is not on the list, read what it is before adding it to `model-globals.txt` in the same change; a reviewer checks that line.
 2. If the files or the steps differ from the current ones (one Task 1 `ParallelModel` holding its no-road copy, and one Task 2A `DemandModel`), change `app/registry.py` (`load`) and `app/scoring.py` (`_context`, `delivery_risk`, `demand_forecast`) to call the new models already in memory. This is the only code that knows the team's pipeline.
 3. Replace `tests/fixtures/task2a_expected.csv` with the team's Task 2A submission rows for `task2a_weeks.csv`, and check `tests/test_service.py` against the new Task 1 output. Run `pytest`: the API must equal `inference.predict_task1` and `predict_task2a` exactly, repeat the same answer for the same request, and refuse an altered file.
 4. Start the service and read `GET /health`: it names the loaded models and versions.
