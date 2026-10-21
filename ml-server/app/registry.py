@@ -1,7 +1,9 @@
-"""Loads the shipped models once, after proving they are the files the manifest names.
+"""Loads the shipped models once, after proving they are the files the manifest names and safe to load.
 
 A model file that does not match its SHA-256 is not served: the backend would
 otherwise record predictions against a version that is not what produced them.
+A file that names a class or function outside `model-globals.txt` is not loaded
+at all, since loading a pickle runs what it names (app/pickle_scan.py).
 """
 import hashlib
 import json
@@ -22,9 +24,15 @@ import joblib  # noqa: E402
 
 import inference  # noqa: E402 (vendored)
 
+from . import pickle_scan  # noqa: E402
+
 
 class ManifestMismatch(RuntimeError):
     """An artifact is missing or is not the file the manifest names."""
+
+
+class UnsafeModel(RuntimeError):
+    """An artifact names a global outside the allowlist, or cannot be read far enough to tell."""
 
 
 @dataclass(frozen=True)
@@ -53,8 +61,9 @@ def _sha256(path: Path) -> str:
 
 
 def verify(manifest_path: Path = MANIFEST, models_dir: Path = MODELS_DIR) -> dict:
-    """Returns {kind: ModelInfo}, or raises ManifestMismatch naming the first bad file."""
+    """Returns {kind: ModelInfo}, or raises ManifestMismatch or UnsafeModel naming the first bad file."""
     manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    allowed = pickle_scan.load_allowlist()
     out = {}
     for m in manifest['models']:
         for name, expected in m['artifacts'].items():
@@ -64,6 +73,10 @@ def verify(manifest_path: Path = MANIFEST, models_dir: Path = MODELS_DIR) -> dic
             actual = _sha256(path)
             if actual != expected:
                 raise ManifestMismatch(f'{name} has SHA-256 {actual}, the manifest names {expected}')
+            if path.suffix in pickle_scan.PICKLE_SUFFIXES:
+                problems = pickle_scan.check(path, allowed)
+                if problems:
+                    raise UnsafeModel('; '.join(problems))
         out[m['kind']] = ModelInfo(m['kind'], m['name'], m['version'], m['trainedFrom'], m['trainedTo'],
                                    m.get('metrics', {}), m.get('pipeline', 'datathon'), tuple(m['artifacts']))
     return out

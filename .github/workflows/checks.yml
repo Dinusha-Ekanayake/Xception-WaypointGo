@@ -177,11 +177,15 @@ jobs:
           lfs: true
       - uses: actions/setup-python@v6
         with:
-          # The version the models were trained on.
-          python-version: "3.11"
+          # The version the final models reproduce their submissions on (issue #5).
+          python-version: "3.12"
           cache: pip
           cache-dependency-path: ml-server/requirements*.txt
       - run: pip install -r requirements-dev.txt
+      # Before anything loads a model: each file may name only the classes and
+      # functions in model-globals.txt, read from its opcodes without loading it.
+      - name: Scan model files
+        run: python -m app.pickle_scan models
       # Compares the API with the vendored Datathon inference on real routes.
       - run: pytest
 

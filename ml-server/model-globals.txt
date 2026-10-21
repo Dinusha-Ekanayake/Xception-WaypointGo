@@ -1,0 +1,48 @@
+# Every class or function a model file may name, as "module name", one per line.
+# `python -m app.pickle_scan models/` refuses a file that names anything else, and
+# so does the service before it loads a model (app/registry.py).
+#
+# Add a pair only in a reviewed change, after reading what it does when called
+# with arguments from the file. Exact pairs only: a whole module is never allowed,
+# because bypasses hide in helpers of trusted libraries. Listed from the served
+# models and from a model `training.retrain` writes (2026-10-21, issue #5).
+
+# Python
+builtins slice
+collections OrderedDict
+collections defaultdict
+
+# joblib's stand-in for each numpy array
+joblib.numpy_pickle NumpyArrayWrapper
+
+# numpy
+numpy dtype
+numpy ndarray
+numpy._core.multiarray _reconstruct
+numpy._core.multiarray scalar
+
+# pandas
+pandas._libs.internals _unpickle_block
+pandas.core.frame DataFrame
+pandas.core.indexes.base Index
+pandas.core.indexes.base _new_Index
+pandas.core.indexes.range RangeIndex
+pandas.core.internals.managers BlockManager
+
+# scikit-learn
+sklearn.isotonic IsotonicRegression
+sklearn.preprocessing._label LabelEncoder
+
+# LightGBM
+lightgbm.basic Booster
+lightgbm.sklearn LGBMClassifier
+lightgbm.sklearn LGBMRegressor
+
+# The vendored Datathon modules (ml-server/datathon/)
+mc_task1 Context
+parallel_model Component
+parallel_model LGBBranch
+parallel_model ParallelModel
+parallel_model Simulator
+task2a_demand DemandModel
+task2a_demand LinearPredictor

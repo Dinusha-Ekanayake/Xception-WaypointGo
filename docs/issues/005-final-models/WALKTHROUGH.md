@@ -17,7 +17,8 @@ Issue [#5](https://github.com/jv-ransika/yi-yi/issues/5) in `jv-ransika/yi-yi`. 
   - `delivery_risk` scores routes with road conditions by the primary and the rest with `use_fallback=True`, labelled `used` and `fallback` as before.
   - `demand_forecast` checks the weeks and the outlet columns, then calls `task2a_demand.predict_rows`.
 - **`app/schemas.py`**: the forecast request requires `outlets`.
-- **`requirements.txt`, `Dockerfile`**: XGBoost and CatBoost dropped; the image is Python 3.12.
+- **`app/pickle_scan.py`, `model-globals.txt`**: a static scan of every model file before anything loads it. Each file may name only the (module, name) pairs on the list; joblib's compression and raw array bytes are handled, which the public scanners cannot do (R-ML-28, EDGE-CASES ML-44). It runs in the CI job, in the image build and in `registry.verify` (`UnsafeModel`).
+- **`requirements.txt`, `Dockerfile`**: XGBoost and CatBoost dropped; the image is Python 3.12 and runs the scan when it is built. The CI model job also moves to Python 3.12.
 - **`training/datathon_export.py`** reads the Datathon CSVs itself; **`training/leakage.py`** builds its frames with the served feature code.
 
 ### Backend
@@ -44,7 +45,7 @@ uvicorn app.main:app --port 8000                 # GET /health names both 2026.1
 Then register and activate both models as in [016's walkthrough](../016-intelligence/WALKTHROUGH.md), publish a plan, and run `forecast-run`.
 
 Measured while building (2026-10-21):
-- `pytest`: 28 passed.
+- `pytest`: 44 passed, 16 of them the model scan's: a payload after a numpy array, inside an object array, under every joblib compression, and through `builtins.getattr` is refused; a file the hashes accept but the scan refuses stops the service. The served models and a model `training.retrain` writes pass.
 - On the four fixture routes, the API is within 0.17 min and 0.0104 of P(late) of the team's submitted predictions. The simulator draws its random numbers over the whole request, and the submission scored the whole test set at once.
 - A request of 40 routes and 170 stops scores in 0.9 s, far inside the backend's 180 s timeout.
 
