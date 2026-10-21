@@ -95,10 +95,12 @@ public class MessagingQuery {
 
   /** FF-05: the reader's view of a note's transcript; anything but words or work in progress is "none". */
   private static TranscriptView transcript(JdbcTranscripts.Transcript t) {
-    if (t == null) return new TranscriptView("none", Optional.empty(), Optional.empty());
-    if ("pending".equals(t.status())) return new TranscriptView("pending", Optional.empty(), Optional.empty());
-    if ("done".equals(t.status()) && t.text().isPresent()) return new TranscriptView("done", t.text(), t.language());
-    return new TranscriptView("none", Optional.empty(), Optional.empty());
+    if (t == null) return new TranscriptView("none", Optional.empty(), Optional.empty(), true);
+    if ("pending".equals(t.status())) return new TranscriptView("pending", Optional.empty(), Optional.empty(), true);
+    if ("done".equals(t.status()) && t.text().isPresent()) {
+      return new TranscriptView("done", t.text(), t.language(), !t.audioGone());
+    }
+    return new TranscriptView("none", Optional.empty(), Optional.empty(), !t.audioGone());
   }
 
   /** The thread of a subject, for a screen that knows the trip, not the thread. */

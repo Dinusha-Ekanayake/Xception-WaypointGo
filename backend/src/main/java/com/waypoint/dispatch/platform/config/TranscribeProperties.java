@@ -21,6 +21,9 @@ import org.springframework.validation.annotation.Validated;
  *     minute a note, which a background job can afford
  * @param thinking the model's thinking level, blank for a model that has none
  * @param timeout one note
+ * @param keepAfterAudio R-MSG-15: when a note's audio passes its retention, keep the
+ *     words, marked "audio no longer kept"; false clears them with the audio. Legal
+ *     to confirm (P-33)
  */
 @Validated
 @ConfigurationProperties(prefix = "app.transcribe")
@@ -29,7 +32,8 @@ public record TranscribeProperties(
     @DefaultValue("") String geminiKey,
     @DefaultValue("gemini-3.8-flash") @NotNull String model,
     @DefaultValue("low") @NotNull String thinking,
-    @DefaultValue("120s") @NotNull Duration timeout) {
+    @DefaultValue("120s") @NotNull Duration timeout,
+    @DefaultValue("true") boolean keepAfterAudio) {
 
   public boolean enabled() {
     return engine != null && !engine.isBlank();
@@ -47,6 +51,6 @@ public record TranscribeProperties(
 
   @Override
   public String toString() {
-    return "TranscribeProperties[engine=" + engine + ", model=" + model + ", thinking=" + thinking + ", timeout=" + timeout + "]";
+    return "TranscribeProperties[engine=" + engine + ", model=" + model + ", thinking=" + thinking + ", timeout=" + timeout + ", keepAfterAudio=" + keepAfterAudio + "]";
   }
 }

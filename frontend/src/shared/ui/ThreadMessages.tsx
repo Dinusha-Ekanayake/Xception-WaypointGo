@@ -113,7 +113,7 @@ function Transcript({ transcript, compact, tr }: { transcript: TranscriptView | 
     return (
       <div data-testid="transcript" className="flex flex-col gap-0.5">
         <span className="text-[11px] font-medium text-go-secondary">
-          {tr("Machine transcript, check audio")}
+          {tr(transcript.audioKept === false ? "Machine transcript · audio no longer kept" : "Machine transcript, check audio")}
           {transcript.language ? ` · ${tr(LANGUAGE_NAME[transcript.language])}` : ""}
         </span>
         <p lang={transcript.language ?? undefined} className="whitespace-pre-wrap break-words italic">{transcript.text}</p>

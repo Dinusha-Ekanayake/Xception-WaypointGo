@@ -21,7 +21,9 @@ public class JdbcTranscripts {
   }
 
   /** A note's transcript as a reader sees it. */
-  public record Transcript(UUID voiceNoteId, String status, Optional<String> text, Optional<String> language, String engine) {}
+  public record Transcript(
+      UUID voiceNoteId, String status, Optional<String> text, Optional<String> language, String engine,
+      boolean audioGone) {}
 
   /** Queues a note once; applying the event twice queues nothing new. */
   public void queue(UUID voiceNoteId, String engine, Instant now) {
@@ -60,15 +62,30 @@ public class JdbcTranscripts {
         last, last, Timestamp.from(now), voiceNoteId);
   }
 
-  /** Clears the words of notes whose audio was cleared (P-33): the text goes with the recording. */
+  /**
+   * R-MSG-15: notes whose audio was cleared keep their words, marked with when the
+   * audio went; a note still waiting for its words never gets them.
+   */
+  public int markAudioGone(Instant now) {
+    return database.update(
+        "UPDATE messaging.voice_transcripts t SET audio_gone_at = ?,"
+            + " status = CASE WHEN t.status = 'pending' THEN 'failed' ELSE t.status END,"
+            + " finished_at = coalesce(t.finished_at, ?)"
+            + " FROM messaging.voice_notes v"
+            + " WHERE v.voice_note_id = t.voice_note_id AND v.purged_at IS NOT NULL AND t.audio_gone_at IS NULL"
+            + " AND t.purged_at IS NULL",
+        Timestamp.from(now), Timestamp.from(now));
+  }
+
+  /** With TRANSCRIPT_KEEP_AFTER_AUDIO=false: clears the words of notes whose audio was cleared (P-33). */
   public int purgeWithAudio(Instant now) {
     return database.update(
-        "UPDATE messaging.voice_transcripts t SET transcript = NULL, purged_at = ?,"
+        "UPDATE messaging.voice_transcripts t SET transcript = NULL, purged_at = ?, audio_gone_at = coalesce(t.audio_gone_at, ?),"
             + " status = CASE WHEN t.status = 'pending' THEN 'failed' ELSE t.status END,"
             + " finished_at = coalesce(t.finished_at, ?)"
             + " FROM messaging.voice_notes v"
             + " WHERE v.voice_note_id = t.voice_note_id AND v.purged_at IS NOT NULL AND t.purged_at IS NULL",
-        Timestamp.from(now), Timestamp.from(now));
+        Timestamp.from(now), Timestamp.from(now), Timestamp.from(now));
   }
 
   /** The transcripts of these notes the reader may read, by note. */
@@ -76,7 +93,7 @@ public class JdbcTranscripts {
     Map<UUID, Transcript> out = new HashMap<>();
     if (voiceNoteIds.isEmpty()) return out;
     database.query(
-            "SELECT voice_note_id, status, transcript, language, engine FROM messaging.voice_transcripts"
+            "SELECT voice_note_id, status, transcript, language, engine, audio_gone_at FROM messaging.voice_transcripts"
                 + " WHERE voice_note_id = ANY (?::uuid[])",
             (Object) voiceNoteIds.toArray(UUID[]::new))
         .forEach(r -> out.put(
@@ -84,7 +101,7 @@ public class JdbcTranscripts {
             new Transcript(
                 (UUID) r.get("voice_note_id"), (String) r.get("status"),
                 Optional.ofNullable((String) r.get("transcript")), Optional.ofNullable((String) r.get("language")),
-                (String) r.get("engine"))));
+                (String) r.get("engine"), r.get("audio_gone_at") != null)));
     return out;
   }
 }

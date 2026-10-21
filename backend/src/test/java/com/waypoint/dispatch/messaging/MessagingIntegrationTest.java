@@ -97,6 +97,7 @@ class MessagingIntegrationTest {
   @Autowired OperatorRegistry operators;
   @Autowired com.waypoint.dispatch.messaging.application.VoiceRetentionJob voiceRetention;
   @Autowired com.waypoint.dispatch.messaging.application.VoiceTranscripts.Job transcribe;
+  @Autowired com.waypoint.dispatch.messaging.infrastructure.JdbcTranscripts transcriptRows;
   @Autowired com.waypoint.dispatch.messaging.application.MessageSpeech.Job speechJob;
 
   String depot;
@@ -443,9 +444,12 @@ class MessagingIntegrationTest {
     assertTrue(String.valueOf(row.get("sha256")).length() == 64, "the checksum stays as the record");
   }
 
-  /** FF-05: a voice note is written down by the engine, shown to who may read it, and cleared with its audio. */
+  /**
+   * FF-05: a voice note is written down by the engine and shown to who may read it;
+   * R-MSG-15: the words outlive the audio, marked, unless switched off.
+   */
   @Test
-  void aVoiceNoteIsWrittenDownForItsReadersAndItsWordsGoWithItsAudio() throws Exception {
+  void aVoiceNoteIsWrittenDownForItsReadersAndItsWordsOutliveItsAudio() throws Exception {
     MessagingTestConfig.FAIL_TRANSCRIBE.set(false);
     UUID voiceId = UUID.randomUUID();
     upload(driver, voiceId, "audio/webm", new byte[] {0x1a, 0x45, (byte) 0xdf, (byte) 0xa3, 4, 5, 6}, 200);
@@ -471,15 +475,27 @@ class MessagingIntegrationTest {
       assertFalse(voiceId.toString().equals(m.path("voiceNoteId").asText()), "a store never reads the crew's notes");
     }
 
-    // The words go with the recording (P-33).
+    // The recording goes after its retention (P-33); the words stay, marked (R-MSG-15).
     java.time.Instant later = clock.now().plus(java.time.Duration.ofDays(401));
     voiceRetention.runAt(later);
     transcribe.runAt(later);
-    assertEquals("none", voiceMessage(dispatcher, voiceId).get("transcript").get("status").asText());
+    JsonNode kept = voiceMessage(dispatcher, voiceId).get("transcript");
+    assertEquals("done", kept.get("status").asText());
+    assertEquals("ටයරය පැලුණා, මහනුවර පාරේ", kept.get("text").asText());
+    assertFalse(kept.get("audioKept").asBoolean(), "the screen says the audio is no longer kept");
     Map<String, Object> row = database.asSystem(ModuleRole.MESSAGING, () -> database.queryOne(
+        "SELECT transcript, purged_at, audio_gone_at, engine FROM messaging.voice_transcripts WHERE voice_note_id = ?",
+        voiceId));
+    assertTrue(row.get("audio_gone_at") != null && row.get("purged_at") == null, row.toString());
+    assertTrue(String.valueOf(row.get("engine")).length() > 0, "which engine wrote the words stays with them");
+
+    // TRANSCRIPT_KEEP_AFTER_AUDIO=false: the words go with the recording, as before.
+    database.asSystem(ModuleRole.MESSAGING, () -> transcriptRows.purgeWithAudio(later));
+    assertEquals("none", voiceMessage(dispatcher, voiceId).get("transcript").get("status").asText());
+    Map<String, Object> cleared = database.asSystem(ModuleRole.MESSAGING, () -> database.queryOne(
         "SELECT transcript, purged_at FROM messaging.voice_transcripts WHERE voice_note_id = ?", voiceId));
-    assertNull(row.get("transcript"));
-    assertTrue(row.get("purged_at") != null);
+    assertNull(cleared.get("transcript"));
+    assertTrue(cleared.get("purged_at") != null);
   }
 
   /** FF-05: an engine that keeps failing is tried three times, then the screen says to play the audio. */

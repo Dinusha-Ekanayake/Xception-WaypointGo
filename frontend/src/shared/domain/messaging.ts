@@ -138,4 +138,6 @@ export type TranscriptView = {
   status: "pending" | "done" | "none";
   text: string | null;
   language: "en" | "si" | "ta" | null;
+  /** R-MSG-15: false once the audio passed its retention and only the words are left. Absent from an older server. */
+  audioKept?: boolean;
 };

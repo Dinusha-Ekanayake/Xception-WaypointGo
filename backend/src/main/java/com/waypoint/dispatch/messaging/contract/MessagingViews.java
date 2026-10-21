@@ -105,8 +105,10 @@ public final class MessagingViews {
    *     with the words, or {@code none} when there is no transcript (no engine,
    *     the engine failed, or the words were cleared with the audio): play the audio
    * @param language en, si or ta, as the engine named it
+   * @param audioKept false once the note's audio passed its retention and only the
+   *     words are left (R-MSG-15): the screen says the audio is no longer kept
    */
-  public record TranscriptView(String status, Optional<String> text, Optional<String> language) {}
+  public record TranscriptView(String status, Optional<String> text, Optional<String> language, boolean audioKept) {}
 
   /** A page of messages, newest first; {@code nextCursor} reads older ones. */
   public record MessagePage(List<MessageView> items, Optional<String> nextCursor) {

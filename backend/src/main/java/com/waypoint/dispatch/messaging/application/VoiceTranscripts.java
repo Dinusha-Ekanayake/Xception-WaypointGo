@@ -76,8 +76,11 @@ public final class VoiceTranscripts {
     private final Metrics metrics;
     private final Clock clock;
 
+    private final boolean keepAfterAudio;
+
     Job(Transcription engine, JdbcTranscripts transcripts, JdbcThreadRepository threads, Database database,
-        Metrics metrics, Clock clock) {
+        Metrics metrics, Clock clock, com.waypoint.dispatch.platform.config.TranscribeProperties properties) {
+      this.keepAfterAudio = properties.keepAfterAudio();
       this.engine = engine;
       this.transcripts = transcripts;
       this.threads = threads;
@@ -113,8 +116,11 @@ public final class VoiceTranscripts {
 
     /** @return how many notes were written down */
     public int runAt(Instant now) {
-      // Words whose recording is gone go too, engine or not.
-      int purged = database.asSystem(ModuleRole.MESSAGING, () -> transcripts.purgeWithAudio(clock.now()));
+      // Words whose recording is gone are kept and marked (R-MSG-15), or go too when
+      // TRANSCRIPT_KEEP_AFTER_AUDIO=false; engine or not.
+      int purged = database.asSystem(ModuleRole.MESSAGING, () -> keepAfterAudio
+          ? transcripts.markAudioGone(clock.now())
+          : transcripts.purgeWithAudio(clock.now()));
       if (purged > 0) metrics.count("waypoint.transcribe.purged", purged);
       if (!engine.enabled()) return 0;
       List<Pending> queued = database.asSystem(ModuleRole.MESSAGING, () -> transcripts.pending(BATCH));

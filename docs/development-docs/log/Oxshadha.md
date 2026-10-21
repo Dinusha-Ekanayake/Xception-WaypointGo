@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-21 - feat: a voice note's transcript outlives its audio
+
+`dev` · @Oxshadha
+
+- The nightly job deleted a note's words together with its audio after 400 days, leaving nothing searchable of what was said. The words now stay, labelled "Machine transcript · audio no longer kept", with the engine and model that wrote them and the note's SHA-256 tying them to the recording (R-MSG-15, MSG-11a). This changes data retention, so it is a setting, `TRANSCRIPT_KEEP_AFTER_AUDIO` (default on), and P-33 now says legal is to confirm it.
+
+---
+
 ## 2026-10-21 - feat: people's names are masked before anything reaches a language model
 
 `dev` · @Oxshadha
