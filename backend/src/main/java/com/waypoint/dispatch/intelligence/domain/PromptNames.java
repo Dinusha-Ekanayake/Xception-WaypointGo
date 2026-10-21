@@ -98,6 +98,25 @@ public final class PromptNames {
       return out.toString();
     }
 
+    /**
+     * Masks every string value in facts built of maps, lists and scalars, never a
+     * key: a first name such as "Next" must not rename the field it sits in.
+     */
+    public Object maskValues(Object value) {
+      if (value instanceof String s) return mask(s);
+      if (value instanceof Map<?, ?> map) {
+        Map<Object, Object> out = new LinkedHashMap<>();
+        map.forEach((k, v) -> out.put(k, maskValues(v)));
+        return out;
+      }
+      if (value instanceof Collection<?> list) {
+        List<Object> out = new ArrayList<>();
+        list.forEach(v -> out.add(maskValues(v)));
+        return out;
+      }
+      return value;
+    }
+
     /** Token to the fullest form of the name written, for {@link #restore}. */
     public Map<String, String> tokens() {
       return Map.copyOf(original);

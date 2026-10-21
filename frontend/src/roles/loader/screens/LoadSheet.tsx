@@ -275,10 +275,16 @@ export default function LoadSheet({
           // Only before release, and only on a line the loader holds (R-ISS-17).
           onFound={t.found && editable ? async (item, reason) => {
             const line = t.lines.find((l) => l.items.some((i) => i === item)) ?? issueFor?.line;
-            if (!line) return false;
+            if (!line) return tr("Choose the item again.");
             const outcome = await t.found!(line, item, reason);
-            if (outcome.ok) setToast({ kind: "sent", at: businessNow(), title: tr("Flag removed"), detail: tr("The dispatcher sees the item as found and loaded.") });
-            return outcome.ok;
+            if (outcome.ok) {
+              setToast({ kind: "sent", at: businessNow(), title: tr("Flag removed"), detail: tr("The dispatcher sees the item as found and loaded.") });
+              return null;
+            }
+            // Said inside the sheet, where the loader is looking; not again behind it.
+            t.clearError();
+            const e = outcome.error;
+            return e instanceof ApiError || e instanceof TypeError || /network|fetch/i.test(e.message) ? friendlyError(e) : tr(e.message);
           } : null}
           onClose={() => setIssueFor(undefined)}
         />

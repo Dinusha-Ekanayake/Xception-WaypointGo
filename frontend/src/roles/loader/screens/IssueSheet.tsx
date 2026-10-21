@@ -86,7 +86,7 @@ export default function IssueSheet({
    */
   onSend: (payload: Omit<FlagShortfall, "tripId">, photo: Blob | null, voice: Recording | null) => Promise<boolean>;
   /** R-ISS-17: take a reported item's flag back, before release. Absent where it cannot. */
-  onFound?: ((item: ItemView, reason: string) => Promise<boolean>) | null;
+  onFound?: ((item: ItemView, reason: string) => Promise<string | null>) | null;
   online?: boolean;
   onClose: () => void;
 }): React.JSX.Element {
@@ -311,7 +311,11 @@ export default function IssueSheet({
         </div>
 
         {item !== null && isFlagged(item.status) && onFound && (
-          <FoundFlag online={online} busy={busy} onFound={async (why) => (await onFound(item, why)) && (onClose(), true)} />
+          <FoundFlag online={online} busy={busy} onFound={async (why) => {
+            const problem = await onFound(item, why);
+            if (problem === null) onClose();
+            return problem;
+          }} />
         )}
 
         {item !== null && isFlagged(item.status) && (

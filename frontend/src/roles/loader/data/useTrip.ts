@@ -234,7 +234,16 @@ export function useTrip(
           if (!online) return { ok: false, error: new Error("Taking a flag back needs a connection, so the dispatcher sees it at once.") };
           setBusy(true);
           try {
-            const [issue] = await gateway.shortfallIssues!(tripId, line.orderId);
+            const issues = await gateway.shortfallIssues!(tripId, line.orderId);
+            const issue = issues.find((i) => i.status === "OPEN" || i.status === "ASSIGNED");
+            // None at all: the report is still on its way to the dispatcher. Ticking now
+            // would leave its issue to arrive later with nobody to resolve it.
+            if (issues.length === 0) {
+              const error = new Error("The report has not reached the dispatcher yet. Try again in a minute.");
+              setError(error);
+              return { ok: false, error };
+            }
+            // Only resolved ones: the flag was already taken back and the tick did not land; tick it.
             if (issue) {
               await gateway.send(
                 newCommand(

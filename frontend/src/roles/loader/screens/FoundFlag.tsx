@@ -17,10 +17,12 @@ export default function FoundFlag({
 }: {
   online: boolean;
   busy: boolean;
-  onFound: (reason: string) => Promise<boolean>;
+  /** Resolves to null when done, or the reason it could not be done, shown here rather than behind the sheet. */
+  onFound: (reason: string) => Promise<string | null>;
 }): React.JSX.Element {
   const tr = useT();
   const [reason, setReason] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
   const ready = online && reason.trim().length >= 3 && !busy;
 
   return (
@@ -35,7 +37,8 @@ export default function FoundFlag({
         />
       </label>
       {!online && <span className="text-[14px] text-go-muted">{tr("Needs a signal, so the dispatcher sees it at once.")}</span>}
-      <BigButton size="l" disabled={!ready} busy={busy} onClick={() => void onFound(reason.trim())}>
+      {problem && <p role="alert" className="text-[14px] text-go-danger">{problem}</p>}
+      <BigButton size="l" disabled={!ready} busy={busy} onClick={() => void onFound(reason.trim()).then(setProblem)}>
         {tr("Found, remove flag")}
       </BigButton>
     </div>

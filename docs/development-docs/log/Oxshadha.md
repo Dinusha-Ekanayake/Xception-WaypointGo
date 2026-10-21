@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-21 - fix: a second look at today's work
+
+`dev` · @Oxshadha
+
+- Name masking ran over the whole JSON of the facts, so an account whose first name matched a field ("Next", "Reason") would have renamed that field. Only values are masked now (ML-47a).
+- The loader's Found: an error was drawn behind the open sheet, so a refusal (trip released, no signal) was never seen; it is now said in the sheet. Tapping Found before the report had become an issue ticked the item and left the issue to arrive with nobody to resolve it; it now says to try again in a minute (ISS-25a).
+- Checked and sound: routing version 16 replaced no earlier condition on the issue rules; AI health authorizes before reading and refuses a dispatcher.
+
+---
+
 ## 2026-10-21 - feat: a voice note's transcript outlives its audio
 
 `dev` · @Oxshadha

@@ -25,8 +25,8 @@ export type LoadingGateway = {
    */
   savePhoto?: (attachmentId: string, orderId: string, photo: Blob) => Promise<{ durable: boolean; reason?: string }>;
   /**
-   * R-ISS-17: the open shortfall issues about one order on a trip, newest first,
-   * so a loader who finds the goods takes the flag back. Absent on the sample gateway.
+   * R-ISS-17: the shortfall issues about one order on a trip, open or not, newest
+   * first, so a loader who finds the goods takes the flag back. Absent on the sample gateway.
    */
   shortfallIssues?: (tripId: string, orderId: string) => Promise<IssueView[]>;
   /** Sample only: publish a new plan version under the loader, to show R-LOD-03. */
@@ -51,7 +51,7 @@ function liveGateway(accountId: string): LoadingGateway {
     shortfallIssues: async (tripId, orderId) => {
       const all = await request<IssueView[]>(`/api/issues/by-subject?type=trip&id=${encodeURIComponent(tripId)}`);
       return all
-        .filter((i) => i.type === "LOADING_SHORTFALL" && (i.status === "OPEN" || i.status === "ASSIGNED"))
+        .filter((i) => i.type === "LOADING_SHORTFALL")
         .filter((i) => i.subjects.some((s) => s.type === "order" && s.id === orderId))
         .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt));
     },

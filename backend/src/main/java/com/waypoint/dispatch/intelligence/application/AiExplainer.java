@@ -118,7 +118,7 @@ public class AiExplainer {
     com.waypoint.dispatch.intelligence.domain.PromptNames.Session people = names.get().session();
     String sent;
     try {
-      sent = people.mask(json.writeValueAsString(allowed));
+      sent = json.writeValueAsString(people.maskValues(allowed));
     } catch (JsonProcessingException e) {
       return Worded.rulesOnly();
     }

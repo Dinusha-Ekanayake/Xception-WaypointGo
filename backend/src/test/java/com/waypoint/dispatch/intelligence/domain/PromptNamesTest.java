@@ -39,6 +39,14 @@ class PromptNamesTest {
   }
 
   @Test
+  void factsKeepTheirKeysWhenAFirstNameIsAlsoAKey() {
+    // An account called "Next Silva" must not rename the field "next".
+    PromptNames.Session s = PromptNames.of(List.of("Next Silva")).session();
+    Object masked = s.maskValues(java.util.Map.of("next", "Ask Next Silva", "items", List.of(java.util.Map.of("label", "next"))));
+    assertEquals(java.util.Map.of("next", "Ask [person-1]", "items", List.of(java.util.Map.of("label", "[person-1]"))), masked);
+  }
+
+  @Test
   void noNamesMasksNothing() {
     assertEquals("Dilan Perera", PromptNames.of(List.of()).session().mask("Dilan Perera"));
   }
