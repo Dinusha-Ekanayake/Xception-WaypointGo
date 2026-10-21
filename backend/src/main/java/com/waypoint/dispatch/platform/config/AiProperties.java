@@ -53,7 +53,7 @@ public record AiProperties(
 
   public String pinnedModel() {
     if (model != null && !model.isBlank()) return model;
-    return OPENROUTER.equals(provider) ? "google/gemini-2.5-flash-lite" : "llama-3.1-8b-instant";
+    return OPENROUTER.equals(provider) ? "google/gemini-2.5-flash-lite" : "qwen/qwen3.8-27b";
   }
 
   @AssertTrue(message = "app.ai.provider must be groq or openrouter")

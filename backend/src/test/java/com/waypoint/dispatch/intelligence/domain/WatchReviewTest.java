@@ -32,4 +32,20 @@ class WatchReviewTest {
     assertTrue(WatchReview.judge(sent, List.of("A1", "A1")).isEmpty());
     assertTrue(WatchReview.judge(sent, null).isEmpty());
   }
+
+  @Test
+  void twelveItemsGoOutWholeAndACodeHoldingAPhoneIsMasked() throws Exception {
+    java.util.List<WatchReview.Item> raised = new java.util.ArrayList<>();
+    for (int i = 1; i <= 12; i++) {
+      raised.add(new WatchReview.Item(null, "WINDOW_AT_RISK", "MEDIUM", 30 + i, "OUT0" + (10 + i), "VEH0" + (10 + i)));
+    }
+    raised.set(0, new WatchReview.Item(null, "FAILED_STOP", "CRITICAL", null, "0771234567", "VEH011"));
+    String facts = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(
+        WatchReview.facts(WatchReview.items(raised)));
+    // A facts string cut at 300 characters was no longer JSON, so every busy depot was refused.
+    com.fasterxml.jackson.databind.JsonNode back = new com.fasterxml.jackson.databind.ObjectMapper().readTree(facts);
+    org.junit.jupiter.api.Assertions.assertEquals(12, back.path("items").size());
+    org.junit.jupiter.api.Assertions.assertEquals("A12", back.path("items").path(11).path("ref").asText());
+    org.junit.jupiter.api.Assertions.assertFalse(facts.contains("0771234567"), facts);
+  }
 }

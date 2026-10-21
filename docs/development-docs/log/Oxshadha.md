@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-21 - fix: the AI parts measured against the real models, and two faults fixed
+
+`dev` · @Oxshadha
+
+- `AiLiveEvaluation` (by hand, `AI_EVAL=1`, never in CI) runs Jev and the watcher's AI layer through the production prompt code on a labelled set. Jev: 58 of 60, no personal data sent, no injection followed. The watcher was never able to work on a depot with more than about three items (facts cut at 300 characters, ML-52), and Groq's retired `llama-3.1-8b-instant` made every language-model call fail: the default is now `qwen/qwen3.8-27b`, chosen on the results. Jev's off-options answers are refused (ML-51). Numbers in the [watch-review](../../issues/watch-review/PLAN.md) and [decision-suggestions](../../issues/decision-suggestions/PLAN.md) plans. Any deployment pinning `AI_MODEL=llama-3.1-8b-instant` must change it.
+
+---
+
 ## 2026-10-21 - docs: the rest of live refresh waits for a second backend
 
 `dev` · @Oxshadha

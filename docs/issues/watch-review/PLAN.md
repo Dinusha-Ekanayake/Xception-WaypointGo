@@ -18,6 +18,14 @@ The attention watch (`AttentionWatchJob`, issue #268) is a set of fixed rules ov
 
 Showing the model's order or line beside "Needs you" once the shadow record shows it adds something the rules' order does not; read-only tools the model can ask for (a store's history, the trip's messages) rather than facts sent up front. Both wait on the shadow results.
 
+## Measured on 2026-10-21
+
+`AiLiveEvaluation` (backend tests, run by hand with `AI_EVAL=1` and the keys of `.env`, never in CI) sends five depots' worth of raised items to each candidate model three times each, once in the rules' order and once shuffled.
+
+- **Two faults found and fixed.** The job masked the whole facts with `PromptFacts.mask`, which cuts at 300 characters, so a depot with more than about three items sent broken JSON and every answer was refused: each code is now masked on its own and the facts are never cut (ML-52). And Groq retired `llama-3.1-8b-instant`, the pinned default, so every call answered 404: the default is now `qwen/qwen3.8-27b`.
+- **Results after the fix**, valid answers of 30 and right first item of the valid: `qwen/qwen3.8-27b` (Groq) 25 valid, 25 right, the 5 others refused by Groq's rate limit (429) on the 12-item depot; `google/gemini-2.5-flash-lite` (OpenRouter) 23 valid, 21 right, 5 calls failed and 2 rate-limited, and on one shuffled depot it put a window at risk above a failed stop three times out of three while its own line said "critical first"; Groq's `openai/gpt-oss-20b` and `-120b` spend the 320-token budget on hidden reasoning and come back empty on anything beyond three items. The faithfulness check refused the one line that named a figure not in the facts ("less than 10 minutes").
+- **What it says.** Given the rules' order, the model agrees with the rules' first item; shuffled, it mostly finds it again, sometimes not. Nothing yet shows it adds to the rules' order, which is why it stays in shadow and is judged on real depots by the first-item agreement.
+
 ## Tests
 
 Domain: the answer accepted only as a permutation of what was sent; the first-item agreement. Integration: a depot with two open items produces one `watch_review` call recorded as used with the stub model, and an answer naming an item never sent is recorded as unfaithful.

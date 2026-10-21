@@ -105,8 +105,6 @@ public class WatchReviewJob implements ScheduledJob {
     } catch (JsonProcessingException e) {
       return;
     }
-    // Codes only, but masked like every call: a badge or a phone in an outlet code never leaves.
-    facts = PromptFacts.mask(facts.length() > 4000 ? facts.substring(0, 4000) : facts);
     String key = "watch:" + depot + ":" + now.getEpochSecond() / 300;
     Instant dayStart = day.atStartOfDay(Clock.OPERATING_ZONE).toInstant();
     String sentFacts = facts;

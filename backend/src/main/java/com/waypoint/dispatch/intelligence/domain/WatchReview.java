@@ -37,7 +37,11 @@ public final class WatchReview {
     return out;
   }
 
-  /** The facts as a map for the model, in the order given. */
+  /**
+   * The facts as a map for the model, in the order given. Each code is masked on
+   * its own (a badge or a phone in a code never leaves); the facts as a whole are
+   * never cut, since a cut one is no longer JSON. {@link #MAX_ITEMS} bounds them.
+   */
   public static Map<String, Object> facts(List<Item> items) {
     List<Map<String, Object>> list = new ArrayList<>();
     for (Item it : items) {
@@ -46,8 +50,8 @@ public final class WatchReview {
       m.put("kind", it.kind());
       m.put("severity", it.severity());
       if (it.minutesLeft() != null) m.put("minutesLeft", it.minutesLeft());
-      m.put("outlet", it.outletId());
-      m.put("vehicle", it.vehicleId());
+      m.put("outlet", PromptFacts.mask(String.valueOf(it.outletId())));
+      m.put("vehicle", PromptFacts.mask(String.valueOf(it.vehicleId())));
       list.add(m);
     }
     return Map.of("items", list);
