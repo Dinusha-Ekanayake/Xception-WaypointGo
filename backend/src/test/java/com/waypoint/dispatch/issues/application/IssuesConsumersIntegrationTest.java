@@ -152,6 +152,22 @@ class IssuesConsumersIntegrationTest extends ReceiptIssuesSupport {
     assertFalse(history.get(history.size() - 1).get("reason").asText().isBlank());
   }
 
+  @Test
+  void aQuietGoodsProblemNeverEscalatesAndSaysSo() throws Exception {
+    // R-ISS-16: missing or wrong goods wait for the day's end, not the dispatcher's alert.
+    Order order = deliveredOrder(outlet);
+    deliver("issues.on-warehouse-discrepancy-found",
+        new WarehouseDiscrepancyFound(order.orderId(), depot, "confirmed", "cancelled", "cancelled outside Waypoint"));
+    JsonNode found = read(dispatcher, "/api/issues/by-subject?type=order&id=" + order.orderId(), 200).get(0);
+    assertEquals("STOCK_DISCREPANCY", found.get("type").asText());
+    assertTrue(found.get("quiet").asBoolean(), "the view tells every screen it is quiet");
+    UUID issueId = UUID.fromString(found.get("issueId").asText());
+
+    escalation.runAt(stored(issueId).raisedAt().plus(Duration.ofDays(1)));
+    assertTrue(stored(issueId).escalatedAt().isEmpty(), "a quiet type is never escalated");
+    assertEquals(0, outbox(issueId.toString(), "issue.escalated").size());
+  }
+
   private com.waypoint.dispatch.issues.domain.Issue stored(UUID issueId) {
     return database.asSystem(ModuleRole.ISSUES, () -> issues.find(issueId).orElseThrow().issue());
   }

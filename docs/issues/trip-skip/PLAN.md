@@ -49,4 +49,4 @@ Docs in the same pull requests: RULES-AND-POLICIES (skip, end trip, returned ord
 
 ## Not here
 
-The report audiences, the driver's waiting and problem list (decisions 1 to 3 of the review, awaiting @jv-ransika), quiet goods problems and the loader's remove-flag.
+The report audiences, the driver's waiting and problem list (decisions 1 to 3 of the review, awaiting @jv-ransika) and the loader's remove-flag. Quiet goods problems were built after this, on 2026-10-21 (R-ISS-16).

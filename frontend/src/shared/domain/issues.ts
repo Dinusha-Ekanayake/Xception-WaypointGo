@@ -39,6 +39,11 @@ export type IssueView = {
   rowVersion: number;
   /** Photos of the problem that have reached the server, oldest first. Absent from a server before photos. */
   attachments?: AttachmentView[];
+  /**
+   * A goods problem that waits for the day's end (R-ISS-16): no alert to the
+   * dispatcher, never escalated. Absent from a server before quiet types.
+   */
+  quiet?: boolean;
 };
 
 /**

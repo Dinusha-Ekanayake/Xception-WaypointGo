@@ -69,7 +69,7 @@ public class IssueDataQuery implements IssueQuery {
 
   @Override
   public Optional<IssueView> issue(UUID issueId) {
-    return read(ambient(), () -> issues.find(issueId).map(IssueDataQuery::toView));
+    return read(ambient(), () -> issues.find(issueId).map(view()));
   }
 
   // ---- web: as the authenticated actor -------------------------------------
@@ -90,12 +90,12 @@ public class IssueDataQuery implements IssueQuery {
   public List<IssueView> settledIssues(Actor actor, String depotCode, Instant now) {
     requireDepot(actor, depotCode);
     return read(actor.userId(), () -> issues.settledForDepot(depotCode, now.minus(SETTLED_WINDOW), Page.limit(Integer.MAX_VALUE)).stream()
-        .map(IssueDataQuery::toView)
+        .map(view())
         .toList());
   }
 
   public IssueView issue(Actor actor, UUID issueId) {
-    return read(actor.userId(), () -> issues.find(issueId).map(IssueDataQuery::toView))
+    return read(actor.userId(), () -> issues.find(issueId).map(view()))
         .orElseThrow(() -> notFound(issueId));
   }
 
@@ -199,14 +199,36 @@ public class IssueDataQuery implements IssueQuery {
             rows, size,
             s -> Cursor.encode(
                 Integer.toString(s.severityRank()), s.issue().raisedAt().toString(), s.issue().issueId().toString()));
-    return new Page<>(page.items().stream().map(IssueDataQuery::toView).toList(), page.nextCursor());
+    return new Page<>(page.items().stream().map(view()).toList(), page.nextCursor());
   }
 
   private List<IssueView> about(SubjectRef subject) {
-    return issues.about(subject).stream().map(IssueDataQuery::toView).toList();
+    return issues.about(subject).stream().map(view()).toList();
   }
 
-  static IssueView toView(Stored stored) {
+  /**
+   * Views of issues read in this transaction, each saying whether its type is a
+   * quiet goods problem today (R-ISS-16), from the dated parameters read once.
+   */
+  private java.util.function.Function<Stored, IssueView> view() {
+    java.util.Set<com.waypoint.dispatch.issues.contract.IssueViews.IssueType> quiet = quietTypes();
+    return stored -> toView(stored, quiet.contains(stored.issue().type()));
+  }
+
+  private java.util.Set<com.waypoint.dispatch.issues.contract.IssueViews.IssueType> quietTypes() {
+    try {
+      return com.waypoint.dispatch.issues.domain.SeverityPolicy.from(
+              issues.parameters(java.time.LocalDate.now(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE)))
+          .quiet();
+    } catch (DomainException refused) {
+      // A refused policy stops escalation, where it is seen as a failed job; a read
+      // keeps working and errs loud, so no problem is hidden (ISS-24).
+      return java.util.Set.of();
+    }
+  }
+
+
+  static IssueView toView(Stored stored, boolean quiet) {
     Issue i = stored.issue();
     return new IssueView(
         i.issueId(),
@@ -224,6 +246,7 @@ public class IssueDataQuery implements IssueQuery {
         i.raisedAt(),
         i.resolution().map(Issue.Resolution::at),
         i.rowVersion(),
-        stored.attachments());
+        stored.attachments(),
+        quiet);
   }
 }

@@ -20,13 +20,25 @@ import java.util.Map;
  * is not a state. A person raising an issue chooses its severity; this decides
  * only for issues the system raises from another module's event.
  */
-public record SeverityPolicy(Map<IssueType, IssueSeverity> defaults, Map<IssueSeverity, Duration> deadlines) {
+public record SeverityPolicy(
+    Map<IssueType, IssueSeverity> defaults, Map<IssueSeverity, Duration> deadlines, java.util.Set<IssueType> quiet) {
   public static final String DEFAULT_PREFIX = "default.severity.";
   public static final String DEADLINE_PREFIX = "escalation.minutes.";
+  /**
+   * R-ISS-16: goods problems handled at the day's end (missing or broken
+   * goods). They do not alert the dispatcher, do not escalate, and show on Live
+   * for today only. Comma-separated issue types; "none" for no quiet type.
+   */
+  public static final String QUIET_KEY = "quiet.types";
 
   public SeverityPolicy {
     defaults = Map.copyOf(defaults);
     deadlines = Map.copyOf(deadlines);
+    quiet = java.util.Set.copyOf(quiet);
+  }
+
+  public boolean isQuiet(IssueType type) {
+    return quiet.contains(type);
   }
 
   public static SeverityPolicy from(Map<String, String> parameters) {
@@ -52,7 +64,18 @@ public record SeverityPolicy(Map<IssueType, IssueSeverity> defaults, Map<IssueSe
         throw refused(DEADLINE_PREFIX + severity.name() + " is not a whole number of minutes: " + value);
       }
     }
-    return new SeverityPolicy(defaults, deadlines);
+    java.util.Set<IssueType> quiet = java.util.EnumSet.noneOf(IssueType.class);
+    String listed = require(parameters, QUIET_KEY).trim();
+    if (!listed.equalsIgnoreCase("none")) {
+      for (String part : listed.split(",")) {
+        try {
+          quiet.add(IssueType.valueOf(part.trim().toUpperCase(Locale.ROOT)));
+        } catch (IllegalArgumentException e) {
+          throw refused(QUIET_KEY + " names no issue type: " + part.trim());
+        }
+      }
+    }
+    return new SeverityPolicy(defaults, deadlines, quiet);
   }
 
   public IssueSeverity defaultFor(IssueType type) {

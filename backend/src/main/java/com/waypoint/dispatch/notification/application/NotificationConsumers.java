@@ -148,6 +148,20 @@ final class NotificationConsumers {
     return id == null ? Optional.empty() : Optional.of(new Subject(type, String.valueOf(id)));
   }
 
+  /**
+   * R-ISS-16: who hears about an issue. {@code loud} is "no" for a quiet goods
+   * problem, which waits for the day's end and does not alert the dispatcher;
+   * {@code forStore} is "no" for the loader's shortfall flag, which the store
+   * never sees. The routing rules (version 16) condition on these facts, so
+   * the quiet types are defined once, in the issues parameters.
+   */
+  private static Routed audience(Routed r, Optional<IssueView> issue,
+      com.waypoint.dispatch.issues.contract.IssueViews.IssueType type) {
+    boolean quiet = issue.map(IssueView::quiet).orElse(false);
+    boolean loaderFlag = type == com.waypoint.dispatch.issues.contract.IssueViews.IssueType.LOADING_SHORTFALL;
+    return r.fact("loud", quiet ? "no" : "yes").fact("forStore", loaderFlag ? "no" : "yes");
+  }
+
   /** {@code VEHICLE_FAULT} reads as "vehicle fault". */
   private static String words(Enum<?> value) {
     return value.name().toLowerCase(Locale.ROOT).replace('_', ' ');
@@ -795,8 +809,11 @@ final class NotificationConsumers {
   /** R-NOT-03: a reported fault, delay, damage or access problem reaches the dispatcher. */
   @Component
   static class OnIssueRaised extends NotificationConsumer<IssueRaised> {
-    OnIssueRaised(Notifier notifier) {
+    private final IssueQuery issues;
+
+    OnIssueRaised(Notifier notifier, IssueQuery issues) {
       super(notifier);
+      this.issues = issues;
     }
 
     @Override
@@ -811,7 +828,7 @@ final class NotificationConsumers {
 
     @Override
     Routed route(IssueRaised e) {
-      return new Routed()
+      return audience(new Routed(), issues.issue(e.issueId()), e.issueType())
           .fact("issueType", words(e.issueType())).fact("severity", words(e.severity()))
           .fact("depotCode", e.depotCode()).fact("outletId", e.outletId())
           .to(ScopeKind.DEPOT, e.depotCode(), "issue", e.issueId())
@@ -886,7 +903,7 @@ final class NotificationConsumers {
               .orElse(outcomeWords(e.action()));
       // "Receipt dispute: Written off"; just the outcome when the issue cannot be read.
       Optional<String> type = issue.map(i -> sentence(words(i.type())));
-      return new Routed()
+      return audience(new Routed(), issue, issue.map(IssueView::type).orElse(null))
           .fact("issueType", type).fact("outcome", outcome)
           .fact("summary", type.map(t -> t + ": " + outcome).orElse(outcome))
           .fact("outletId", e.outletId()).fact("depotCode", e.depotCode())
@@ -1151,8 +1168,11 @@ final class NotificationConsumers {
   /** R-ISS-06: an issue waited unassigned past its severity's deadline. */
   @Component
   static class OnIssueEscalated extends NotificationConsumer<IssueEscalated> {
-    OnIssueEscalated(Notifier notifier) {
+    private final IssueQuery issues;
+
+    OnIssueEscalated(Notifier notifier, IssueQuery issues) {
       super(notifier);
+      this.issues = issues;
     }
 
     @Override
@@ -1167,7 +1187,7 @@ final class NotificationConsumers {
 
     @Override
     Routed route(IssueEscalated e) {
-      return new Routed()
+      return audience(new Routed(), issues.issue(e.issueId()), e.issueType())
           .fact("issueType", words(e.issueType())).fact("severity", words(e.severity()))
           .fact("waitedMinutes", e.waitedMinutes()).fact("depotCode", e.depotCode())
           .to(ScopeKind.DEPOT, e.depotCode(), "issue", e.issueId())

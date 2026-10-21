@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-21 - feat: goods problems wait for the day's end
+
+`dev` · @Oxshadha
+
+- Piece 2 of the trip-problems vision. Missing, wrong or damaged goods (parameter `quiet.types`: loading shortfall, damaged goods, stock discrepancy) no longer alert the dispatcher or escalate: an orange stop on the Live timeline for the day, and an Issues tab "Goods problems" (R-ISS-16, ISS-22 to ISS-24). The store that raised one still hears of it; a loader's shortfall flag no longer reaches the store (routing version 16, facts `loud` and `forStore`). `IssueView` says `quiet`; a refused parameter stops escalation and reads err loud.
+- Fixed an order dependency in the suggestion tests: the 20-decision test now uses its own situation, so the rule-prior test stays on rules in any order.
+
+---
+
 ## 2026-10-21 - feat: suggested decisions learn from what dispatchers chose (#269)
 
 `dev` · @Oxshadha

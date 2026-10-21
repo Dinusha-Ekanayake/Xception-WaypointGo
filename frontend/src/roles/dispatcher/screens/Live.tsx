@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Notice, usePersistentState } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import { byUrgency, punctuality, vehicleDay } from "../data/live.ts";
-import { closedOnTheirOwn, depotSummaries, filterRuns, needCards, runsOf, summaryText, type RunFilter } from "../data/liveDesk.ts";
+import { closedOnTheirOwn, depotSummaries, filterRuns, goodsToday, needCards, runsOf, summaryText, type RunFilter } from "../data/liveDesk.ts";
 import { dayLabel } from "../data/scope.ts";
 import { useIssues, useLive, usePositions, useReports } from "../data/useDay.ts";
 import { useDispatcherInbox } from "../inbox.tsx";
@@ -80,6 +80,7 @@ export default function Live({
   const shown = filterRuns(runs, depot, filter);
   const depotIssues = (issues.data ?? []).filter((i) => depot === "all" || i.depotCode === depot);
   const cards = needCards(inDepot, depotIssues, date, now);
+  const goods = goodsToday(depotIssues, date);
   const onTheRoad = inDepot.filter((r) => r.day.state !== "finished").length;
   const atDock = (live.data?.dock ?? []).filter((t) => t.releasedAt === null && (depot === "all" || depotOf[t.vehicleId] === depot)).length;
   const depotName = (run: { depot: string | null }) => (run.depot ? `${run.depot} depot` : "the depot");
@@ -104,7 +105,7 @@ export default function Live({
   const subtitle = !live.data
     ? "Loading"
     : view === "needs"
-      ? `${cards.length} need you · ${closedOnTheirOwn(inDepot)} closed on their own · ${onTheRoad} on the road${atDock ? ` · ${atDock} at the dock` : ""}`
+      ? `${cards.length} need you · ${closedOnTheirOwn(inDepot)} closed on their own · ${onTheRoad} on the road${atDock ? ` · ${atDock} at the dock` : ""}${goods.size ? ` · ${goods.size} ${goods.size === 1 ? "store" : "stores"} with a goods problem` : ""}`
       : [`${onTheRoad} on the road`, ...(depot === "all" && depotNames.length > 1 ? depotSummaries(runs).map((s) => `${s.depot} ${s.onTheRoad}`) : [scopeLabel])].join(" · ");
   const punctual = punctuality(inDepot.map((r) => ({ vehicleId: r.day.vehicleId, serviceDate: date, stops: r.day.stops })));
 
@@ -173,6 +174,7 @@ export default function Live({
             now={now}
             onOpen={setTrip}
             reports={reports.data ?? []}
+            goods={goods}
             onReport={(mark) => inbox?.openThread({ threadId: mark.threadId, messageId: mark.messageId })}
             onMessages={(run) => void openTripThread(tripOf(run)).then(setThreadNote)}
           />

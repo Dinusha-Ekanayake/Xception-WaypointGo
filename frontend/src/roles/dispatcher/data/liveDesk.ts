@@ -1,6 +1,6 @@
 import type { FuelView, IssueView, ReadyTripView, RunSheetStopView, PresenceView, StoreAnswerWaiverReason, VehiclePositionView } from "@shared/domain/types";
 import { mapStatus, type MapStatus, type VehicleDay } from "./live.ts";
-import { clockOn } from "../../../shared/wording/index.ts";
+import { clockOn, dayOf } from "../../../shared/wording/index.ts";
 
 // The Figma "05 Live" frames (189:20983 to 189:21943) read from what the
 // dispatcher already loads: each vehicle's run sheet joined to its loading trip
@@ -191,6 +191,8 @@ export function needCards(runs: Run[], issues: IssueView[], date: string, now: D
   }
   for (const issue of issues) {
     if (issue.status !== "OPEN" && issue.status !== "ASSIGNED") continue;
+    // A goods problem waits for the day's end (R-ISS-16): orange on its stop, not a card.
+    if (issue.quiet) continue;
     const age = Math.max(0, Math.round((now.getTime() - new Date(issue.raisedAt).getTime()) / 60_000));
     const order = issue.subjects.find((s) => s.type === "order")?.id ?? null;
     cards.push({
@@ -208,6 +210,18 @@ export function needCards(runs: Run[], issues: IssueView[], date: string, now: D
   // Failed stops first, then by minutes to act; an issue comes before a proof owed.
   const rank = (c: NeedCard): number => (c.kind === "failed" ? -1e9 : c.kind === "issue" ? 1e7 : c.minutesLeft ?? 1e9);
   return cards.sort((a, b) => rank(a) - rank(b));
+}
+
+/**
+ * The stores with a goods problem still open from this day (R-ISS-16), for the
+ * orange mark on their stop. Quiet issues only; a loud one is a card instead.
+ */
+export function goodsToday(issues: IssueView[], date: string): Set<string> {
+  return new Set(
+    issues
+      .filter((i) => i.quiet && (i.status === "OPEN" || i.status === "ASSIGNED") && i.outletId && dayOf(i.raisedAt) === date)
+      .map((i) => i.outletId!),
+  );
 }
 
 /** Share of the run's stops closed, for the trip board and the cards' bars. */

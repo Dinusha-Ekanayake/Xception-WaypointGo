@@ -89,7 +89,8 @@ public class IssueEscalationJob implements ScheduledJob {
     int escalated = 0;
     for (Issue candidate : waiting) {
       Duration deadline = policy.deadline(candidate.severity());
-      if (!candidate.isOverdue(now, deadline)) {
+      // R-ISS-16: a goods problem waits for the day's end, so it never escalates.
+      if (policy.isQuiet(candidate.type()) || !candidate.isOverdue(now, deadline)) {
         continue;
       }
       try {

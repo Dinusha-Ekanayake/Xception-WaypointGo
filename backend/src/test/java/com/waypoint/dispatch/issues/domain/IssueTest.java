@@ -196,9 +196,19 @@ class IssueTest {
       parameters.put(SeverityPolicy.DEADLINE_PREFIX + s.name(), "60");
     }
     parameters.put(SeverityPolicy.DEFAULT_PREFIX + "VEHICLE_FAULT", "CRITICAL");
+    parameters.put(SeverityPolicy.QUIET_KEY, " damaged_goods, LOADING_SHORTFALL ");
     SeverityPolicy policy = SeverityPolicy.from(parameters);
     assertEquals(IssueSeverity.CRITICAL, policy.defaultFor(IssueType.VEHICLE_FAULT));
     assertEquals(Duration.ofMinutes(60), policy.deadline(IssueSeverity.LOW));
+    // R-ISS-16: the quiet goods problems are read from the same dated parameters.
+    assertTrue(policy.isQuiet(IssueType.DAMAGED_GOODS));
+    assertTrue(policy.isQuiet(IssueType.LOADING_SHORTFALL));
+    assertFalse(policy.isQuiet(IssueType.VEHICLE_FAULT));
+    parameters.put(SeverityPolicy.QUIET_KEY, "none");
+    assertFalse(SeverityPolicy.from(parameters).isQuiet(IssueType.DAMAGED_GOODS));
+    parameters.put(SeverityPolicy.QUIET_KEY, "BROKEN_THINGS");
+    assertEquals(List.of("POL-10"), assertThrows(DomainException.class, () -> SeverityPolicy.from(parameters)).rules());
+    parameters.put(SeverityPolicy.QUIET_KEY, "none");
 
     parameters.remove(SeverityPolicy.DEADLINE_PREFIX + "LOW");
     DomainException refused = assertThrows(DomainException.class, () -> SeverityPolicy.from(parameters));

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { IssueView, ReadyTripView, RunSheetStopView, RunSheetView, VehiclePositionView } from "../src/shared/domain/types.ts";
 import { vehicleDay } from "../src/roles/dispatcher/data/live.ts";
-import { activity, depotClock, filterRuns, limits, needCards, runsOf, tripBudget } from "../src/roles/dispatcher/data/liveDesk.ts";
+import { activity, depotClock, filterRuns, goodsToday, limits, needCards, runsOf, tripBudget } from "../src/roles/dispatcher/data/liveDesk.ts";
 
 const DATE = "2027-03-01";
 const NOW = new Date("2027-03-01T10:42:00Z"); // 16:12 in Colombo
@@ -55,6 +55,18 @@ test("needs you: a failed stop first, then the window closing soonest, then an i
   assert.equal(cards[1]!.chip.text, "48 min left", "17:00 less 16:12");
   assert.equal(cards[1]!.title, "OUT062 · may miss its window");
   assert.equal(cards[2]!.meta, "reported 16:02");
+});
+
+test("a goods problem is no card but an orange stop, for today's open ones only (R-ISS-16)", () => {
+  const base = { severity: "MEDIUM", depotCode: "Kandy", subjects: [], description: "2 units damaged", assignee: null, resolutionAction: null, resolutionNote: null, raisedBy: "u", resolvedAt: null, rowVersion: 1 };
+  const goods = [
+    { ...base, issueId: "g1", type: "DAMAGED_GOODS", status: "OPEN", outletId: "OUT085", raisedAt: at("10:32"), quiet: true },
+    { ...base, issueId: "g2", type: "DAMAGED_GOODS", status: "RESOLVED", outletId: "OUT062", raisedAt: at("10:40"), quiet: true },
+    { ...base, issueId: "g3", type: "STOCK_DISCREPANCY", status: "OPEN", outletId: "OUT070", raisedAt: "2026-01-01T04:00:00Z", quiet: true },
+    { ...base, issueId: "l1", type: "VEHICLE_FAULT", status: "OPEN", outletId: "OUT099", raisedAt: at("10:45") },
+  ] as IssueView[];
+  assert.deepEqual(needCards([], goods, DATE, NOW).map((c) => c.issueId), ["l1"]);
+  assert.deepEqual([...goodsToday(goods, DATE)], ["OUT085"]);
 });
 
 test("filters keep a depot and a status, and count what the chips show", () => {

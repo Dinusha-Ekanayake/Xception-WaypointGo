@@ -94,3 +94,18 @@ test("going offline turns the inbox read only and says so", async ({ page, conte
   await expect(detail).toContainText("issues are read only");
   await context.setOffline(false);
 });
+
+test("a goods problem waits in its own tab for the day's end, not among the open issues (R-ISS-16)", async ({ page }) => {
+  await serve(page, {
+    issues: [issue(1, { severity: "HIGH" }), issue(2, { type: "DAMAGED_GOODS", severity: "MEDIUM", quiet: true })],
+  });
+  await page.goto("/#/issues");
+
+  const list = page.getByRole("region", { name: "Open issues" });
+  await expect(page.getByRole("radio", { name: "Open (1)" })).toBeVisible();
+  await expect(list).not.toContainText("Damaged goods");
+
+  await page.getByRole("radio", { name: "Goods problems (1)" }).click();
+  await expect(list.getByRole("button").first()).toContainText("Damaged goods");
+  await expect(page.getByRole("region", { name: "Selected issue" }).getByRole("button", { name: "Take it" })).toBeVisible();
+});

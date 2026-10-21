@@ -16,9 +16,10 @@ import Refusal from "./Refusal.tsx";
 // and the system's own consumers; the dispatcher takes, resolves and closes
 // them. Open is nobody's yet, In progress has someone on it. The Issues module
 // lists only active issues, so Resolved says what it waits on. Read every 30
-// seconds while the tab is visible and online.
+// seconds while the tab is visible and online. Goods problems (R-ISS-16) do not
+// alert or escalate; they wait in their own tab for the day's end.
 
-type Tab = "open" | "progress" | "resolved";
+type Tab = "open" | "progress" | "goods" | "resolved";
 
 const DOT: Record<string, string> = { CRITICAL: "bg-go-danger", HIGH: "bg-go-danger", MEDIUM: "bg-go-warning", LOW: "bg-go-offline" };
 
@@ -51,9 +52,10 @@ export default function Issues({
   }, []);
 
   const all = useMemo(() => byUrgency(issues.data ?? []), [issues.data]);
-  const open = all.filter((issue) => issue.status === "OPEN");
-  const progress = all.filter((issue) => issue.status === "ASSIGNED");
-  const shown = tab === "open" ? open : tab === "progress" ? progress : (settled.data ?? []);
+  const open = all.filter((issue) => issue.status === "OPEN" && !issue.quiet);
+  const progress = all.filter((issue) => issue.status === "ASSIGNED" && !issue.quiet);
+  const goods = all.filter((issue) => issue.quiet);
+  const shown = tab === "open" ? open : tab === "progress" ? progress : tab === "goods" ? goods : (settled.data ?? []);
   const selected = selectedId ?? shown[0]?.issueId ?? null;
 
   // Hold the first issue once shown, so resolving it, which takes it off the
@@ -82,6 +84,7 @@ export default function Issues({
         options={[
           { value: "open", label: `Open (${issues.data ? open.length : "…"})` },
           { value: "progress", label: `In progress (${issues.data ? progress.length : "…"})` },
+          { value: "goods", label: `Goods problems (${issues.data ? goods.length : "…"})` },
           { value: "resolved", label: "Resolved" },
         ]}
       />
@@ -97,7 +100,9 @@ export default function Issues({
                 ? `No open issue at ${scopeLabel}.`
                 : tab === "progress"
                   ? "Nobody is working on an issue right now."
-                  : "Nothing resolved in the last 7 days."}
+                  : tab === "goods"
+                    ? "No missing or damaged goods waiting for the day's end."
+                    : "Nothing resolved in the last 7 days."}
             </p>
           )}
           <ul className="flex flex-col gap-1">

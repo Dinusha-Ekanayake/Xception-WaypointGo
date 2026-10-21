@@ -68,7 +68,12 @@ public final class IssueViews {
       Instant raisedAt,
       Optional<Instant> resolvedAt,
       long rowVersion,
-      List<AttachmentView> attachments) {
+      List<AttachmentView> attachments,
+      /**
+       * R-ISS-16: a goods problem handled at the day's end. It does not alert the
+       * dispatcher or escalate, and shows on Live for today only.
+       */
+      boolean quiet) {
 
     public IssueView {
       subjects = List.copyOf(subjects);

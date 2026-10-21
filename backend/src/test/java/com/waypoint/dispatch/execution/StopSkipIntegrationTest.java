@@ -317,15 +317,16 @@ class StopSkipIntegrationTest {
   @Test
   void afterTwentyDecisionsTheChancesAreCountedFromWhatDispatchersTook() throws Exception {
     command(driver, "delivery:RecordArrival", 1L, stop(stopTwo), 200);
-    String shown = "\"shown\":[\"CALL_STORE\",\"SKIP_NEXT_DAY\",\"WAIT\"]";
+    // A situation of its own, so the rule-prior test above stays on rules whatever the order.
+    String shown = "\"shown\":[\"TELL_STORE\",\"WAIT\",\"END_TRIP\"]";
     for (int i = 0; i < 21; i++) {
       command(dispatcher, "ml:RecordSuggestion", null,
-          "{\"deliveryId\":\"" + stopTwo + "\",\"situation\":\"STORE_CLOSED\"," + shown + ",\"chosen\":\"SKIP_NEXT_DAY\"}", 200);
+          "{\"deliveryId\":\"" + stopTwo + "\",\"situation\":\"ROAD_BLOCKED\"," + shown + ",\"chosen\":\"END_TRIP\"}", 200);
     }
-    JsonNode s = json(read(dispatcher, "/api/ml/decision-suggestions?deliveryId=" + stopTwo + "&situation=failed_delivery", 200));
+    JsonNode s = json(read(dispatcher, "/api/ml/decision-suggestions?deliveryId=" + stopTwo + "&situation=road_disruption", 200));
     assertEquals("learned", s.get("basis").asText());
     JsonNode first = s.get("suggestions").get(0);
-    assertEquals("SKIP_NEXT_DAY", first.get("action").asText(), "what dispatchers take here comes first");
+    assertEquals("END_TRIP", first.get("action").asText(), "what dispatchers take here comes first, over the rules' order");
     assertTrue(first.get("chosenTimes").asInt() >= 21);
     assertTrue(first.get("shownTimes").asInt() >= first.get("chosenTimes").asInt());
   }

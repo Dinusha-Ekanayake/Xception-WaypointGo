@@ -80,6 +80,7 @@ export default function LiveTimeline({
   now,
   onOpen,
   reports = [],
+  goods = new Set(),
   onReport,
   onMessages,
 }: {
@@ -87,6 +88,8 @@ export default function LiveTimeline({
   now: Date;
   onOpen: (vehicleId: string) => void;
   reports?: ReportMarkView[];
+  /** Stores with a goods problem today, marked orange and left for the day's end (R-ISS-16). */
+  goods?: ReadonlySet<string>;
   onReport?: (report: ReportMarkView) => void;
   /** Opens the run's trip thread, whether or not anyone has reported (issue #136). */
   onMessages?: (run: Run) => void;
@@ -241,11 +244,12 @@ export default function LiveTimeline({
                     );
                   }
                   const dot = delivered ? "bg-go-signal border-go-signal" : delayed ? "border-go-warning bg-white" : "border-go-secondary bg-white";
+                  const goodsProblem = goods.has(stop.outletId);
                   return (
                     <span
                       key={stop.deliveryId}
-                      title={`Stop ${stop.sequence} · ${stop.outletId} · ${clockLabel(stopMinute(stop))}`}
-                      className={`absolute top-1/2 flex h-3 w-3 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 ${dot} ${estimated ? "border-dashed" : ""} ${exception ? "ring-4 ring-go-danger/25" : ""}`}
+                      title={`Stop ${stop.sequence} · ${stop.outletId} · ${clockLabel(stopMinute(stop))}${goodsProblem ? " · goods problem, for the day's end" : ""}`}
+                      className={`absolute top-1/2 flex h-3 w-3 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 ${dot} ${estimated ? "border-dashed" : ""} ${goodsProblem ? "ring-4 ring-go-warning/60" : ""}`}
                       style={{ left: at(stopMinute(stop)) }}
                     >
                       {exception && <span className="h-1.5 w-1.5 rounded-full bg-go-danger" />}
