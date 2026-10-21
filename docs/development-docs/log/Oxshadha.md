@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-23 - fix: a loader takes a free trip by tapping it; the store header lines up
+
+`dev` · @Oxshadha
+
+- Loader: after Hand back the trip stays Loading with no holder, but the sheet still said "Locked to you" and refused every tick, so nobody could load it. Editing now follows the holder: a free trip shows "Take the trip", and tapping an item on a free trip takes it and ticks the item in one go. The mocked browser suite covers the hand-back case.
+- Store manager: "Back to home" after placing an order goes Home, not Orders. On wide screens New order sits at the right edge, and a warning notice stops short of the sync pill instead of running under it.
+
+---
+
 ## 2026-10-22 - fix: the plan explanation says left-off orders were left off
 
 `dev` · @Oxshadha

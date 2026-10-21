@@ -35,6 +35,7 @@ export default function Orders({
   onOpen,
   onPlace,
   onRetry,
+  clearTopBar = true,
 }: {
   orders: OrderView[];
   loading: boolean;
@@ -43,6 +44,7 @@ export default function Orders({
   onPlace: () => void;
   /** Read the orders again after a failure. */
   onRetry?: () => void;
+  clearTopBar?: boolean;
 }): React.JSX.Element {
   const { units } = useCounts();
   const t = useT();
@@ -54,8 +56,8 @@ export default function Orders({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* From lg the sync pill and the bell sit top right over the page (TopBar); keep New order clear of them. */}
-      <div className="flex items-end gap-3 lg:mr-[260px]">
+      {/* From lg the sync pill and the bell sit top right over the page (TopBar). When this heading is the first row, New order stops just short of them; under a notice it takes the full width. */}
+      <div className={`flex items-end gap-3 ${clearTopBar ? "lg:mr-[calc(var(--store-topbar-w,240px)+12px)]" : ""}`}>
         <h1 className="flex-1 text-[32px] leading-tight font-medium text-black">{t("Orders")}</h1>
         <button type="button" onClick={onPlace} className="min-h-12 rounded-[22px] bg-go-mint px-5 text-[15px] font-medium text-black">
           {t("+ New order")}

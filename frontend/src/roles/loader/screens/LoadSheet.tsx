@@ -99,7 +99,11 @@ export default function LoadSheet({
   // and volume (AGENTS.md, capacity never reads product lines).
   const weightCap = Number(m.weightCapKg);
   const volumeCap = Number(m.volumeCapM3);
-  const editable = status === "IN_PROGRESS" || status === "BLOCKED" || status === "READY";
+  // Loading, and held by this loader: only then can items be ticked (R-LOD-11). A trip handed back is
+  // still loading but held by nobody; it is free to take again, never shown as locked to anyone.
+  const inProgress = status === "IN_PROGRESS" || status === "BLOCKED" || status === "READY";
+  const editable = inProgress && m.holder !== null && m.holder.userId === actingUserId;
+  const free = status === "NOT_STARTED" || (inProgress && m.holder === null);
   const left = p.total - p.checked;
   const pace = editable && m.holder ? paceOf(p.checked, p.total, m.holder.since, m.plannedDeparture) : null;
   // 04: the trip went to another loader first (R-LOD-11).
@@ -216,6 +220,7 @@ export default function LoadSheet({
           gateway.revisePlan!(trip.tripId);
           t.manifest.refresh();
         } : undefined}
+        free={free}
         onStart={() => void t.start()}
         onHandBack={() => setHandingBack(true)}
         onReport={() => setIssueFor(null)}
@@ -235,12 +240,12 @@ export default function LoadSheet({
           )
         }
         onReport={(line, item) => setIssueFor({ line, item })}
-        onLocked={status === "NOT_STARTED" ? () => setToast({
-          kind: "hint",
-          at: businessNow(),
-          title: tr("Take the trip first"),
-          detail: tr("Tap Start loading, then tick each item as it goes on."),
-        }) : undefined}
+        // Tapping an item of a trip nobody holds takes it, then ticks that item: one tap, not a hint.
+        onLocked={free ? (line, item) =>
+          void once(`take:${line.orderId}:${item?.lineNo ?? "order"}`, async () => {
+            if (!(await t.start()).ok) return;
+            await (item ? tick(line, item) : t.check(line, null, "LOADED"));
+          }) : undefined}
       />
       </div>
 

@@ -26,7 +26,7 @@ export default function ManifestList({
   onToggle: (line: Line, item: ItemView | null) => void;
   onReport: (line: Line, item: ItemView | null) => void;
   /** A tick before the trip is taken: says to take it first. */
-  onLocked?: () => void;
+  onLocked?: (line: Line, item: ItemView | null) => void;
 }): React.JSX.Element {
   const tr = useT();
   const stops = byStop(lines);
@@ -100,7 +100,7 @@ function OrderBlock({
   editable: boolean;
   onToggle: (line: Line, item: ItemView | null) => void;
   onReport: (line: Line, item: ItemView | null) => void;
-  onLocked?: () => void;
+  onLocked?: (line: Line, item: ItemView | null) => void;
 }): React.JSX.Element {
   const tr = useT();
   const loaded = line.items.filter((i) => i.status === "LOADED").length;
@@ -152,7 +152,7 @@ function ItemRow({
   editable: boolean;
   onToggle: (line: Line, item: ItemView | null) => void;
   onReport: (line: Line, item: ItemView | null) => void;
-  onLocked?: () => void;
+  onLocked?: (line: Line, item: ItemView | null) => void;
 }): React.JSX.Element {
   const tr = useT();
   const loaded = item.status === "LOADED";
@@ -164,7 +164,7 @@ function ItemRow({
         type="button"
         // A flagged item is reported, not ticked: re-ticking it goes through Report.
         // Before the trip is taken a tap says so, rather than doing nothing.
-        onClick={() => (!editable ? onLocked?.() : flagged ? onReport(line, item) : onToggle(line, item))}
+        onClick={() => (!editable ? onLocked?.(line, item) : flagged ? onReport(line, item) : onToggle(line, item))}
         disabled={!editable && !onLocked}
         aria-pressed={loaded}
         aria-label={tr(flagged ? "Edit report for {label}" : loaded ? "Undo loaded, {label}" : "Mark {label} loaded", { label })}

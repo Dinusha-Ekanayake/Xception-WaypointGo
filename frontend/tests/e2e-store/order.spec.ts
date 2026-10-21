@@ -35,6 +35,7 @@ test("an item added from the catalogue is kept in a draft, and submitting shows 
 
   // Sent, so the draft is gone.
   await dialog.getByRole("button", { name: "Back to home" }).click();
+  await expect(page.getByRole("button", { name: /Place order for/ })).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: /Place order for/ }).click();
   await expect(page.getByRole("status").filter({ hasText: "restored" })).toHaveCount(0);

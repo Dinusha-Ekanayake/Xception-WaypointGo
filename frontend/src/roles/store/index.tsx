@@ -241,7 +241,8 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
         amend={view.amend}
         warehouseDown={warehouseDown}
         commands={commands}
-        onDone={() => showTab("orders")}
+        // "Back to home" in the Order sent dialog says where it goes.
+        onDone={() => showTab("home")}
         onEdit={(orderId) => {
           showTab("orders");
           setOpenOrder(orderId);
@@ -325,7 +326,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
       />
     );
   } else if (tab === "orders") {
-    body = <Orders orders={all} loading={orders.loading} error={orders.error} onOpen={setOpenOrder} onPlace={place} onRetry={orders.refresh} />;
+    body = <Orders orders={all} loading={orders.loading} error={orders.error} onOpen={setOpenOrder} onPlace={place} onRetry={orders.refresh} clearTopBar={!warehouseDown && !flushError} />;
   } else if (tab === "issues") {
     body = (
       <Issues
@@ -389,6 +390,9 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
         />
       )}
       {inboxOpen && <NotificationsDrawer inbox={inbox} onSubject={openSubject} onClose={() => setInboxOpen(false)} />}
+      {/* From lg a notice is the first row, so it stops short of the top bar and the page heading below it takes the full width. */}
+      {(warehouseDown || flushError) && (
+        <div className="flex flex-col gap-3 lg:mr-[calc(var(--store-topbar-w,240px)+12px)]">
       {warehouseDown && (
         <Notice tone="warning" live title={t("The warehouse is not answering")}>
           {t("You can still place orders. They are kept as “stock not checked” and confirmed once the warehouse is back, never before.")}
@@ -405,6 +409,8 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
             </button>
           }
         />
+      )}
+        </div>
       )}
       {body}
       {gateway.sample && view.kind === "tabs" && (

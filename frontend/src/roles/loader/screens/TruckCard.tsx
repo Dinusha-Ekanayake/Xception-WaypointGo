@@ -23,6 +23,7 @@ export default function TruckCard({
   weightCap,
   volumeCap,
   editable,
+  free,
   busy,
   planChanged,
   waiting,
@@ -44,6 +45,8 @@ export default function TruckCard({
   weightCap: number;
   volumeCap: number;
   editable: boolean;
+  /** Nobody holds it: never started, or handed back mid-way. */
+  free: boolean;
   busy: boolean;
   planChanged: boolean;
   waiting: number;
@@ -105,9 +108,9 @@ export default function TruckCard({
           {flagged > 0 && <p className="text-[15px] font-medium text-go-danger-strong">{tr("{n} reported to the dispatcher", { n: flagged })}</p>}
         </div>
 
-        {status === "NOT_STARTED" && (
+        {free && (
           <BigButton size="l" onClick={onStart} disabled={busy}>
-            {tr("Start loading")}
+            {tr(status === "NOT_STARTED" ? "Start loading" : "Take the trip")}
           </BigButton>
         )}
         {editable && (

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { OutletView } from "@shared/domain/types";
 import { CountBadge, Icon, ShellActions, cx, useStateAnnouncement } from "@shared/ui";
 import AccountMenu from "./AccountMenu.tsx";
@@ -86,9 +86,21 @@ export default function TopBar({
       : t("Offline")
     : t(since ? "Can't reach Waypoint" : waiting > 0 ? "Sending" : syncing ? "Syncing" : "Synced");
   const announcement = useStateAnnouncement(state);
+  // On desktops the bar floats top right, and its width follows its words (synced, offline, sending).
+  // A page heading beside it keeps clear by exactly this much (--store-topbar-w), not a guess.
+  const bar = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = bar.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const set = () => document.documentElement.style.setProperty("--store-topbar-w", `${Math.ceil(el.getBoundingClientRect().width)}px`);
+    const watch = new ResizeObserver(set);
+    watch.observe(el);
+    set();
+    return () => watch.disconnect();
+  }, []);
 
   return (
-    <header className="flex w-full items-center gap-2.5 lg:absolute lg:top-8 lg:right-10 lg:w-auto">
+    <header ref={bar} className="flex w-full items-center gap-2.5 lg:absolute lg:top-8 lg:right-10 lg:w-auto">
       {/* On desktops the brand is in the sidebar; the sync pill stays top right, as in "02 Home". */}
       <span className="text-[40px] leading-none font-extrabold text-black lg:hidden">GO</span>
       {/* Below 440 px the bar cannot hold the chip and a readable sync time; GO stays (UX plan U9). */}
