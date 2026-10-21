@@ -1097,6 +1097,26 @@ class ExecutionIntegrationTest {
     read(manager, "/api/outlets/" + OUTLET + "/contacts", 403);
   }
 
+  @Test
+  void aTripsStoresAreReadInOneRequestAndOneOutletOutsideRefusesTheWholeRead() throws Exception {
+    database.asModule(ModuleRole.IAM, null, () -> database.update(
+        "UPDATE iam.users SET phone = '+94771234567' WHERE email = ?", manager));
+    JsonNode both = json(read(dispatcher, "/api/outlets/contacts?ids=" + OUTLET + "," + MALL_OUTLET + "," + OUTLET, 200));
+    assertEquals(2, both.size(), "each outlet once: " + both);
+    assertTrue(both.get(MALL_OUTLET).isArray(), "an outlet with no manager is an empty list: " + both);
+    boolean found = false;
+    for (JsonNode c : both.get(OUTLET)) {
+      found |= "+94771234567".equals(c.path("phone").asText());
+    }
+    assertTrue(found, both.toString());
+    // One outlet of another depot: the same 404 as an unknown one, and nothing of the others.
+    read(dispatcher, "/api/outlets/contacts?ids=" + OUTLET + "," + OTHER_DEPOT_OUTLET, 404);
+    read(manager, "/api/outlets/contacts?ids=" + OUTLET, 403);
+    StringBuilder many = new StringBuilder(OUTLET);
+    for (int i = 100; i < 131; i++) many.append(",OUT").append(i);
+    read(dispatcher, "/api/outlets/contacts?ids=" + many, 422);
+  }
+
   // ---- positions (issue #161) ----
 
   private JsonNode presenceOf(String vehicle) throws Exception {

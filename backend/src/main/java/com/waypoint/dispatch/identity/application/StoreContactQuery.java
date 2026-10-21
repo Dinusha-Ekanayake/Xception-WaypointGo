@@ -29,6 +29,44 @@ public class StoreContactQuery {
     this.reference = reference;
   }
 
+  /** At most this many outlets in one read: a trip's stops. */
+  public static final int MAX_OUTLETS = 30;
+
+  /**
+   * Several outlets' managers in one read, for a trip's stops. Each outlet is
+   * checked as {@link #of} checks one; one refused or unknown outlet refuses the
+   * whole read with the same 404, so the answer never says which.
+   */
+  public java.util.Map<String, List<StoreContact>> ofMany(Actor actor, List<String> outletIds) {
+    List<String> ids = outletIds.stream().map(String::strip).filter(s -> !s.isEmpty()).distinct().toList();
+    if (ids.isEmpty() || ids.size() > MAX_OUTLETS) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "Name between 1 and " + MAX_OUTLETS + " outlets");
+    }
+    java.util.Set<String> depots = new java.util.HashSet<>();
+    for (String id : ids) {
+      depots.add(reference.outlet(id, null)
+          .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No such outlet")).depotCode());
+    }
+    return database.readAs(ModuleRole.IAM, actor.userId(), () -> {
+      for (String depot : depots) {
+        if (!Boolean.TRUE.equals(database.queryOne("SELECT app.actor_has_depot(?) AS ok", depot).get("ok"))) {
+          throw new DomainException(ErrorCode.NOT_FOUND, "No such outlet");
+        }
+      }
+      java.util.Map<String, List<StoreContact>> out = new java.util.LinkedHashMap<>();
+      ids.forEach(id -> out.put(id, new java.util.ArrayList<>()));
+      database.query(
+              "SELECT a.outlet_id, u.display_name, u.phone FROM iam.users u"
+                  + " JOIN iam.user_roles r ON r.user_id = u.user_id AND r.role_code = 'store_manager'"
+                  + " JOIN iam.user_outlet_access a ON a.user_id = u.user_id AND a.outlet_id = ANY(?::text[])"
+                  + " WHERE u.is_active ORDER BY a.outlet_id, u.display_name",
+              "{" + String.join(",", ids) + "}")
+          .forEach(r -> out.get((String) r.get("outlet_id")).add(
+              new StoreContact((String) r.get("display_name"), Optional.ofNullable((String) r.get("phone")))));
+      return out;
+    });
+  }
+
   public List<StoreContact> of(Actor actor, String outletId) {
     var outlet = reference.outlet(outletId, null)
         .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No such outlet"));

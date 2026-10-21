@@ -8,9 +8,9 @@ import { PrimaryButton, SecondaryButton } from "@shared/ui";
 import type { PlanActions } from "./planActions.ts";
 
 // R-IAM-41: who to call about a deferred order. The outlet's store managers
-// with the phone each keeps on their own profile, a Call link where there is
-// one, and a message to the store through the plan (plan:ContactStore), which
-// the store manager reads in their inbox.
+// with the phone each keeps on their own profile, as text (no Call button,
+// owner decision 2026-10-21), and a message to the store through the plan
+// (plan:ContactStore), which the store manager reads in their inbox.
 
 const MIN = 3;
 
@@ -41,17 +41,10 @@ export default function StoreContactCard({
       {!contacts.error && !contacts.data && <p className="text-[13px] text-go-secondary">Reading the contact…</p>}
       {contacts.data && contacts.data.length === 0 && <p className="text-[13px] text-go-secondary">No store manager holds this outlet.</p>}
       {contacts.data?.map((c) => (
-        <div key={`${c.name}|${c.phone ?? ""}`} className="flex items-center justify-between gap-2 text-[14px]">
-          <span className="min-w-0">
-            <span className="block font-medium text-go-ink">{c.name}</span>
-            <span className="block text-[13px] text-go-secondary">{c.phone ?? "No phone on their profile"}</span>
-          </span>
-          {c.phone && (
-            <a href={`tel:${c.phone}`} className="shrink-0 rounded-full bg-go-soft px-4 py-2 text-[14px] font-medium text-go-on-soft">
-              Call
-            </a>
-          )}
-        </div>
+        <p key={`${c.name}|${c.phone ?? ""}`} className="min-w-0 text-[14px]">
+          <span className="block font-medium text-go-ink">{c.name}</span>
+          <span className="block text-[13px] text-go-secondary">{c.phone ?? "No phone on their profile"}</span>
+        </p>
       ))}
       {canMessage && !writing && (
         <SecondaryButton onClick={() => { setWriting(true); setSent(false); }}>{sent ? "Message sent · write another" : "Message the store"}</SecondaryButton>

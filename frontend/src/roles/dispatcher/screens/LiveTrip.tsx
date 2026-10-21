@@ -5,6 +5,7 @@ import type { RunSheetStopView } from "@shared/domain/types";
 import { ConnectionStatus, cx } from "@shared/ui";
 import { activity, etaOf, limits, round1, runTitle, silentMinutes, type Run } from "../data/liveDesk.ts";
 import { useFuel } from "../data/useDay.ts";
+import { contactLine, useStoreContacts } from "../data/storeContacts.ts";
 import { driverLine, useDriver } from "./LivePanel.tsx";
 import { Bar, Chip, STATUS } from "./LiveParts.tsx";
 import LiveTripUpdate from "./LiveTripUpdate.tsx";
@@ -34,6 +35,7 @@ export default function LiveTrip({
 }): React.JSX.Element {
   const { name } = useDriver(run);
   const fuel = useFuel(run.day.vehicleId, date);
+  const contacts = useStoreContacts(run.day.stops.map((s) => s.outletId));
   const look = STATUS[run.status];
   const next = run.day.current;
   const quiet = silentMinutes(run, now);
@@ -110,6 +112,7 @@ export default function LiveTrip({
             <thead>
               <tr className="border-b border-go-rule text-[12px] text-go-secondary">
                 <th className="py-2 pr-3 font-normal">Outlet</th>
+                <th className="py-2 pr-3 font-normal">Store manager</th>
                 <th className="py-2 pr-3 font-normal">Expected</th>
                 <th className="py-2 pr-3 font-normal">Status</th>
                 <th className="py-2 pr-3 font-normal">Told</th>
@@ -125,6 +128,9 @@ export default function LiveTrip({
                     <td className="whitespace-nowrap py-3 pr-3 font-semibold text-go-ink">
                       <span aria-hidden className={cx("mr-2 inline-block size-2 rounded-full", st.dot)} />
                       {s.outletId}
+                    </td>
+                    <td className="py-3 pr-3 text-go-secondary">
+                      {contacts.error ? "Could not be read" : contacts.data ? contactLine(contacts.data[s.outletId]) : "Reading…"}
                     </td>
                     <td className="py-3 pr-3 tabular-nums">{etaOf(s)}</td>
                     <td className={cx("py-3 pr-3", st.text)}>{st.label}</td>

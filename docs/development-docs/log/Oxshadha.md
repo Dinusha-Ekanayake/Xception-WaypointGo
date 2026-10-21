@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-21 - feat: each stop's store manager and phone on the trip, no Call button
+
+`dev` · @Oxshadha
+
+- Item 9 of @jv-ransika's plan ([plan](../../issues/store-phone/PLAN.md)): the Live trip page shows each stop's store manager and phone as text, read for the whole trip in one request (`GET /api/outlets/contacts?ids=`, R-IAM-41), and the deferred order's Call link is gone. One outlet outside the dispatcher's depots refuses the whole read with the same 404.
+
+---
+
 ## 2026-10-21 - fix: the AI parts checked end to end on the local stack
 
 `dev` · @Oxshadha
