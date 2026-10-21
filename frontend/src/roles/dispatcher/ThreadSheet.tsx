@@ -19,6 +19,9 @@ import TellEachStore from "./screens/TellEachStore.tsx";
 // decides here (R-EXE-31): Skip store beside a report about a stop still open,
 // End trip in the header. Stores and the driver see only the outcome.
 
+/** Reports about the vehicle rather than one stop (messaging report types). */
+const VEHICLE_REPORTS = new Set(["vehicle_fault", "road_disruption", "late"]);
+
 export default function ThreadSheet({ online }: { online: boolean }): React.JSX.Element | null {
   const ctx = useDispatcherInbox();
   const open = ctx?.thread ?? null;
@@ -83,8 +86,13 @@ function ThreadSheetPanel({
   const openStops = tripStops.filter(skippable);
   // The decision beside a report is about the stop it names, while that stop is still open.
   // Issue #269: the decisions most likely here as chips, then Skip itself for a stop still open.
+  // A report about the vehicle (a breakdown, a blocked road, running late) names no stop: its chips are
+  // asked about the next stop still open, and its word goes to everyone on the trip.
+  const nextOpen = [...openStops].sort((x, y) => x.sequence - y.sequence)[0];
   const reportActions = (m: MessageView) => {
-    const about = tripStops.find((s) => s.outletId === m.aboutOutletId);
+    const named = tripStops.find((s) => s.outletId === m.aboutOutletId);
+    const wholeTrip = !named && m.reportType !== null && VEHICLE_REPORTS.has(m.reportType);
+    const about = named ?? (wholeTrip ? nextOpen : undefined);
     const stop = openStops.find((s) => s.outletId === m.aboutOutletId);
     if (!about) return null;
     return (
@@ -96,6 +104,7 @@ function ThreadSheetPanel({
             openStops={openStops}
             vehicleId={head?.vehicleId ?? null}
             online={online}
+            wholeTrip={wholeTrip}
             onDraft={(draft) => inbox?.openThread({ threadId: open.threadId, draft })}
           />
         )}

@@ -44,8 +44,10 @@ export function TripThread({
   /** Keeps the thread on this device for a role that reads it with no signal. */
   accountId?: string;
   draft?: Draft;
-  /** FF-08: the dispatcher's ready replies for the trip's state. */
-  replies?: import("../messaging/templates.ts").Reply[];
+  /** FF-08: the ready replies for the trip's state; a function to follow the thread and its newest message. */
+  replies?:
+    | import("../messaging/templates.ts").Reply[]
+    | ((thread: import("../domain/messaging.ts").ThreadView, messages: import("../domain/messaging.ts").MessageView[]) => import("../messaging/templates.ts").Reply[]);
   /** AI-J5: how the ready replies are ordered. */
   repliesNote?: string;
   /** A "Play messages" bar for the messages not heard yet (the driver's, when stopped). */
@@ -142,7 +144,7 @@ export function TripThread({
           role={thread.memberRole}
           members={members}
           myOutlets={thread.myOutlets}
-          {...(replies ? { replies } : {})}
+          {...(replies ? { replies: typeof replies === "function" ? replies(thread, t.messages) : replies } : {})}
           {...(repliesNote ? { repliesNote } : {})}
           online={online}
           keepsOffline={keepsOffline}

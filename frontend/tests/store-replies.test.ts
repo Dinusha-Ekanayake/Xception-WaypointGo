@@ -20,3 +20,17 @@ test("each situation has its own replies, and a delivery done or not yet started
   assert.deepEqual(storeReplies(delivery({})), [], "not on the way yet");
   assert.deepEqual(storeReplies(null), []);
 });
+
+test("the newest word from the dispatcher decides the answers: a delay asks whether the store can still receive", () => {
+  const delay = { mine: false, authorRole: "dispatcher" as const, body: "VEH037 is delayed: breakdown" };
+  const r = storeReplies(delivery({ startedAt: "2026-10-21T03:00:00Z" }), undefined, delay);
+  assert.deepEqual(r.map((x) => x.id), ["storereply.later_today", "storereply.next_day"]);
+  assert.ok(r.every((x) => x.to === "dispatch"));
+  // Once the delivery is done, a delay notice asks nothing.
+  assert.deepEqual(storeReplies(delivery({ outcome: "DELIVERED" }), undefined, delay).map((x) => x.id), ["storereply.understood"]);
+  // The store's own message asks it nothing.
+  assert.deepEqual(storeReplies(delivery({}), undefined, { ...delay, mine: true }), []);
+  // Any other word from the dispatcher gets a plain acknowledgement; a driver's does not.
+  assert.deepEqual(storeReplies(delivery({}), undefined, { mine: false, authorRole: "dispatcher", body: "Your order goes tomorrow." }).map((x) => x.id), ["storereply.understood"]);
+  assert.deepEqual(storeReplies(delivery({}), undefined, { mine: false, authorRole: "driver", body: "Five minutes away." }), []);
+});

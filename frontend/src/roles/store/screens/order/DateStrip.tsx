@@ -27,6 +27,9 @@ const DOT: Partial<Record<Tone, string>> = {
   muted: "bg-go-offline",
 };
 
+/** How far either side of the day picked a booking is shown (R-ORD-17, as R-ORD-13's reach). */
+const SHARED_REACH_DAYS = 2;
+
 const KEY: OutlookStatus[] = ["ON_TRACK", "BUSY", "AT_RISK", "CLOSED"];
 
 /** "Sat 10 Oct" as its three parts, so a tile can set each on its own line. */
@@ -68,7 +71,10 @@ export default function DateStrip({
     outletId ? (s) => gateway.sharedDays(outletId, first, last, temperature, s) : null,
     `${outletId}|${first}|${temperature}`,
   );
+  // Only days within two either side of the day picked are marked: further off, a booking says nothing about this order's trip.
+  const near = (d: string) => Math.abs(Date.parse(`${d}T00:00:00Z`) - Date.parse(`${date}T00:00:00Z`)) <= SHARED_REACH_DAYS * 86_400_000;
   const storesOn = (d: string) => {
+    if (!near(d)) return 0;
     const b = booked.data?.days.find((x) => x.date === d);
     return b ? b.otherStores + (b.ownOrder ? 1 : 0) : 0;
   };

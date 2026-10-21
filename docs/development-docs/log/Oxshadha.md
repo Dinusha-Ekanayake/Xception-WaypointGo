@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-23 - fix: decision chips for every live problem in the chat; the trip page gives the stops the width
+
+`dev` · @Oxshadha
+
+- Dispatcher chat: a vehicle fault, blocked road or late report names no stop, so it never got chips. It now asks for them about the next open stop, and "Tell the store" writes to everyone on the trip ([PLAN](../../issues/decision-suggestions/PLAN.md)).
+- Store chat: opened from a notification it had no delivery, so no reply chips. The chips now follow the thread's own trip and the newest message: a delay notice offers later today or the next day, any other word from the dispatcher "Understood".
+- Trip page: the stops table takes the width beside the driver's cards; activity and the update form sit in a row below.
+- Date strip: shared-day counts only within two days of the day picked (R-ORD-17). Driver: the demo drive button keeps a gutter on a phone.
+
+---
+
 ## 2026-10-23 - feat: the date strip shows days other stores already booked; New order beside the sync pill
 
 `dev` · @Oxshadha

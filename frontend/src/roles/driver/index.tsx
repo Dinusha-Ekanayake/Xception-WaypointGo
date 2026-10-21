@@ -417,8 +417,9 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             </div>
           </div>
           {d.location.simulate && d.nextPoint && screen === "route" && (
-            <div className="absolute inset-x-0 bottom-10 z-40 flex justify-center">
-              <OutlineButton onClick={() => d.nextPoint && d.location.simulate?.(d.nextPoint)}>
+            // Kept inside the screen's gutter at any width, on one line: the driver button is full width and large by default.
+            <div className="absolute inset-x-0 bottom-10 z-40 flex justify-center px-5">
+              <OutlineButton className="max-w-[420px] bg-go-canvas min-h-12! px-3! text-[15px]!" onClick={() => d.nextPoint && d.location.simulate?.(d.nextPoint)}>
                 {tr(d.location.simulating ? "Driving… (demo)" : "Simulate drive to the next stop (demo)")}
               </OutlineButton>
             </div>

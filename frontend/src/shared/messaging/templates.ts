@@ -1,6 +1,6 @@
 import type { DecisionView } from "../domain/issues.ts";
 import type { DeliveryRecordView, RunSheetStopView } from "../domain/execution.ts";
-import type { MessageAudience } from "../domain/messaging.ts";
+import type { MessageAudience, MessageView } from "../domain/messaging.ts";
 import { clock } from "../wording/time.ts";
 
 // Ready replies for the dispatcher (roadmap FF-08, first version). Which ones
@@ -118,13 +118,22 @@ export function replies(state: TripState): Reply[] {
  * edit before sending, and nothing is sent by itself. Never a time or a promise
  * the store did not choose: the words stay the store's.
  */
-export function storeReplies(delivery: DeliveryRecordView | null, tr: (english: string) => string = (s) => s): Reply[] {
+export function storeReplies(
+  delivery: DeliveryRecordView | null,
+  tr: (english: string) => string = (s) => s,
+  latest: Pick<MessageView, "mine" | "authorRole" | "body"> | null = null,
+): Reply[] {
   if (!delivery) return [];
   const open = delivery.outcome === "PENDING" || delivery.outcome === "ARRIVED";
   const out: Reply[] = [];
   const reply = (id: string, label: string, to: MessageAudience, body: string) =>
     out.push({ id: `storereply.${id}`, version: TEMPLATE_VERSION, label: tr(label), to, outletId: null, body: tr(body) });
-  if (open && delivery.reportedProblem === "STORE_CLOSED") {
+  // The newest word from someone else decides the answer first: a delay notice asks whether the store can still receive.
+  const heard = latest && !latest.mine ? latest : null;
+  if (open && heard && isDelayNotice(heard.body)) {
+    reply("later_today", "We can receive later today", "dispatch", "We can still receive later today. Please come when you can.");
+    reply("next_day", "Deliver on the next day", "dispatch", "We cannot receive today. Please deliver on the next delivery day.");
+  } else if (open && delivery.reportedProblem === "STORE_CLOSED") {
     reply("open_now", "We are open now", "dispatch", "We are open now and can receive. Please send the driver back.");
     reply("next_day", "Deliver on the next day", "dispatch", "We cannot receive today. Please deliver on the next delivery day.");
   } else if (open && delivery.reportedProblem === "CANNOT_UNLOAD") {
@@ -139,7 +148,16 @@ export function storeReplies(delivery: DeliveryRecordView | null, tr: (english: 
   } else if (delivery.outcome === "FAILED") {
     reply("next_run", "Send it on the next run", "dispatch", "Please send our order on the next run.");
   }
+  // Anything else the dispatcher wrote gets at least a plain acknowledgement.
+  if (out.length === 0 && heard?.authorRole === "dispatcher") {
+    reply("understood", "Understood", "dispatch", "Understood, thank you.");
+  }
   return out;
+}
+
+/** The trip room's notice that the vehicle is held up (R-MSG-17), worded once on the server in `MessagePolicy.delayNotice`. */
+export function isDelayNotice(body: string): boolean {
+  return / is delayed: /.test(body);
 }
 
 /**

@@ -161,3 +161,45 @@ test("the dispatcher tells each store waiting its own time, one message per stor
   expect(posts.every((c) => c.payload.to === "outlet")).toBe(true);
   expect(posts[0]!.payload.body).not.toEqual(posts[1]!.payload.body);
 });
+
+test("a report about the vehicle gets its chips too, asked about the next stop, and its word goes to everyone on the trip", async ({ page }) => {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
+    said("r1", "2027-03-01T10:05:00Z", { kind: "report", reportType: "vehicle_fault", authorName: "Dilan R.", authorRole: "driver", audience: "dispatch", body: "Engine light, pulled over" }),
+  ]);
+  await serve(page, { ...liveDay(), threads: [thread] });
+  const asked: string[] = [];
+  await page.route("**/api/ml/decision-suggestions**", (route) => {
+    const url = new URL(route.request().url());
+    asked.push(`${url.searchParams.get("deliveryId")}|${url.searchParams.get("situation")}`);
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        situation: "BREAKDOWN", deliveryId: url.searchParams.get("deliveryId"), basis: "rules", version: 1,
+        suggestions: [
+          { action: "END_TRIP", chance: 0.45, warning: null },
+          { action: "WAIT", chance: 0.35, warning: null },
+          { action: "TELL_STORE", chance: 0.2, warning: null },
+        ],
+        playbook: {
+          situation: "BREAKDOWN",
+          steps: ["Find out from the driver how long the repair takes."],
+          message: { audience: "outlet", template: "{vehicle} has broken down on the way to {store}. We will tell you as soon as we know when it can come." },
+        },
+      }),
+    });
+  });
+  await page.goto("/#/live");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("region", { name: "Timeline" }).getByTestId("report-sign").first().click();
+
+  const chat = page.getByRole("dialog", { name: "Trip messages" });
+  const chips = chat.locator("#message-r1").getByRole("group", { name: "Suggested decisions" });
+  await expect(chips.getByRole("button")).toHaveText(["End trip", "Wait a little", "Tell the store"]);
+  await expect.poll(() => asked[0]).toMatch(/^d-VEH020-\d+\|vehicle_fault$/);
+
+  await chips.getByRole("button", { name: "Tell the store" }).click();
+  await expect(chat.getByRole("textbox").last()).toHaveValue("VEH020 has broken down on the way to your store. We will tell you as soon as we know when it can come.");
+  await expect(chat.getByRole("radio", { name: "Everyone on the trip" })).toHaveAttribute("aria-checked", "true");
+});

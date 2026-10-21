@@ -23,15 +23,15 @@ export default function TripMessages({
   online,
   onQueued,
   onClose,
-  delivery = null,
+  deliveries = [],
 }: {
   accountId: string;
   open: OpenThread;
   online: boolean;
   onQueued: () => void;
   onClose: () => void;
-  /** The store's delivery on this trip, for its ready replies; null when not known. */
-  delivery?: DeliveryRecordView | null;
+  /** The store's deliveries, so the ready replies follow the delivery on this thread's trip, however it was opened. */
+  deliveries?: DeliveryRecordView[];
 }): React.JSX.Element {
   const t = useT();
   const byTrip = useTripThread("tripId" in open ? open.tripId : null, accountId);
@@ -59,7 +59,13 @@ export default function TripMessages({
             keepsOffline
             accountId={accountId}
             tr={t}
-            replies={storeReplies(delivery, (english) => t(english))}
+            replies={(thread, messages) =>
+              storeReplies(
+                deliveries.find((d) => d.tripId === thread.subjectId) ?? null,
+                (english) => t(english),
+                messages[messages.length - 1] ?? null,
+              )
+            }
           />
         ) : byTrip.loading ? (
           <SkeletonRows label={t("Loading messages…")} />

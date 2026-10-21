@@ -45,9 +45,10 @@ export default function ReportSuggestions({
   openStops,
   vehicleId,
   online,
+  wholeTrip = false,
   onDraft,
 }: {
-  /** The stop the report is about, done or not. */
+  /** The stop the report is about, done or not; for a report about the vehicle, the next stop still open. */
   stop: RunSheetStopView;
   /** The report's type, which names the situation. */
   report: string;
@@ -55,6 +56,8 @@ export default function ReportSuggestions({
   openStops: RunSheetStopView[];
   vehicleId: string | null;
   online: boolean;
+  /** The report is about the vehicle, not one stop (a breakdown, a blocked road): a word goes to everyone on the trip. */
+  wholeTrip?: boolean;
   /** Puts a message in the composer. */
   onDraft: (draft: ThreadDraft) => void;
 }): React.JSX.Element | null {
@@ -93,11 +96,11 @@ export default function ReportSuggestions({
     if (action === "TELL_STORE" && view.playbook.message) {
       const body = fill(view.playbook.message.template, {
         vehicle: vehicleId,
-        store: stop.outletId,
+        store: wholeTrip ? "your store" : stop.outletId,
         expected: stop.expectedArrival ? clockOn(stop.expectedArrival) : null,
         "window close": hhmm(stop.windowClose),
       });
-      if (body) onDraft({ address: { to: "outlet", outletId: stop.outletId }, body });
+      if (body) onDraft({ address: wholeTrip ? { to: "all", outletId: null } : { to: "outlet", outletId: stop.outletId }, body });
     }
     setNote(DONE[action] ?? null);
     record(action);

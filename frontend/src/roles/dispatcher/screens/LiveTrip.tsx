@@ -60,7 +60,8 @@ export default function LiveTrip({
         </div>
       </header>
 
-      <div className="grid w-full items-start gap-4 lg:grid-cols-[280px_1fr_300px]">
+      {/* The stops take the width beside the driver's cards; activity and the update sit in a row below. */}
+      <div className="grid w-full items-start gap-4 lg:grid-cols-[280px_1fr]">
         <div className="flex flex-col gap-4">
           <Card>
             {/* The name and its staff number stay on one line; the ping chip wraps below instead. */}
@@ -160,7 +161,7 @@ export default function LiveTrip({
           )}
         </Card>
 
-        <div className="flex flex-col gap-4">
+        <div className="grid items-start gap-4 md:grid-cols-2 lg:col-span-2">
           <Card>
             <h2 className="text-[15px] font-medium text-go-ink">Trip activity</h2>
             <ul className="flex flex-col gap-2.5">

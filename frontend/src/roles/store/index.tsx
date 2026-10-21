@@ -387,7 +387,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
           online={online}
           onQueued={queued}
           onClose={() => setThread(null)}
-          delivery={"tripId" in thread ? (deliveries.data ?? []).find((d) => d.tripId === thread.tripId) ?? null : null}
+          deliveries={deliveries.data ?? []}
         />
       )}
       {inboxOpen && <NotificationsDrawer inbox={inbox} onSubject={openSubject} onClose={() => setInboxOpen(false)} />}
