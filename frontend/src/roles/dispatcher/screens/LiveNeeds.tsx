@@ -260,7 +260,18 @@ function Suggested({
   );
 }
 
-/** Every vehicle on the road as a bar of its stops closed, in its status colour. */
+/**
+ * Every vehicle on the road as a bar of its stops closed. One neutral colour for
+ * progress; colour only where the dispatcher should look (late red, at risk
+ * amber), and offline as a light bar, its position unknown. The status is in
+ * words beside it, so colour is never the only signal.
+ */
+const ATTENTION: Partial<Record<Run["status"], { bar: string; text: string }>> = {
+  late: { bar: "bg-go-danger", text: "text-go-danger-strong" },
+  "at-risk": { bar: "bg-[#c08a3e]", text: "text-go-warning-text" },
+  offline: { bar: "bg-go-ink/15", text: "text-go-secondary" },
+};
+
 export function TripBoard({ runs, onOpenTrip }: { runs: Run[]; onOpenTrip: (vehicleId: string) => void }): React.JSX.Element {
   const summaries = depotSummaries(runs);
   return (
@@ -272,6 +283,7 @@ export function TripBoard({ runs, onOpenTrip }: { runs: Run[]; onOpenTrip: (vehi
       <ul className="flex flex-col">
         {runs.map((run) => {
           const status = STATUS[run.status];
+          const attention = ATTENTION[run.status];
           return (
             <li key={run.day.vehicleId}>
               <button
@@ -284,8 +296,11 @@ export function TripBoard({ runs, onOpenTrip }: { runs: Run[]; onOpenTrip: (vehi
                   <span className="text-[13px] font-semibold text-go-ink">{run.day.vehicleId}</span>
                   <span className="truncate text-[11.5px] text-go-secondary">{routeLabel(run) || stops(run.day.stops.length)}</span>
                 </span>
-                <Bar share={progress(run)} className={status.bar} thick />
-                <span className={cx("text-right text-[12.5px] font-medium", status.text)}>{status.label}</span>
+                <Bar share={progress(run)} className={attention?.bar ?? "bg-go-ink/45"} thick />
+                <span className="flex flex-col text-right">
+                  <span className={cx("text-[12.5px] font-medium", attention?.text ?? "text-go-ink")}>{status.label}</span>
+                  <span className="text-[11px] text-go-secondary">{`${run.day.done} of ${stops(run.day.stops.length)}`}</span>
+                </span>
               </button>
             </li>
           );
