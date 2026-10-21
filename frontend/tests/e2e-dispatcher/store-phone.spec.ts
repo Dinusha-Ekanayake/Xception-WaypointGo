@@ -16,7 +16,7 @@ test("each stop on the trip shows its store manager and phone as text, with no C
   await expect(page.getByRole("heading", { name: /VEH030/ })).toBeVisible();
 
   await expect(page.getByRole("columnheader", { name: "Store manager" })).toBeVisible();
-  await expect(page.getByRole("row", { name: /OUT010/ })).toContainText("Manager OUT010 · no phone on their profile");
+  await expect(page.getByRole("row", { name: /OUT010/ })).toContainText("Manager OUT010No phone on their profile");
   await expect(page.getByRole("row", { name: /OUT012/ })).toContainText("No store manager");
   await expect(page.locator('a[href^="tel:"]')).toHaveCount(0);
   expect(reads.filter((p) => p === "/api/outlets/contacts")).toHaveLength(1);

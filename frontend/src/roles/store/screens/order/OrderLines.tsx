@@ -1,6 +1,7 @@
 "use client";
 
 import type { LineAvailability, ProductView, Temperature } from "@shared/domain/types";
+import { productNameOf } from "@shared/wording";
 import { Icon, cx } from "@shared/ui";
 import type { Usual } from "../../data/lines.ts";
 import { Muted, Stepper } from "../../ui.tsx";
@@ -99,7 +100,8 @@ export default function OrderLines({
               )}
             >
               <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[16px] font-medium text-black">{tr(productLabel(id))}</span>
+                {/* The row says "inferred" below, so a named product is not labelled twice. */}
+                <span className="truncate text-[16px] font-medium text-black">{tr(productNameOf(id) ?? productLabel(id))}</span>
                 <span className="text-[13px] text-go-muted">
                   {inferred && <span title={tr("Reconstructed from order totals, not a confirmed product")}>{tr("inferred")}</span>}
                   <span className="lg:hidden">

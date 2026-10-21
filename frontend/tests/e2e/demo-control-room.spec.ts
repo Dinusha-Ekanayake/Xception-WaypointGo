@@ -18,6 +18,9 @@ async function signedInAdmin(page: Page, commands: Array<{ kind: string; expecte
       return json({ enabled, now: "2026-10-05T10:35:00Z", offsetSeconds: enabled ? 3600 : 0, banner: true, simPointIntervalMs: 2000, positionFlushMs: 5000, speed: 10, rowVersion: version });
     }
     if (pathname === "/api/demo/scenario-runs") return json([]);
+    // The console's other reads: lists, as the server answers them.
+    if (pathname === "/api/admin/actions" || pathname === "/api/admin/roles") return json([]);
+    if (pathname === "/api/session/demo") return json({ accounts: [], password: null, pin: null });
     if (pathname === "/api/demo/simulations") return json(sims);
     if (pathname === "/api/commands") {
       const command = route.request().postDataJSON();
@@ -25,7 +28,7 @@ async function signedInAdmin(page: Page, commands: Array<{ kind: string; expecte
       if (command.kind === "demo:Enable") enabled = true;
       if (command.kind === "demo:Disable") enabled = false;
       if (command.kind === "demo:StartSimulation") {
-        sims.push({ id: "s1", vehicle_id: "V001", service_date: "2026-10-05", trip_id: null, tick: 3, waypoints: 4, status: "running", failure: null, started_at: "2026-10-05T10:36:00Z" });
+        sims.push({ id: "s1", vehicle_id: "V001", service_date: "2026-10-05", trip_id: null, tick: 3, waypoints: 4, status: "running", failure: null, started_at: "2026-10-05T10:36:00Z", stops_recorded: 2, stops_total: 3 });
       }
       if (command.kind.startsWith("demo:") && command.kind !== "demo:StartSimulation") version += 1;
       return json({ commandId: command.commandId, kind: command.kind, replayed: false, result: {} });
@@ -58,6 +61,8 @@ test("demo mode is off by default, turns on with a reason, drives vehicles and t
 
   await page.getByRole("button", { name: "Start every released trip" }).click();
   await expect(page.getByText("V001")).toBeVisible();
+  // R-DEMO-04: a simulated truck records its own stops.
+  await expect(page.getByText(/Stops recorded: 2 of 3/)).toBeVisible();
   await page.getByRole("tab", { name: "Demand exceeds capacity" }).click();
   await expect(page.getByText("85 orders at Peliyagoda")).toBeVisible();
 

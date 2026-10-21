@@ -18,5 +18,9 @@ test("the store finds a product by the warehouse's name and the order reads it b
   await expect(matches).toContainText("Prawns 500g x 13");
   await expect(matches).toContainText("inferred");
   await page.getByRole("button", { name: "Add Prawns 500g x 13" }).click();
-  await expect(page.getByText("Prawns 500g x 13 (inferred)").first()).toBeVisible();
+  // The row reads the name once, with "inferred" beneath it; the note names it too, never by its id.
+  // A screen reader hears it as inferred on the amount's buttons.
+  await expect(page.getByRole("group", { name: "Prawns 500g x 13 (inferred)" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Prawns 500g x 13 added" })).toBeVisible();
+  await expect(page.getByText("C32_FRESH_019_AMB")).toHaveCount(0);
 });

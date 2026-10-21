@@ -26,7 +26,7 @@ export default function SimulationsPanel({ run, busy }: { run: (label: string, a
     <section className={`${card} flex flex-col gap-4 p-5`}>
       <h2 className="text-lg font-medium text-go-ink">Simulated vehicles</h2>
       <p className="text-sm text-go-secondary">
-        Drives released trips of the demo day from the depot through each stop, one point every 2 seconds, on straight legs. Watch them on the dispatcher&rsquo;s live map and the store&rsquo;s Track screen. The driver still records each delivery.
+        Drives released trips of the demo day from the depot through each stop, one point every 2 seconds, on straight legs. Watch them on the dispatcher&rsquo;s live map and the store&rsquo;s Track screen. Each truck records its stops' arrival and delivery as its driver; the store still confirms the receipt, and a truck the demo driver account holds is left to a person.
       </p>
       <div className="flex flex-wrap items-end gap-2">
         <button type="button" className={primary} disabled={busy} onClick={() => act("Start every released trip", (r) => startSimulation(r))}>

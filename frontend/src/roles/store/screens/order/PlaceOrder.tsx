@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { productLabel, productNameOf } from "@shared/wording";
 import { ApiError, friendlyError } from "@shared/api/problem";
 import { useResource } from "@shared/api/useResource";
 import { OrderCommandKind, type LineAvailability, type OrderView, type PlacedOrder, type OutletView, type Temperature } from "@shared/domain/types";
@@ -182,7 +183,7 @@ export default function PlaceOrder({
     setAdded((a) => (a.includes(id) ? a : [...a, id]));
     setLine(id, n);
     setFresh(id);
-    setNote({ title: tr("{item} added · {units}", { item: id, units: units(n) }), detail: tr("Use − and + to change the amount") });
+    setNote({ title: tr("{item} added · {units}", { item: productNameOf(id) ?? productLabel(id), units: units(n) }), detail: tr("Use − and + to change the amount") });
   };
 
   return (

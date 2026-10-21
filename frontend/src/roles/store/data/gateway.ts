@@ -1,4 +1,5 @@
 import { request, requestAll } from "@shared/api/client";
+import { rememberNames } from "@shared/wording";
 import { send, type Command, type CommandAck } from "@shared/api/commands";
 import { drain, drainUploads, enqueue, readThrough, saveUpload } from "@shared/offline";
 import type {
@@ -96,7 +97,13 @@ function liveGateway(accountId: string): StoreGateway {
     history: (orderId, signal) => kept(`history:${orderId}`, () => request(`/api/orders/${q(orderId)}/timeline`, { signal })),
     // The catalogue is a page at a time on the server (cursor param `after`); the
     // picker filters locally, so it reads the whole brand.
-    catalogue: (brand, signal) => kept(`catalogue:${brand}`, () => requestAll(`/api/warehouse/catalogue?brand=${q(brand)}`, { signal })),
+    catalogue: (brand, signal) =>
+      kept(`catalogue:${brand}`, () => requestAll<ProductView>(`/api/warehouse/catalogue?brand=${q(brand)}`, { signal })).then((products) => {
+        // The catalogue already names its products: kept for every label at once (product names plan).
+        const named = products.filter((p) => p.name);
+        if (named.length) rememberNames(named.map((p) => p.productId), Object.fromEntries(named.map((p) => [p.productId, p.name!])));
+        return products;
+      }),
     catalogueStatus: (signal) => request(`/api/warehouse/catalogue/status`, { signal }),
     calendar: (date, signal) => kept(`calendar:${date}`, () => request(`/api/reference/calendar/${q(date)}`, { signal })),
     deliveryDate: (outletId, requestedDate, signal) =>

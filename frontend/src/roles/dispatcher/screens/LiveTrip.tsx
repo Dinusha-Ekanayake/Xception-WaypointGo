@@ -5,7 +5,7 @@ import type { RunSheetStopView } from "@shared/domain/types";
 import { ConnectionStatus, cx } from "@shared/ui";
 import { activity, etaOf, limits, round1, runTitle, silentMinutes, type Run } from "../data/liveDesk.ts";
 import { useFuel } from "../data/useDay.ts";
-import { contactLine, useStoreContacts } from "../data/storeContacts.ts";
+import { useStoreContacts } from "../data/storeContacts.ts";
 import { driverLine, useDriver } from "./LivePanel.tsx";
 import { Bar, Chip, STATUS } from "./LiveParts.tsx";
 import LiveTripUpdate from "./LiveTripUpdate.tsx";
@@ -130,7 +130,14 @@ export default function LiveTrip({
                       {s.outletId}
                     </td>
                     <td className="py-3 pr-3 text-go-secondary">
-                      {contacts.error ? "Could not be read" : contacts.data ? contactLine(contacts.data[s.outletId]) : "Reading…"}
+                      {contacts.error ? "Could not be read" : !contacts.data ? "Reading…" : (contacts.data[s.outletId] ?? []).length === 0 ? "No store manager" : (
+                        contacts.data[s.outletId]!.map((c) => (
+                          <span key={`${c.name}|${c.phone ?? ""}`} className="block">
+                            <span className="text-go-ink">{c.name}</span>
+                            <span className={cx("block", c.phone && "whitespace-nowrap tabular-nums")}>{c.phone ?? "No phone on their profile"}</span>
+                          </span>
+                        ))
+                      )}
                     </td>
                     <td className="py-3 pr-3 tabular-nums">{etaOf(s)}</td>
                     <td className={cx("py-3 pr-3", st.text)}>{st.label}</td>

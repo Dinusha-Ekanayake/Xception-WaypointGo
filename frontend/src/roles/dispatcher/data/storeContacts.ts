@@ -17,9 +17,3 @@ export function useStoreContacts(outletIds: string[]): { data: StoreContacts | n
   return { data: ids.length ? read.data ?? null : {}, error: Boolean(read.error) };
 }
 
-/** "Nimali Silva · 077 123 4567", several managers joined; a missing phone said so. */
-export function contactLine(contacts: StoreContactView[] | undefined): string {
-  if (!contacts) return "";
-  if (contacts.length === 0) return "No store manager";
-  return contacts.map((c) => `${c.name} · ${c.phone ?? "no phone on their profile"}`).join("; ");
-}
