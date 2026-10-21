@@ -6,6 +6,8 @@ import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.ordering.contract.OrderViews.RideAlongDay;
 import com.waypoint.dispatch.ordering.contract.OrderViews.RideAlongView;
+import com.waypoint.dispatch.ordering.contract.OrderViews.SharedDayView;
+import com.waypoint.dispatch.ordering.contract.OrderViews.SharedDaysView;
 import com.waypoint.dispatch.ordering.domain.DeliveryDate;
 import com.waypoint.dispatch.ordering.domain.RideAlong;
 import com.waypoint.dispatch.ordering.infrastructure.JdbcOrderRepository;
@@ -13,10 +15,14 @@ import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
 import com.waypoint.dispatch.shared.domain.Actor;
+import com.waypoint.dispatch.shared.error.DomainException;
+import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
@@ -126,5 +132,35 @@ public class RideAlongQuery {
         .map(s -> new RideAlongDay(s.date(), s.stopsBooked()))
         .toList();
     return new RideAlongView(requested, day, true, days, checked.roomChecked(), stops.getOrDefault(day, 0), matched);
+  }
+
+  /** The longest span the date strip asks about at once: its four weeks and a few days either side. */
+  public static final int SHARED_DAYS_SPAN = 35;
+
+  /**
+   * Which days from {@code from} to {@code to} already carry orders of the
+   * outlet's brand and district, of the same temperature when one is given
+   * (R-ORD-17). Shown on every store's date strip, whatever the brand: it only
+   * says a trip is likely to go there anyway, and never offers to move the order,
+   * so R-ORD-03 and R-ORD-11 are untouched. Read as the system after the scope
+   * check, like {@link #suggest}, and returns counts only.
+   */
+  public SharedDaysView sharedDays(Actor actor, OutletView outlet, LocalDate from, LocalDate to, String temperature) {
+    orders.requireOutletScope(actor, outlet.outletId());
+    if (to.isBefore(from) || ChronoUnit.DAYS.between(from, to) >= SHARED_DAYS_SPAN) {
+      throw new DomainException(
+          ErrorCode.VALIDATION_FAILED,
+          "Ask for at most " + SHARED_DAYS_SPAN + " days, from before to.");
+    }
+    String matched = temperature == null || temperature.isBlank() ? null : temperature.toLowerCase(Locale.ROOT);
+    if (matched != null && !matched.equals("chilled") && !matched.equals("ambient")) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "Temperature is chilled or ambient.");
+    }
+    List<SharedDayView> days = database.readAs(ModuleRole.ORDERING, Actor.SYSTEM_ID, () -> repository.sharedDays(
+            outlet.depotCode(), outlet.brandCode(), outlet.districtName(), outlet.outletId(), from, to, matched))
+        .stream()
+        .map(d -> new SharedDayView(d.date(), d.otherOutlets(), d.own()))
+        .toList();
+    return new SharedDaysView(matched, days);
   }
 }

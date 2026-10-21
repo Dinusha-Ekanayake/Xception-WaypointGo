@@ -10,6 +10,7 @@ import type {
   DeliveryDateAnswer,
   DeliveryRecordView,
   RideAlongView,
+  SharedDaysView,
   HandoverView,
   IssueView,
   OrderView,
@@ -42,6 +43,8 @@ export type StoreGateway = {
   deliveryDate: (outletId: string, requestedDate: string, signal: AbortSignal) => Promise<DeliveryDateAnswer>;
   /** Nearby days a trip already serves the district (R-ORD-13); advice only. */
   rideAlong: (outletId: string, requestedDate: string, signal: AbortSignal, temperature?: string) => Promise<RideAlongView>;
+  /** The days that already carry orders for the store's district and temperature (R-ORD-17). */
+  sharedDays: (outletId: string, from: string, to: string, temperature: string, signal: AbortSignal) => Promise<SharedDaysView>;
   /** How likely each day is to be kept (R-ML-07); advice from the depot's totals. */
   outlook: (outletId: string, from: string, to: string, signal: AbortSignal) => Promise<DateOutlookView>;
   pendingReceipts: (outletId: string, signal: AbortSignal) => Promise<PendingReceiptView[]>;
@@ -110,6 +113,9 @@ function liveGateway(accountId: string): StoreGateway {
       request(`/api/orders/delivery-date?outlet=${q(outletId)}&requestedDate=${q(requestedDate)}`, { signal }),
     rideAlong: (outletId, requestedDate, signal, temperature) =>
       request(`/api/orders/ride-along?outlet=${q(outletId)}&requestedDate=${q(requestedDate)}${temperature ? `&temperature=${q(temperature)}` : ""}`, { signal }),
+    // Not kept, like the outlook: yesterday's bookings would mislead.
+    sharedDays: (outletId, from, to, temperature, signal) =>
+      request(`/api/orders/shared-days?outlet=${q(outletId)}&from=${q(from)}&to=${q(to)}&temperature=${q(temperature)}`, { signal }),
     // Not kept: an outlook from yesterday would mislead; offline, the strip says it is unavailable.
     outlook: (outletId, from, to, signal) =>
       request(`/api/ml/outlook?outlet=${q(outletId)}&from=${q(from)}&to=${q(to)}`, { signal }),

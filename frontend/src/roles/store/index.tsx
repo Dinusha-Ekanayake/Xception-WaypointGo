@@ -21,7 +21,7 @@ import Decisions, { type Answer } from "./screens/Decisions.tsx";
 import Home from "./screens/Home.tsx";
 import Issues from "./screens/issues/Issues.tsx";
 import OrderSheet from "./screens/OrderSheet.tsx";
-import Orders from "./screens/Orders.tsx";
+import Orders, { NewOrderButton } from "./screens/Orders.tsx";
 import PlaceOrder from "./screens/order/PlaceOrder.tsx";
 import Receive from "./screens/receive/Receive.tsx";
 import Track from "./screens/Track.tsx";
@@ -378,6 +378,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
         syncing={syncing || orders.loading}
         unread={inbox.unread}
         onNotifications={gateway.sample ? undefined : () => setInboxOpen(true)}
+        action={view.kind === "tabs" && tab === "orders" ? <NewOrderButton onPlace={place} /> : undefined}
       />
       {thread && (
         <TripMessages

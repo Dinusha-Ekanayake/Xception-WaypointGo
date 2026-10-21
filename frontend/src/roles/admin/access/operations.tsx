@@ -668,25 +668,10 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          className={`${primary} min-h-8 px-3 text-xs`}
-                          onClick={() => openAssignDriverModal(item)}
-                        >
-                          {item.lastDriver ? "Change driver" : "Assign driver"}
-                        </button>
-                        <button
-                          type="button"
-                          className={`${secondary} min-h-8 px-3 text-xs`}
-                          onClick={() => setFuelPassVehicle(item.id)}
-                        >
-                          Fuel Pass
-                        </button>
-                        <span className="text-xs text-go-secondary ml-1">
-                          Depot base: <strong className="font-semibold text-go-ink">{item.depot}</strong>
-                        </span>
-                      </div>
+                      {/* The vehicle's actions are in one row at the foot of the panel. */}
+                      <span className="text-xs text-go-secondary">
+                        Depot base: <strong className="font-semibold text-go-ink">{item.depot}</strong>
+                      </span>
                     </div>
 
                     <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

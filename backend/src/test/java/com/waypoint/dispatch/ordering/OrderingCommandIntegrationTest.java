@@ -502,6 +502,53 @@ class OrderingCommandIntegrationTest {
     assertEquals(before + 1, denials(strangerId, "order:Read"));
   }
 
+  @Test
+  void theDateStripShowsWhichDaysAlreadyCarryOrdersForTheDistrict() throws Exception {
+    // R-ORD-17: OUT023 and OUT024 are Tech outlets in Colombo; the manager runs both.
+    database.asModule(
+        ModuleRole.IAM,
+        null,
+        () -> {
+          for (String outlet : List.of("OUT023", "OUT024")) {
+            database.update(
+                "INSERT INTO iam.user_outlet_access (user_id, outlet_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+                managerId,
+                outlet);
+          }
+        });
+    LocalDate day = reference.nextOperatingDay(serviceDate.plusDays(1));
+    send(manager, placeFor(UUID.randomUUID(), "OUT024", day), 200);
+    String range = "&from=" + serviceDate + "&to=" + serviceDate.plusDays(13);
+
+    JsonNode other = mapper.readTree(read(manager, "/api/orders/shared-days?outlet=OUT023" + range, 200));
+    JsonNode onDay = dayOf(other, day);
+    assertTrue(onDay != null && onDay.get("otherStores").asInt() >= 1, other.toString());
+    assertFalse(onDay.get("ownOrder").asBoolean(), other.toString());
+    assertFalse(other.toString().contains("OUT024"), "a count, never which outlet");
+
+    JsonNode own = mapper.readTree(read(manager, "/api/orders/shared-days?outlet=OUT024" + range, 200));
+    assertTrue(dayOf(own, day).get("ownOrder").asBoolean(), own.toString());
+
+    // A span past the strip's reach, or an unknown temperature, is refused rather than read.
+    read(manager, "/api/orders/shared-days?outlet=OUT023&from=" + serviceDate + "&to=" + serviceDate.plusDays(60), 422);
+    read(manager, "/api/orders/shared-days?outlet=OUT023" + range + "&temperature=frozen", 422);
+
+    // Another store's strip is 403 plus audit, never an empty answer.
+    UUID strangerId = userId(strangerEmail);
+    long before = denials(strangerId, "order:Read");
+    read(stranger, "/api/orders/shared-days?outlet=OUT023" + range, 403);
+    assertEquals(before + 1, denials(strangerId, "order:Read"));
+  }
+
+  private static JsonNode dayOf(JsonNode view, LocalDate date) {
+    for (JsonNode d : view.get("days")) {
+      if (d.get("date").asText().equals(date.toString())) {
+        return d;
+      }
+    }
+    return null;
+  }
+
   // ---- helpers -------------------------------------------------------------
 
   private String placeFor(UUID commandId, String outlet, LocalDate requested) {

@@ -6,6 +6,7 @@ import com.waypoint.dispatch.ordering.application.RideAlongQuery;
 import com.waypoint.dispatch.ordering.contract.OrderViews.DemandView;
 import com.waypoint.dispatch.ordering.contract.OrderViews.OrderView;
 import com.waypoint.dispatch.ordering.contract.OrderViews.RideAlongView;
+import com.waypoint.dispatch.ordering.contract.OrderViews.SharedDaysView;
 import com.waypoint.dispatch.ordering.contract.OrderViews.StatusChangeView;
 import com.waypoint.dispatch.ordering.domain.DeliveryDate;
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
@@ -146,5 +147,21 @@ public class OrderController {
             .outlet(outlet, null)
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No outlet " + outlet));
     return rideAlong.suggest(actor, o, requestedDate, clock.now(), temperature);
+  }
+
+  /** The days on the date strip that already carry orders for the store's district (R-ORD-17). Advice only. */
+  @GetMapping("/shared-days")
+  public SharedDaysView sharedDays(
+      @RequestParam String outlet,
+      @RequestParam LocalDate from,
+      @RequestParam LocalDate to,
+      @RequestParam(required = false) String temperature,
+      HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:order:outlet:" + outlet);
+    OutletView o =
+        reference
+            .outlet(outlet, null)
+            .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No outlet " + outlet));
+    return rideAlong.sharedDays(actor, o, from, to, temperature);
   }
 }

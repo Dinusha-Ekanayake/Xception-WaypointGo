@@ -440,6 +440,14 @@ export function sampleGateway(): StoreGateway {
     calendar: async (date) => calendar(date),
     // The sample store is Fresh, which is never offered another day (R-ORD-13).
     rideAlong: async (_outletId, requested) => ({ requestedDate: requested, deliveryDate: requested, offered: false, days: [] }),
+    // Sample bookings: two other stores on the third day, and this store with one other on the sixth (R-ORD-17).
+    sharedDays: async (_outletId, from, _to, temperature) => ({
+      temperature,
+      days: [
+        { date: addDays(from, 2), otherStores: 2, ownOrder: false },
+        { date: addDays(from, 5), otherStores: 1, ownOrder: true },
+      ],
+    }),
     // Sample outlook: the calendar decides closed days; the rest are on track but too early to say past two weeks.
     outlook: async (outletId, from, to) => {
       const days = [];

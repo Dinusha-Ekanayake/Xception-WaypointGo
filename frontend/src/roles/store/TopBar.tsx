@@ -25,6 +25,7 @@ export default function TopBar({
   syncing,
   unread,
   onNotifications,
+  action,
 }: {
   online: boolean;
   syncedAt: Date | null;
@@ -39,6 +40,8 @@ export default function TopBar({
   /** Unread notifications; null while unknown. */
   unread: number | null;
   onNotifications?: () => void;
+  /** From lg, the page's main action (New order on Orders) sits in the bar, just left of the sync pill. */
+  action?: React.ReactNode;
 }): React.JSX.Element {
   // Phones have no sidebar, so the account menu opens from here as a bottom sheet.
   const t = useT();
@@ -106,6 +109,7 @@ export default function TopBar({
       {/* Below 440 px the bar cannot hold the chip and a readable sync time; GO stays (UX plan U9). */}
       <span className="rounded-full bg-go-mint px-2.5 py-[5px] text-[13px] font-medium text-black max-[439px]:hidden lg:hidden">{t("Store")}</span>
       <span className="flex-1" />
+      {action && <span className="hidden lg:contents">{action}</span>}
       {sample && <span className="shrink-0 rounded-full bg-go-warning-tint px-3 py-1.5 text-xs font-medium text-go-warning-text">{t("Sample data")}</span>}
       <button
         type="button"

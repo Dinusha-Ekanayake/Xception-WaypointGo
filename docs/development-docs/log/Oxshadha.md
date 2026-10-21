@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-23 - feat: the date strip shows days other stores already booked; New order beside the sync pill
+
+`dev` · @Oxshadha
+
+- Store manager: each day on the Place order strip shows how many stores already have an order of the same brand, district and temperature (own order counted and named), and the day picked says a trip is likely to go there; a quiet day next to a booked one says so. Counts only, advice only, every brand (R-ORD-17, `GET /api/orders/shared-days`). The Sinhala and Tamil strings for it await review.
+- Store Orders: from `lg` New order sits in the top bar just left of the sync pill. The old layout reserved a guessed width for the bar, so the button floated mid-row, and dropped a line under a notice.
+- Admin vehicles: the Fuel Pass change had added Change driver and Fuel Pass to the driver row while the foot row already had them; the driver row now shows only the depot.
+
+---
+
 ## 2026-10-23 - fix: a loader takes a free trip by tapping it; the store header lines up
 
 `dev` · @Oxshadha

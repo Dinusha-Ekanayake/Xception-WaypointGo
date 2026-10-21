@@ -393,6 +393,16 @@ export const STRINGS: Record<string, [string, string]> = {
   "A trip already goes to your area": ["ඔබේ ප්‍රදේශයට දැනටමත් ගමනක් යයි", "உங்கள் பகுதிக்கு ஏற்கனவே ஒரு பயணம் செல்கிறது"],
   "1 other store booked": ["තවත් වෙළඳසැල් 1ක් වෙන් කර ඇත", "மற்றொரு கடை 1 பதிவு செய்துள்ளது"],
   "{n} other stores booked": ["තවත් වෙළඳසැල් {n}ක් වෙන් කර ඇත", "மற்ற {n} கடைகள் பதிவு செய்துள்ளன"],
+  // Days that already carry orders for the district (R-ORD-17); translations not yet reviewed.
+  "{n} stores already booked": ["වෙළඳසැල් {n}ක් දැනටමත් වෙන් කර ඇත", "{n} கடைகள் ஏற்கனவே பதிவு செய்துள்ளன"],
+  "Stores already booked for {district}": ["{district} සඳහා දැනටමත් වෙන් කළ වෙළඳසැල්", "{district}-க்கு ஏற்கனவே பதிவு செய்த கடைகள்"],
+  "Shared trip counts are unavailable right now.": ["හවුල් ගමන් ගණන් දැන් ලබා ගත නොහැක.", "பகிர்ந்த பயண எண்ணிக்கைகள் இப்போது கிடைக்கவில்லை."],
+  "Likely to share a trip": ["ගමනක් බෙදා ගැනීමට ඉඩ ඇත", "ஒரு பயணத்தைப் பகிர வாய்ப்புள்ளது"],
+  "1 other {brand} store in {district} already has {temp} goods booked for {day}.": ["{district} හි තවත් {brand} වෙළඳසැලකට {day} දිනට {temp} ඇණවුමක් දැනටමත් ඇත.", "{district}-இல் உள்ள மற்றொரு {brand} கடைக்கு {day} அன்று ஏற்கனவே ஒரு {temp} ஆர்டர் உள்ளது."],
+  "{n} other {brand} stores in {district} already have {temp} goods booked for {day}.": ["{district} හි තවත් {brand} වෙළඳසැල් {n}කට {day} දිනට {temp} ඇණවුම් දැනටමත් ඇත.", "{district}-இல் உள்ள மற்ற {n} {brand} கடைகளுக்கு {day} அன்று ஏற்கனவே {temp} ஆர்டர்கள் உள்ளன."],
+  "You already have {temp} goods booked for {day}.": ["ඔබට {day} දිනට {temp} ඇණවුමක් දැනටමත් ඇත.", "உங்களுக்கு {day} அன்று ஏற்கனவே ஒரு {temp} ஆர்டர் உள்ளது."],
+  "This order is likely to travel on the same trip.": ["මෙම ඇණවුම එම ගමනේම යාමට ඉඩ ඇත.", "இந்த ஆர்டர் அதே பயணத்தில் செல்ல வாய்ப்புள்ளது."],
+  "No other store has booked {day} yet. {other} already has {n} booked for {district}, so an order then is more likely to share a trip.": ["{day} දිනට තවම වෙනත් වෙළඳසැලක් වෙන් කර නැත. {other} දිනට {district} සඳහා {n}ක් දැනටමත් වෙන් කර ඇති බැවින්, එදින ඇණවුමක් ගමනක් බෙදා ගැනීමට වැඩි ඉඩක් ඇත.", "{day} அன்று இன்னும் வேறு கடை பதிவு செய்யவில்லை. {other} அன்று {district}-க்கு ஏற்கனவே {n} பதிவு உள்ளதால், அன்று ஒரு ஆர்டர் பயணத்தைப் பகிர அதிக வாய்ப்புள்ளது."],
   " · room on the vehicle": [" · වාහනයේ ඉඩ ඇත", " · வாகனத்தில் இடம் உள்ளது"],
   "Room is estimated from your usual order. Sharing a trip frees a vehicle; the dispatcher still confirms the load.": [
     "ඉඩ ඇස්තමේන්තු කළේ ඔබේ සුපුරුදු ඇණවුමෙනි. ගමනක් බෙදා ගැනීමෙන් වාහනයක් නිදහස් වේ; පැටවුම තවමත් යවන්නා තහවුරු කරයි.",

@@ -144,6 +144,52 @@ public class JdbcOrderRepository {
     return stops;
   }
 
+  /** One day of {@link #sharedDays}: other outlets booked, and whether this outlet is too. */
+  public record SharedDay(LocalDate date, int otherOutlets, boolean own) {}
+
+  /**
+   * Per day, how many other outlets of one brand and district have an open
+   * order, and whether this outlet has one, counting only one temperature when
+   * {@code temperature} is not null (R-ORD-17). Days with neither are left out.
+   */
+  public java.util.List<SharedDay> sharedDays(
+      String depotCode,
+      String brandCode,
+      String districtName,
+      String outletId,
+      LocalDate from,
+      LocalDate to,
+      String temperature) {
+    return database.query(
+            """
+            SELECT delivery_date,
+                   count(DISTINCT outlet_id) FILTER (WHERE outlet_id <> ?) AS others,
+                   bool_or(outlet_id = ?) AS own
+              FROM ordering.orders
+             WHERE depot_code = ? AND brand_code = ? AND district_name = ?
+               AND delivery_date BETWEEN ? AND ?
+               AND status IN ('stock_unknown','confirmed','allocated','deferred')
+               AND (CAST(? AS text) IS NULL OR temperature = CAST(? AS text))
+             GROUP BY delivery_date
+             ORDER BY delivery_date
+            """,
+            outletId,
+            outletId,
+            depotCode,
+            brandCode,
+            districtName,
+            Date.valueOf(from),
+            Date.valueOf(to),
+            temperature,
+            temperature)
+        .stream()
+        .map(row -> new SharedDay(
+            ((Date) row.get("delivery_date")).toLocalDate(),
+            ((Number) row.get("others")).intValue(),
+            Boolean.TRUE.equals(row.get("own"))))
+        .toList();
+  }
+
   /** One measured order of another outlet, for the room on a trip (issue #199). */
   public record BookedLoad(LocalDate date, String outletId, String temperature, BigDecimal weightKg, BigDecimal volumeM3) {}
 

@@ -229,7 +229,7 @@ export type Handover = { status: "AWAITING" | "CONFIRMED" | "LOCKED" | "EXPIRED"
 /** Routes every call the store makes; a delivered order is waiting to be received. */
 export async function mockStore(
   page: Page,
-  options: { unloadingRange?: boolean; answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[]; threads?: ThreadMock[]; decisions?: DecisionView[]; rideAlong?: { date: string; stopsBooked: number }[] | "down"; roomChecked?: boolean; outlook?: Record<string, "ON_TRACK" | "BUSY" | "AT_RISK" | "TOO_EARLY" | "CLOSED"> | "down" } = {},
+  options: { unloadingRange?: boolean; answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[]; threads?: ThreadMock[]; decisions?: DecisionView[]; rideAlong?: { date: string; stopsBooked: number }[] | "down"; roomChecked?: boolean; sharedDays?: { date: string; otherStores: number; ownOrder: boolean }[] | "down"; outlook?: Record<string, "ON_TRACK" | "BUSY" | "AT_RISK" | "TOO_EARLY" | "CLOSED"> | "down" } = {},
 ): Promise<{ sent: Sent; handover: { current: Handover | null }; uploads: string[]; decisions: DecisionView[] }> {
   const threads = options.threads ?? [];
   const decisions = options.decisions ?? [];
@@ -260,6 +260,11 @@ export async function mockStore(
       if (options.rideAlong === "down") return route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ title: "Unavailable", status: 503 }) });
       const requested = url.searchParams.get("requestedDate");
       return json({ requestedDate: requested, deliveryDate: requested, offered: options.rideAlong !== undefined, days: Array.isArray(options.rideAlong) ? options.rideAlong.filter((d) => d.date !== requested) : [], roomChecked: options.roomChecked ?? false });
+    }
+    // R-ORD-17: no bookings unless the test names them; the temperature asked is echoed back.
+    if (pathname === "/api/orders/shared-days") {
+      if (options.sharedDays === "down") return route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ title: "Unavailable", status: 503 }) });
+      return json({ temperature: url.searchParams.get("temperature"), days: options.sharedDays ?? [] });
     }
     if (pathname === "/api/ml/outlook") {
       if (options.outlook === "down") return route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ title: "Unavailable", status: 503 }) });

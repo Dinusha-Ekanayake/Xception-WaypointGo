@@ -113,6 +113,16 @@ export type RideAlongView = {
   temperature?: string | null;
 };
 
+/**
+ * The days on the store's date strip that already carry orders of its brand,
+ * district and temperature (R-ORD-17): how many other stores, never which, and
+ * whether this store has one too. Days with neither are left out.
+ */
+export type SharedDaysView = {
+  temperature: string | null;
+  days: { date: IsoDate; otherStores: number; ownOrder: boolean }[];
+};
+
 export type StatusChangeView = {
   from: OrderStatus | null;
   to: OrderStatus;

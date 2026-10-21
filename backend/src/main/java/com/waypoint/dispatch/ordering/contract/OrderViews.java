@@ -172,4 +172,13 @@ public final class OrderViews {
 
   /** A day and how many other outlets of the same brand and district are booked for it. */
   public record RideAlongDay(LocalDate date, int stopsBooked) {}
+
+  /**
+   * The days on the store's date strip that already carry orders of its brand,
+   * district and temperature (R-ORD-17): a count of other stores, never which,
+   * and whether this store has one too.
+   */
+  public record SharedDaysView(String temperature, List<SharedDayView> days) {}
+
+  public record SharedDayView(LocalDate date, int otherStores, boolean ownOrder) {}
 }

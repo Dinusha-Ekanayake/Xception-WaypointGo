@@ -204,7 +204,17 @@ export default function PlaceOrder({
       {/* Desktop: the list on the left and the summary card on the right, as in "03 Place order". */}
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-6">
         <div className="flex min-w-0 flex-col gap-4">
-          {!amend && <DateStrip gateway={gateway} outletId={outletId} first={first} date={date} shared={shared} onPick={setDate} />}
+          {!amend && <DateStrip
+              gateway={gateway}
+              outletId={outletId}
+              first={first}
+              date={date}
+              shared={shared}
+              temperature={temp}
+              brand={brand}
+              district={outlet?.districtName ?? ""}
+              onPick={setDate}
+            />}
           {rolled && !amend && (
             <Notice tone="warning" live title={tr("This order will arrive {day}, not {asked}.", { day: dayLabel(rolled), asked: dayLabel(date) })}>
               {reasons.includes("cutoff") && tr("Orders for that day closed at 16:00. ")}
