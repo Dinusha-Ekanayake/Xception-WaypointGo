@@ -4,6 +4,8 @@ import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryComplete
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryFailed;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryProblemReported;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliverySkipped;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.RoadDisruptionReported;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.VehicleFaultReported;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryStarted;
 import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryRecordView;
@@ -356,6 +358,99 @@ final class MessagingConsumers {
       if (posted) {
         metrics.increment("waypoint.message.skip_told", "then", e.then().toLowerCase(java.util.Locale.ROOT));
       }
+    }
+  }
+
+  /**
+   * R-MSG-17: a breakdown or a blocked road is said plainly in the trip's room, for
+   * everyone on the trip, never in the driver's words; the stores still waiting
+   * are also pushed (R-NOT-22). Once per event.
+   */
+  static void postDelay(
+      JdbcThreadRepository threads, Clock clock, Metrics metrics, SecureRandom random, UUID eventId, String vehicleId,
+      java.time.LocalDate day, String delay) {
+    Optional<Thread> thread = threads.tripOfVehicle(vehicleId, day);
+    if (thread.isEmpty()) {
+      metrics.increment("waypoint.message.delay_without_trip", "delay", delay);
+      return;
+    }
+    Instant now = clock.now();
+    boolean posted =
+        threads.insert(
+            UuidV7.generate(now, random), thread.get().threadId(), Actor.SYSTEM_ID, Role.DISPATCHER.code(), "message",
+            Optional.empty(), "all", Optional.empty(), MessagePolicy.delayNotice(vehicleId, delay), Optional.empty(),
+            Optional.empty(), Optional.of(eventId), Optional.empty(), Optional.empty(), Optional.empty(), now);
+    if (posted) metrics.increment("waypoint.message.delay_told", "delay", delay);
+  }
+
+  @Component
+  static class OnVehicleFaultReported implements EventSubscriber<VehicleFaultReported> {
+    private final JdbcThreadRepository threads;
+    private final Clock clock;
+    private final Metrics metrics;
+    private final SecureRandom random = new SecureRandom();
+
+    OnVehicleFaultReported(JdbcThreadRepository threads, Clock clock, Metrics metrics) {
+      this.threads = threads;
+      this.clock = clock;
+      this.metrics = metrics;
+    }
+
+    @Override
+    public String consumerName() {
+      return "messaging.on-vehicle-fault-reported";
+    }
+
+    @Override
+    public Class<VehicleFaultReported> eventType() {
+      return VehicleFaultReported.class;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.MESSAGING;
+    }
+
+    @Override
+    public void on(EventEnvelope<VehicleFaultReported> envelope) {
+      VehicleFaultReported e = envelope.payload();
+      postDelay(threads, clock, metrics, random, envelope.eventId(), e.vehicleId(), e.serviceDate(), "breakdown");
+    }
+  }
+
+  @Component
+  static class OnRoadDisruptionReported implements EventSubscriber<RoadDisruptionReported> {
+    private final JdbcThreadRepository threads;
+    private final Clock clock;
+    private final Metrics metrics;
+    private final SecureRandom random = new SecureRandom();
+
+    OnRoadDisruptionReported(JdbcThreadRepository threads, Clock clock, Metrics metrics) {
+      this.threads = threads;
+      this.clock = clock;
+      this.metrics = metrics;
+    }
+
+    @Override
+    public String consumerName() {
+      return "messaging.on-road-disruption-reported";
+    }
+
+    @Override
+    public Class<RoadDisruptionReported> eventType() {
+      return RoadDisruptionReported.class;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.MESSAGING;
+    }
+
+    @Override
+    public void on(EventEnvelope<RoadDisruptionReported> envelope) {
+      RoadDisruptionReported e = envelope.payload();
+      postDelay(threads, clock, metrics, random, envelope.eventId(), e.vehicleId(),
+          e.at().atZone(Clock.OPERATING_ZONE).toLocalDate(), "road blocked");
     }
   }
 

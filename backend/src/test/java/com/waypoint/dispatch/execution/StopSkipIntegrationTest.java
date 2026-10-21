@@ -94,6 +94,7 @@ class StopSkipIntegrationTest {
   String dispatcher;
   String farDispatcher;
   UUID storeOneId;
+  UUID storeTwoId;
   UUID dispatcherId;
   UUID driverId;
   UUID tripId;
@@ -135,7 +136,7 @@ class StopSkipIntegrationTest {
     farDispatcher = "df-" + run + "@skips.test";
     UUID ordererId = accounts.createAccount(orderer, "Orders", PASSWORD, "store_manager");
     storeOneId = accounts.createAccount(storeOne, "Store One", PASSWORD, "store_manager");
-    UUID storeTwoId = accounts.createAccount(storeTwo, "Store Two", PASSWORD, "store_manager");
+    storeTwoId = accounts.createAccount(storeTwo, "Store Two", PASSWORD, "store_manager");
     driverId = accounts.createAccount(driver, "Driver", PASSWORD, "driver");
     dispatcherId = accounts.createAccount(dispatcher, "Dispatcher", PASSWORD, "dispatcher");
     accounts.createAccount(farDispatcher, "Far Dispatcher", PASSWORD, "dispatcher");
@@ -260,6 +261,21 @@ class StopSkipIntegrationTest {
     assertTrue(late.get("stopEnded").asBoolean(), "recorded, no conflict for the driver");
     drain();
     assertEquals(1, notified(dispatcherId, "delivery.problem_reported"), "nobody is told twice");
+  }
+
+  @Test
+  void aBreakdownIsSaidPlainlyInTheRoomAndPushedOnlyToStoresStillWaiting() throws Exception {
+    // R-MSG-17, R-NOT-22: the first store is done (skipped), the second still waits.
+    skip(dispatcher, stopOne, 1L, "NEXT_DAY", "Store closed all day", 200);
+    command(driver, "delivery:ReportFault", null,
+        "{\"vehicleId\":\"" + vehicleId + "\",\"kind\":\"vehicle\",\"description\":\"clutch gone, smoke\"}", 200);
+    drain();
+    assertEquals(1, notified(storeTwoId, "vehicle.fault_reported"), "the store still waiting is pushed");
+    assertEquals(0, notified(storeOneId, "vehicle.fault_reported"), "the store already done is not");
+    String notice = vehicleId + " is delayed: breakdown";
+    assertTrue(threadSays(storeTwo, notice));
+    assertTrue(threadSays(storeOne, notice), "a store already done still reads it in the room");
+    assertFalse(threadSays(storeTwo, "clutch gone, smoke"), "never the driver's own words");
   }
 
   @Test

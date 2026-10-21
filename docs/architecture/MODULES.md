@@ -617,7 +617,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `delivery.problem_reported` | Execution | Messaging, Notification |
 | `delivery.arrived` | Execution | Notification (store: unload and check, R-EXE-25) |
 | `vehicle.at_depot` | Execution | Loading (dock board, R-LOD-12), Notification (loaders, R-EXE-24) |
-| `vehicle.fault_reported`, `road.disruption_reported` | Execution | Issues, Notification |
+| `vehicle.fault_reported`, `road.disruption_reported` | Execution | Issues, Notification (and the stores still waiting, R-NOT-22), Messaging (the notice in the trip's room, R-MSG-17) |
 | `receipt.confirmed`, `receipt.disputed`, `receipt.auto_closed` | Receipt | Ordering, Issues, Notification |
 | `receipt.handover_confirmed` | Receipt | Notification |
 | `issue.raised`, `issue.resolved`, `issue.escalated` | Issues | Notification, Messaging (`issue.raised`, `issue.resolved`) |

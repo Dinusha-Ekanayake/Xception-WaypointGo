@@ -10,7 +10,8 @@
 
 - Piece 4 of the trip-problems vision, part 1, on @jv-ransika's decisions of 2026-10-21 ([plan](../../issues/trip-problems-driver/PLAN.md)). The driver's "Store closed" and "Cannot unload here" are reports (`delivery:ReportStopProblem`, `delivery.problem_reported`), no longer failures: the dispatcher gets a report in the trip's chat with its suggested decisions, a push and a "Decide" card on Live; the store is told the dispatcher decides (routing version 17). The driver cannot fail such a stop, goes on to the next one, and sees it as "With the dispatcher". A report queued offline that lands after the dispatcher's skip is kept quietly (R-EXE-32, R-NOT-21, EXE-52 to EXE-54).
 - The driver's list loses "Running late" and gains "Road blocked". A driver UI flow change approved by the owner under role-ui-scope.md; look and wording style kept.
-- Next: the delay notice to the trip room for a breakdown or a blocked road, then goods damaged as partial.
+- The delay notice followed: a breakdown or a blocked road posts "VEH037 is delayed: breakdown" to the trip's room, and the stores still waiting get a push; stores already served read it without one, and the driver's own words stay the dispatcher's (R-MSG-17, R-NOT-22, routing version 18, EXE-55).
+- Next: goods damaged as a partial delivery plus a quiet issue.
 
 ---
 

@@ -370,6 +370,14 @@ public final class MessagePolicy {
     return "CANNOT_UNLOAD".equals(problem) ? "Cannot unload here" : "Store closed, nobody to receive";
   }
 
+  /**
+   * R-MSG-17: the plain notice in the trip's room when the vehicle breaks down or
+   * its road is blocked. Never the driver's own words.
+   */
+  public static String delayNotice(String vehicleId, String delay) {
+    return vehicleId + " is delayed: " + delay;
+  }
+
   /** R-EXE-32: what the store reads when the driver reports at its door. */
   public static String stopProblemNotice(String problem) {
     String what =

@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.notification.application;
 
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryArrived;
+import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryCompleted;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.VehicleAtDepot;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryFailed;
@@ -728,10 +729,28 @@ final class NotificationConsumers {
     }
   }
 
+  /**
+   * R-NOT-22: the stores still waiting for a vehicle delayed by a breakdown or a
+   * blocked road, from its run sheet today: the stops not yet done. Stores
+   * already served are not pushed; they read the notice in the trip's room.
+   */
+  static Routed toWaitingStores(Routed routed, ExecutionQuery execution, String vehicleId, java.time.LocalDate day) {
+    execution.runSheet(vehicleId, day).ifPresent(sheet -> sheet.stops().stream()
+        .filter(s -> s.outcome() == com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryOutcome.PENDING
+            || s.outcome() == com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryOutcome.ARRIVED)
+        .map(s -> s.outletId())
+        .distinct()
+        .forEach(outlet -> routed.to(ScopeKind.OUTLET, outlet, "vehicle", vehicleId)));
+    return routed;
+  }
+
   @Component
   static class OnVehicleFaultReported extends NotificationConsumer<VehicleFaultReported> {
-    OnVehicleFaultReported(Notifier notifier) {
+    private final ExecutionQuery execution;
+
+    OnVehicleFaultReported(Notifier notifier, ExecutionQuery execution) {
       super(notifier);
+      this.execution = execution;
     }
 
     @Override
@@ -746,18 +765,22 @@ final class NotificationConsumers {
 
     @Override
     Routed route(VehicleFaultReported e) {
-      return new Routed()
+      Routed routed = new Routed()
           .on(e.serviceDate())
           .fact("vehicleId", e.vehicleId()).fact("description", e.description())
-          .fact("serviceDate", e.serviceDate()).fact("depotCode", e.depotCode())
+          .fact("serviceDate", e.serviceDate()).fact("depotCode", e.depotCode()).fact("delay", "breakdown")
           .to(ScopeKind.DEPOT, e.depotCode(), "vehicle", e.vehicleId());
+      return toWaitingStores(routed, execution, e.vehicleId(), e.serviceDate());
     }
   }
 
   @Component
   static class OnRoadDisruptionReported extends NotificationConsumer<RoadDisruptionReported> {
-    OnRoadDisruptionReported(Notifier notifier) {
+    private final ExecutionQuery execution;
+
+    OnRoadDisruptionReported(Notifier notifier, ExecutionQuery execution) {
       super(notifier);
+      this.execution = execution;
     }
 
     @Override
@@ -772,10 +795,11 @@ final class NotificationConsumers {
 
     @Override
     Routed route(RoadDisruptionReported e) {
-      return new Routed()
+      Routed routed = new Routed()
           .fact("vehicleId", e.vehicleId()).fact("districtName", e.districtName())
-          .fact("description", e.description()).fact("depotCode", e.depotCode())
+          .fact("description", e.description()).fact("depotCode", e.depotCode()).fact("delay", "road blocked")
           .to(ScopeKind.DEPOT, e.depotCode(), "vehicle", e.vehicleId());
+      return toWaitingStores(routed, execution, e.vehicleId(), e.at().atZone(Clock.OPERATING_ZONE).toLocalDate());
     }
   }
 
