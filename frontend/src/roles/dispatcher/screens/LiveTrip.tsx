@@ -61,8 +61,9 @@ export default function LiveTrip({
       <div className="grid w-full items-start gap-4 lg:grid-cols-[280px_1fr_300px]">
         <div className="flex flex-col gap-4">
           <Card>
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-[15px] font-medium text-go-ink">{name ?? "Driver"}</h2>
+            {/* The name and its staff number stay on one line; the ping chip wraps below instead. */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="whitespace-nowrap text-[15px] font-medium text-go-ink">{name ?? "Driver"}</h2>
               {run.position && <Chip tone="muted">{`${run.status === "offline" ? "Last seen" : "Last ping"} ${clockOn(run.position.recordedAt)}`}</Chip>}
             </div>
             <p className="text-[14px] text-go-ink">{next ? `On the way to ${next.outletId}` : run.status === "returning" ? `Returning to ${depotName}` : "Run finished"}</p>
