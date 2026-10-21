@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -55,10 +54,9 @@ import org.springframework.test.web.servlet.MvcResult;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@EnabledIfEnvironmentVariable(
-    named = "TEST_DATABASE_URL",
-    matches = ".+",
-    disabledReason = "Set TEST_DATABASE_URL to a dedicated database to run integration tests")
+// Like every integration suite: TEST_DATABASE_URL when set, else a throwaway
+// PostgreSQL container when Docker runs, else skipped with the reason.
+@org.junit.jupiter.api.extension.ExtendWith(com.waypoint.dispatch.support.TestDatabase.class)
 abstract class PlanningIntegrationSupport {
   static final String PASSWORD = "PlanningCommands2026!";
 
@@ -84,7 +82,7 @@ abstract class PlanningIntegrationSupport {
 
   @DynamicPropertySource
   static void databaseUrl(DynamicPropertyRegistry registry) {
-    registry.add("app.database-url", () -> System.getenv("TEST_DATABASE_URL"));
+    registry.add("app.database-url", com.waypoint.dispatch.support.TestDatabase::url);
   }
 
   @BeforeAll
