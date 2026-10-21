@@ -41,6 +41,16 @@ A change shows on other screens within 1-2 s while online; an idle screen costs 
 5. **Catch-up after a gap.** Each signal carries the outbox sequence as its SSE `id`; on reconnect the server replays signals since `Last-Event-ID` for up to 15 minutes, else sends `reset` and screens read once. No-signal order unchanged: the device queue drains first, then the stream reconnects, with jittered retries.
 6. **Several backend instances.** The relay issues `NOTIFY waypoint_changes` per committed event; each instance `LISTEN`s and feeds its own ChangeSignals.
 
+## Deferred (decided 2026-10-21)
+
+Phases 1, 2, 4 and the vehicle watch of 3 are built. The rest waits, because with one backend instance and conditional reads in place each saves little against what it adds:
+
+- **The version on a signal (rest of phase 3).** A re-read of unchanged data is already a `304` with no body. Skipping it altogether needs `row_version` in every module's events and a record of versions in every screen, for the one round trip a `304` costs.
+- **Catch-up after a gap (phase 5).** After a reconnect every screen re-reads once, so nothing is missed; with `304` those reads are cheap. A 15-minute replay buffer and sequence ids would only trade them for replays.
+- **Several backend instances (phase 6).** There is one.
+
+**Revisit when** a second backend instance is deployed (phase 6 first, then 5), or when `waypoint.changes.listeners` and request logs show re-reads after a signal or a reconnect as a measurable share of database load.
+
 ## Measuring
 
 Requests per screen per minute, signal-to-screen time, 304 share, replays against resets, and `waypoint.changes.listeners`. Each phase states its before and after in its pull request.

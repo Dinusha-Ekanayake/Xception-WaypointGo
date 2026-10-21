@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-21 - docs: the rest of live refresh waits for a second backend
+
+`dev` · @Oxshadha
+
+- Versions on signals, catch-up after a gap and several instances are deferred: with one instance and `304` reads they save little against what they add. The plan names when to come back to them ([plan](../../issues/live-refresh/PLAN.md)).
+
+---
+
 ## 2026-10-21 - feat: Jev is scored on typed trip-chat reports, in shadow
 
 `dev` · @Oxshadha
