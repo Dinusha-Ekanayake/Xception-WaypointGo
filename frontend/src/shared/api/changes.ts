@@ -1,3 +1,5 @@
+import { liveSource, type LiveSource } from "../live/tabStream.ts";
+
 // Roadmap F-07b: one live connection per set of depots, shared by every read on
 // the page. The server sends `change` with a topic and a depot when something
 // committed, and `ping` every 25 s; a read that listens for a topic re-reads
@@ -25,7 +27,7 @@ type Listener = (change: Change) => void;
 type StatusListener = (live: boolean) => void;
 
 type Stream = {
-  source: EventSource | null;
+  source: LiveSource | null;
   listeners: Set<Listener>;
   status: Set<StatusListener>;
   live: boolean;
@@ -67,7 +69,8 @@ function setLive(stream: Stream, live: boolean): void {
 function open(key: string): Stream {
   const stream: Stream = { source: null, listeners: new Set(), status: new Set(), live: false, lastHeard: 0, watchdog: null };
   if (typeof EventSource === "undefined") return stream;
-  const source = new EventSource(`/api/changes/stream?${streamQuery(key)}`);
+  // On the tab's one live connection when it can be (live refresh, phase 2).
+  const source = liveSource("/api/changes/stream", streamQuery(key));
   const heard = () => {
     stream.lastHeard = Date.now();
     setLive(stream, true);

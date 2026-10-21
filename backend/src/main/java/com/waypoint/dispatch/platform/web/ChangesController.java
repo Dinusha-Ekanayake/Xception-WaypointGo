@@ -36,54 +36,20 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RequestMapping("/api/changes")
 public class ChangesController {
   private static final Duration STREAM_LIFETIME = Duration.ofMinutes(30);
-  private static final int MAX_DEPOTS = 20;
 
-  private final ChangeWatchers watchers;
-  private final RequestAuthorizer authorizer;
+  private final ChangesStreamPart part;
 
-  public ChangesController(ChangeWatchers watchers, RequestAuthorizer authorizer) {
-    this.watchers = watchers;
-    this.authorizer = authorizer;
+  public ChangesController(ChangesStreamPart part) {
+    this.part = part;
   }
 
   @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-  public SseEmitter stream(
-      @RequestParam(name = "depot", required = false) List<String> depotParams,
-      @RequestParam(name = "outlet", required = false) List<String> outletParams,
-      HttpServletRequest request,
-      HttpServletResponse response) {
-    Set<String> depots = names(depotParams);
-    Set<String> outlets = names(outletParams);
-    if (depots.isEmpty() == outlets.isEmpty() || depots.size() + outlets.size() > MAX_DEPOTS) {
-      throw new DomainException(
-          ErrorCode.VALIDATION_FAILED, "Name between 1 and " + MAX_DEPOTS + " depots, or outlets, to watch");
-    }
-    Actor actor = null;
-    for (String depot : depots) {
-      actor = authorizer.require(request, "plan:Read", "wpt:plan:depot:" + depot);
-    }
-    for (String outlet : outlets) {
-      actor = authorizer.require(request, "receipt:Read", "wpt:receipt:outlet:" + outlet);
-    }
+  public SseEmitter stream(HttpServletRequest request, HttpServletResponse response) {
     // nginx would otherwise buffer the small events and hold them back (issue #118).
     response.setHeader("X-Accel-Buffering", "no");
     SseEmitter emitter = new SseEmitter(STREAM_LIFETIME.toMillis());
-    ChangeSignals.Listener listener =
-        new ChangeSignals.Listener() {
-          @Override
-          public void changed(String topic, String depot) throws Exception {
-            emitter.send(SseEmitter.event().name("change").data(depot == null ? Map.of("topic", topic) : Map.of("topic", topic, "depot", depot)));
-          }
-
-          @Override
-          public void heartbeat() throws Exception {
-            emitter.send(SseEmitter.event().name("ping").data(""));
-          }
-        };
     Runnable stop =
-        depots.isEmpty()
-            ? watchers.openOutlets(actor, "receipt:Read", outlets, listener)
-            : watchers.open(actor, "plan:Read", depots, listener);
+        part.open(request, "", (event, data) -> emitter.send(SseEmitter.event().name(event).data(data)));
     emitter.onCompletion(stop);
     emitter.onTimeout(stop);
     emitter.onError(e -> stop.run());
@@ -97,14 +63,5 @@ public class ChangesController {
     return emitter;
   }
 
-  private static Set<String> names(List<String> params) {
-    Set<String> names = new LinkedHashSet<>();
-    if (params == null) return names;
-    for (String value : params) {
-      for (String part : value.split(",")) {
-        if (!part.isBlank()) names.add(part.trim());
-      }
-    }
-    return names;
-  }
+
 }

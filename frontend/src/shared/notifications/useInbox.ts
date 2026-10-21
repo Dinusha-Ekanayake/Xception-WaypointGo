@@ -9,6 +9,7 @@ import { NotificationCommandKind, type NotificationView, type UnreadCountView } 
 import { keep, kept } from "@shared/offline";
 import { POLL_MS, appended, isStale, markedAllRead, markedRead } from "./inbox.ts";
 import { businessNow } from "../wording/now.ts";
+import { liveSource } from "../live/tabStream.ts";
 
 // A role's notifications (issue #118): the live unread count, the list, and
 // marking read. Data only; each role draws its own bell and inbox.
@@ -67,7 +68,8 @@ export function useInbox(accountId: string | null, enabled = true): Inbox {
       heardAt.current = Date.now();
       setUnread(count);
     };
-    const source = typeof EventSource === "undefined" ? null : new EventSource("/api/notifications/stream");
+    // On the tab's one live connection when it can be (live refresh, phase 2).
+    const source = typeof EventSource === "undefined" ? null : liveSource("/api/notifications/stream");
     source?.addEventListener("unread", (event) => {
       try {
         heard((JSON.parse((event as MessageEvent<string>).data) as UnreadCountView).count);

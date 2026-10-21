@@ -35,7 +35,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RestController
 @RequestMapping("/api/execution")
 public class PositionsController {
-  private static final String READ = ExecutionDataQuery.READ;
+  static final String READ = ExecutionDataQuery.READ;
 
   /** Browsers reconnect an event stream on their own; a bounded one frees the request thread. */
   private static final Duration STREAM_LIFETIME = Duration.ofMinutes(30);
@@ -44,7 +44,11 @@ public class PositionsController {
   private final PositionSignals signals;
   private final RequestAuthorizer authorizer;
 
-  public PositionsController(PositionsQuery positions, PositionSignals signals, RequestAuthorizer authorizer) {
+  private final PositionsStreamPart positionsPart;
+
+  public PositionsController(
+      PositionsQuery positions, PositionSignals signals, RequestAuthorizer authorizer, PositionsStreamPart positionsPart) {
+    this.positionsPart = positionsPart;
     this.positions = positions;
     this.signals = signals;
     this.authorizer = authorizer;
@@ -77,31 +81,12 @@ public class PositionsController {
    * {@code /positions} and says so on screen (rule 9).
    */
   @GetMapping(path = "/positions/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-  public SseEmitter stream(
-      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-      @RequestParam(required = false) String depot,
-      @RequestParam(required = false) String outlet,
-      HttpServletRequest request,
-      HttpServletResponse response) {
-    if ((depot == null) == (outlet == null)) {
-      throw new DomainException(ErrorCode.VALIDATION_FAILED, "Give exactly one of depot or outlet");
-    }
-    PositionSignals.Watch watch;
-    Actor actor;
-    if (depot != null) {
-      actor = authorizer.require(request, READ, "wpt:execution:depot:" + depot);
-      positions.ofDepot(actor, depot, date);
-      watch = PositionSignals.Watch.depot(depot, date);
-    } else {
-      actor = authorizer.require(request, READ, "wpt:execution:outlet:" + outlet);
-      positions.forOutlet(actor, outlet, date);
-      watch = PositionSignals.Watch.outlet(outlet, date);
-    }
+  public SseEmitter stream(HttpServletRequest request, HttpServletResponse response) {
+    Runnable stop;
+    SseEmitter emitter = new SseEmitter(STREAM_LIFETIME.toMillis());
+    stop = positionsPart.open(request, "", (event, data) -> emitter.send(SseEmitter.event().name(event).data(data)));
     // nginx would otherwise buffer the small events and hold them back (issue #118).
     response.setHeader("X-Accel-Buffering", "no");
-    SseEmitter emitter = new SseEmitter(STREAM_LIFETIME.toMillis());
-    Runnable stop =
-        signals.listen(actor, watch, list -> emitter.send(SseEmitter.event().name("positions").data(list)));
     emitter.onCompletion(stop);
     emitter.onTimeout(stop);
     emitter.onError(e -> stop.run());

@@ -32,7 +32,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RestController
 @RequestMapping("/api/notifications")
 public class NotificationController {
-  private static final String READ = NotificationDataQuery.READ;
+  static final String READ = NotificationDataQuery.READ;
   /** Browsers reconnect an event stream on their own; a bounded one frees the request thread. */
   private static final Duration STREAM_LIFETIME = Duration.ofMinutes(30);
 
@@ -40,9 +40,12 @@ public class NotificationController {
   private final InboxSignals signals;
   private final PushGateway push;
   private final RequestAuthorizer authorizer;
+  private final UnreadStreamPart unreadPart;
 
   public NotificationController(
-      NotificationDataQuery notifications, InboxSignals signals, PushGateway push, RequestAuthorizer authorizer) {
+      NotificationDataQuery notifications, InboxSignals signals, PushGateway push, RequestAuthorizer authorizer,
+      UnreadStreamPart unreadPart) {
+    this.unreadPart = unreadPart;
     this.notifications = notifications;
     this.signals = signals;
     this.push = push;
@@ -74,14 +77,10 @@ public class NotificationController {
    */
   @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
   public SseEmitter stream(HttpServletRequest request, HttpServletResponse response) {
-    Actor actor = require(request);
     // nginx would otherwise buffer the small events and hold them back (issue #118).
     response.setHeader("X-Accel-Buffering", "no");
     SseEmitter emitter = new SseEmitter(STREAM_LIFETIME.toMillis());
-    Runnable stop =
-        signals.listen(
-            actor.userId(),
-            count -> emitter.send(SseEmitter.event().name("unread").data(new UnreadCountView(count))));
+    Runnable stop = unreadPart.open(request, "", (event, data) -> emitter.send(SseEmitter.event().name(event).data(data)));
     emitter.onCompletion(stop);
     emitter.onTimeout(stop);
     emitter.onError(e -> stop.run());

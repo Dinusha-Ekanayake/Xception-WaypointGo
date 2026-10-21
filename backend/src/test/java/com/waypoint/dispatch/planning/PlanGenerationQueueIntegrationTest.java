@@ -167,4 +167,23 @@ class PlanGenerationQueueIntegrationTest extends PlanningIntegrationSupport {
             .andReturn();
     assertEquals(403, refused.getResponse().getStatus(), refused.getResponse().getContentAsString());
   }
+
+  @Test
+  void aTabHearsSeveralPartsOnOneConnectionAndOneRefusedPartRefusesItAll() throws Exception {
+    // Live refresh phase 2: changes and the unread count on one stream, each checked as on its own endpoint.
+    var get = (java.util.function.Function<String, org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder>)
+        org.springframework.test.web.servlet.request.MockMvcRequestBuilders::get;
+    org.springframework.test.web.servlet.MvcResult open =
+        http.perform(get.apply("/api/live/stream?parts=changes,unread&changes.depot=" + depot).cookie(dispatcher)).andReturn();
+    assertEquals(200, open.getResponse().getStatus());
+    assertTrue(open.getRequest().isAsyncStarted(), "one stream stays open for both parts");
+
+    org.springframework.test.web.servlet.MvcResult refused =
+        http.perform(get.apply("/api/live/stream?parts=changes,unread&changes.depot=" + depot).cookie(elsewhere)).andReturn();
+    assertEquals(403, refused.getResponse().getStatus(), "a part the reader may not hear refuses the connection");
+
+    org.springframework.test.web.servlet.MvcResult unknown =
+        http.perform(get.apply("/api/live/stream?parts=gossip").cookie(dispatcher)).andReturn();
+    assertTrue(unknown.getResponse().getStatus() >= 400 && unknown.getResponse().getStatus() < 500);
+  }
 }

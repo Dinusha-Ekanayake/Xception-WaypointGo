@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-21 - feat: one live connection per browser tab
+
+`dev` · @Oxshadha
+
+- Live refresh phase 2 ([plan](../../issues/live-refresh/PLAN.md)). A dispatcher tab held up to three event streams (changes, unread count, positions), so a second tab could exhaust the browser's six connections per host and stop updating. Now one `/api/live/stream` carries the parts a tab needs as named events. Each module offers its part through `platform/web/LiveStreamPart`, so the platform imports no module, and the existing endpoints open the same parts: one copy of each check. A part the reader may not hear refuses the whole connection.
+- In the browser, `shared/live/tabStream.ts` gives each hook something that behaves like its old EventSource; a tab whose connection never opens (an older server, a test that does not serve it) falls back to the separate endpoints, so a rolling deploy cannot leave a screen deaf.
+
+---
+
 ## 2026-10-21 - feat: spoken messages are revalidated and their copies kept only while used
 
 `dev` · @Oxshadha

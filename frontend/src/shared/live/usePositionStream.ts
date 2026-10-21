@@ -5,6 +5,7 @@ import { request } from "@shared/api/client";
 import { useOnline, useResource, type Resource } from "@shared/api/useResource";
 import { livePoll, useDemo } from "@shared/demo/useDemo";
 import type { VehiclePositionView } from "@shared/domain/types";
+import { liveSource } from "./tabStream.ts";
 
 // Where the vehicles are, as they move (R-EXE-23). One event stream per depot
 // (or outlet) on GET /api/execution/positions/stream, which the server feeds on
@@ -74,7 +75,8 @@ export function usePositionStream(scope: PositionScope, date: string, enabled = 
     heardAt.current = Date.now();
     setPaused(false);
     const sources = scope.codes.map((code) => {
-      const source = new EventSource(path(scope, code, date, true));
+      // On the tab's one live connection when it can be (live refresh, phase 2).
+      const source = liveSource("/api/execution/positions/stream", `${scope.kind}=${encodeURIComponent(code)}&date=${encodeURIComponent(date)}`);
       source.addEventListener("positions", (event) => {
         try {
           const positions = JSON.parse((event as MessageEvent<string>).data) as VehiclePositionView[];
