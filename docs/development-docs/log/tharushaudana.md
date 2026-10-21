@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-21 - feat(ml): retrain the demand forecast on our own orders
+
+`feat/demand-retrain-tool` · @tharushaudana · [#7](https://github.com/jv-ransika/yi-yi/issues/7)
+
+Second of #7's two pull requests ([walkthrough](../../issues/007-demand-retraining/WALKTHROUGH.md)). `training.retrain_demand` refits the `DemandModel` on the order export and backtests it from rolling Mondays. A `waypoint-demand` model, allowed in production, is handed over only when both total and chilled WAPE beat a naive 8-week mean and are no worse than the model in use (R-ML-29, ML-44). `training.run` builds one each week beside the late-risk model; the registry loads whichever demand model the manifest names. The plan's backtest starts are corrected: 10 finished weeks are needed after each.
+Verified: `ml-server` pytest (36, 8 for the demand retrain on a synthetic 78-week history).
+Open: the dry run on the Datathon order history (licensed data, not on this machine); no depot has a year of our own orders yet.
+
+---
+
 ## 2026-10-21 - feat(ml): export every order as demand for retraining the forecast
 
 `feat/demand-retraining` · @tharushaudana · [#7](https://github.com/jv-ransika/yi-yi/issues/7)

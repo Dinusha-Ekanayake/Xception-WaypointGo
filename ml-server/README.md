@@ -111,6 +111,38 @@ The list holds exact pairs, never a whole module, and grows only in a reviewed c
 
 What it does not cover: an allowlisted class can still misbehave on hostile state when it is rebuilt. The list keeps that set to the libraries the models are built from, and the hash in `manifest.json` ties each served file to the reviewed change that brought it in.
 
+## Retraining the demand forecast on our own orders (issue #7)
+
+The served demand model (`datathon-task2a`) was fitted on the competition data, so production does not use it. `training.retrain_demand` refits the same `DemandModel` on Waypoint's own orders, and a model it hands over (`waypoint-demand`) may serve in production. As with the late-risk retrain, everything runs on our own machine and sends nothing.
+
+```bash
+# 1. The order export, as an administrator (ml:ExportTrainingData), per depot.
+WAYPOINT_SESSION='SESSION=...' python -m training.fetch --kind orders --url http://localhost:8080 --depot Kandy \
+    --from 2024-10-07 --to 2026-10-04 --out kandy.jsonl
+# 2. Fit, backtest, and write the model if it earns it (every depot's export in one file: one model for all).
+cat kandy.jsonl peliyagoda.jsonl > orders.jsonl
+python -m training.retrain_demand --export orders.jsonl --version 2026.10.21 --out build/ \
+    --current models/task2a_model.joblib
+```
+
+The export counts each order once by the day it was placed, as the forecast's actuals count it (R-ML-28). An order without a temperature is left out and counted in the report; one without a volume still counts towards the order schedule but not the order-size regressions.
+
+`retrain_demand` writes the model file, `manifest-entry.json` and `report.json`. It exits 2 without a model, with the reason in the report, when:
+
+- there are fewer than 52 weeks of orders (the model has an annual term and a ramp per festival);
+- an order day is not in the calendar (import a newer reference first);
+- there are fewer than 4 backtest starts.
+
+It also exits 2, writing the model but not handing it over, when the backtest says so (R-ML-29):
+
+- Starts: the latest Monday with 10 finished weeks after it, then every 4 weeks back, at most 6, each with 26 weeks or more of orders before it. Each start's model is fitted only on the orders before it and forecasts 10 weeks.
+- The candidate must have lower total and chilled WAPE than a naive forecast on the same weeks: each depot and brand's mean of the 8 weeks before the start, a yardstick for this check rather than the product's fallback.
+- With `--current`, it must also not be worse than the model in use on those weeks.
+
+**On a schedule.** `training.run` builds a demand candidate beside the late-risk one, in `<out>/<date>/demand/`, over the last `--demand-weeks` finished weeks (default 104). It compares the candidate with the demand model `manifest.json` serves. The run exits 0 when either candidate is worth handing over. Handing it over is the same reviewed change as for the late-risk model: copy the file into `models/`, replace the `demand_forecast` entry in `manifest.json` with `manifest-entry.json`, run `pytest`, then register and activate `waypoint-demand` on the admin Models screen.
+
+On a synthetic history of 78 weeks whose orders follow the calendar (`tests/demand_orders.py`), the candidate scores 5.9% total and 3.3% chilled WAPE against the naive forecast's 21% and 20%, over 6 starts. A dry run on the full Datathon order history, which reproduces the team's backtest, has not been run: the history is licensed and is not on this machine.
+
 ## Reproducibility
 
 - Every random seed is fixed, so the same request always gives the same answer.

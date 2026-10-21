@@ -100,6 +100,8 @@ def load(manifest_path: Path = MANIFEST, models_dir: Path = MODELS_DIR) -> Loade
         loaded.planning = joblib.load(models_dir / risk.artifacts[0])
     elif risk is not None:
         loaded.task1 = joblib.load(models_dir / inference.TASK1)
-    if 'demand_forecast' in info:
-        loaded.task2a = joblib.load(models_dir / inference.TASK2A)
+    demand = info.get('demand_forecast')
+    if demand is not None:
+        # The Datathon model or one retrained on our own orders (#7): both are a DemandModel, named by the manifest.
+        loaded.task2a = joblib.load(models_dir / demand.artifacts[0])
     return loaded
