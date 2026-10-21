@@ -7,6 +7,7 @@ import { useRecorder, type Recording } from "@shared/messaging/recorder";
 import { ISSUE_KIND_LABEL, isFlagged, orderLabel, placeName, productName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
 import { BigButton, Sheet } from "../ui.tsx";
+import FoundFlag from "./FoundFlag.tsx";
 import { useTakenPhotos } from "../../../shared/media/useTakenPhotos.ts";
 import { useT } from "../i18n.tsx";
 import { CameraIcon, ChevronDownIcon, CloseIcon, IssueIcon } from "../icons.tsx";
@@ -70,6 +71,8 @@ export default function IssueSheet({
   outlets,
   busy,
   onSend,
+  onFound = null,
+  online = true,
   onClose,
 }: {
   lines: Line[];
@@ -82,6 +85,9 @@ export default function IssueSheet({
    * @param voice an optional voice note, heard by the dispatcher beside the report.
    */
   onSend: (payload: Omit<FlagShortfall, "tripId">, photo: Blob | null, voice: Recording | null) => Promise<boolean>;
+  /** R-ISS-17: take a reported item's flag back, before release. Absent where it cannot. */
+  onFound?: ((item: ItemView, reason: string) => Promise<boolean>) | null;
+  online?: boolean;
   onClose: () => void;
 }): React.JSX.Element {
   const tr = useT();
@@ -303,6 +309,10 @@ export default function IssueSheet({
             </button>
           )}
         </div>
+
+        {item !== null && isFlagged(item.status) && onFound && (
+          <FoundFlag online={online} busy={busy} onFound={async (why) => (await onFound(item, why)) && (onClose(), true)} />
+        )}
 
         {item !== null && isFlagged(item.status) && (
           <Notice tone="info" title={tr("This item is already reported")}>

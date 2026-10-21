@@ -5,6 +5,7 @@ import { newCommand } from "@shared/api/commands";
 import { ApiError } from "@shared/api/problem";
 import { useResource, type Resource } from "@shared/api/useResource";
 import {
+  IssueCommandKind,
   LoadingCommandKind,
   type CheckStatus,
   type FlagShortfall,
@@ -46,6 +47,13 @@ export type Trip = {
   check: (line: ManifestLineView, item: ItemView | null, status: "LOADED" | "PENDING") => Promise<Outcome>;
   /** @param photo FF-02: a photo of the line, kept on the device and sent before the issue needs it. */
   flag: (payload: Omit<FlagShortfall, "tripId">, photo?: Blob | null) => Promise<Outcome>;
+  /**
+   * R-ISS-17: the goods of a flagged item turned up. Takes the flag back with the
+   * loader's reason (the order's newest open shortfall issue, resolved "found at the
+   * depot") and ticks the item loaded. Needs a connection; refused after release.
+   * Absent when the gateway cannot read issues.
+   */
+  found: ((line: ManifestLineView, item: ItemView, reason: string) => Promise<Outcome>) | null;
   release: (checklist: Omit<ReleaseTrip, "tripId">) => Promise<Outcome>;
   handBack: () => Promise<Outcome>;
 };
@@ -221,5 +229,35 @@ export function useTrip(
       }
     },
     handBack: () => run(LoadingCommandKind.handBack, { tripId }),
+    found: gateway.shortfallIssues
+      ? async (line, item, reason) => {
+          if (!online) return { ok: false, error: new Error("Taking a flag back needs a connection, so the dispatcher sees it at once.") };
+          setBusy(true);
+          try {
+            const [issue] = await gateway.shortfallIssues!(tripId, line.orderId);
+            if (issue) {
+              await gateway.send(
+                newCommand(
+                  IssueCommandKind.recordReplacement,
+                  { issueId: issue.issueId, tripId, orderId: line.orderId, note: `found at the depot: ${reason.trim()}` },
+                  issue.rowVersion,
+                  actingUserId,
+                ),
+              );
+            }
+          } catch (failure) {
+            const error = failure instanceof Error ? failure : new Error(String(failure));
+            setError(error);
+            return { ok: false, error };
+          } finally {
+            setBusy(false);
+          }
+          return run(
+            LoadingCommandKind.check,
+            { tripId, orderId: line.orderId, lineNo: item.lineNo, status: "LOADED", loadedUnits: item.units, reason: null },
+            setItems(line.orderId, [{ lineNo: item.lineNo, status: "LOADED", loadedUnits: item.units }]),
+          );
+        }
+      : null,
   };
 }

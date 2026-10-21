@@ -1,7 +1,7 @@
 import { request, requestAll } from "@shared/api/client";
 import { send, type Command, type CommandAck } from "@shared/api/commands";
 import { drainUploads, enqueue, readThrough, saveUpload } from "@shared/offline";
-import type { ManifestView, OutletView, ReadyTripView } from "@shared/domain/types";
+import type { IssueView, ManifestView, OutletView, ReadyTripView } from "@shared/domain/types";
 import { sampleGateway } from "./fixtures.ts";
 
 // Everything the loader screens read and write, behind one seam. The real
@@ -24,6 +24,11 @@ export type LoadingGateway = {
    * sent to the order's issue photos. Absent on the sample gateway.
    */
   savePhoto?: (attachmentId: string, orderId: string, photo: Blob) => Promise<{ durable: boolean; reason?: string }>;
+  /**
+   * R-ISS-17: the open shortfall issues about one order on a trip, newest first,
+   * so a loader who finds the goods takes the flag back. Absent on the sample gateway.
+   */
+  shortfallIssues?: (tripId: string, orderId: string) => Promise<IssueView[]>;
   /** Sample only: publish a new plan version under the loader, to show R-LOD-03. */
   revisePlan?: (tripId: string) => void;
 };
@@ -43,6 +48,13 @@ function liveGateway(accountId: string): LoadingGateway {
     outlets: (depot, signal) =>
       readThrough(accountId, `loader:outlets:${depot}`, () => requestAll(`/api/reference/outlets?depot=${encodeURIComponent(depot)}`, { signal })),
     send: (command) => send(command),
+    shortfallIssues: async (tripId, orderId) => {
+      const all = await request<IssueView[]>(`/api/issues/by-subject?type=trip&id=${encodeURIComponent(tripId)}`);
+      return all
+        .filter((i) => i.type === "LOADING_SHORTFALL" && (i.status === "OPEN" || i.status === "ASSIGNED"))
+        .filter((i) => i.subjects.some((s) => s.type === "order" && s.id === orderId))
+        .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt));
+    },
     queue: (command) => enqueue(accountId, "loader", command),
     savePhoto: async (attachmentId, orderId, photo) => {
       const kept = await saveUpload(accountId, {

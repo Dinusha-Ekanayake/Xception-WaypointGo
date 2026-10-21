@@ -273,6 +273,12 @@ public class JdbcManifestWriter {
   }
 
   /** Issues resolved the shortfalls of an order on a trip (shortfall.resolved names no shortfall id). */
+  public int resolveShortfall(UUID shortfallId, String resolution, Instant at) {
+    return database.update(
+        "UPDATE loading.shortfalls SET resolved_at = ?, resolution = ? WHERE shortfall_id = ? AND resolved_at IS NULL",
+        Timestamp.from(at), resolution, shortfallId);
+  }
+
   public int resolveShortfalls(UUID tripId, UUID orderId, String resolution, Instant at) {
     return database.update(
         """

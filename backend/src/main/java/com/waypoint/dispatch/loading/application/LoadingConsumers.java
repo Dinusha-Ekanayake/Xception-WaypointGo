@@ -110,7 +110,13 @@ public final class LoadingConsumers {
     @Override
     public void on(EventEnvelope<ShortfallResolved> envelope) {
       ShortfallResolved e = envelope.payload();
-      writer.resolveShortfalls(e.tripId(), e.orderId(), e.resolution(), clock.now());
+      // The issue's own shortfall when it names one, so finding one item leaves
+      // another item's flag on the same order open (ISS-27).
+      if (e.shortfallId().isPresent()) {
+        writer.resolveShortfall(e.shortfallId().get(), e.resolution(), clock.now());
+      } else {
+        writer.resolveShortfalls(e.tripId(), e.orderId(), e.resolution(), clock.now());
+      }
     }
   }
 

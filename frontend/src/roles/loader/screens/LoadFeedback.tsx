@@ -16,7 +16,8 @@ export type ToastMessage = {
    * "loaded" for a tick (green, the time); "saved" for an issue kept on this
    * device (grey, Just now); "hint" for a tap that cannot count yet (amber).
    */
-  kind: "loaded" | "saved" | "hint";
+  /** "sent": reached the server, as a flag taken back (R-ISS-17). */
+  kind: "loaded" | "saved" | "hint" | "sent";
   title: string;
   detail?: string;
   /** A last line, such as who the issue goes to. */
@@ -36,7 +37,7 @@ export function Toast({ message, onDone }: { message: ToastMessage; onDone: () =
     const timer = window.setTimeout(onDone, message.undo ? 6000 : 4000);
     return () => window.clearTimeout(timer);
   }, [message, onDone]);
-  const loaded = message.kind === "loaded";
+  const loaded = message.kind === "loaded" || message.kind === "sent";
   const hint = message.kind === "hint";
 
   return (
@@ -46,7 +47,7 @@ export function Toast({ message, onDone }: { message: ToastMessage; onDone: () =
           <div className="flex items-center justify-between text-[13px]">
             <span className={cx("flex items-center gap-1.5 font-medium", loaded ? "text-go-success" : hint ? "text-go-warning-text" : "text-go-muted")}>
               <span aria-hidden className={cx("size-2 rounded-full", loaded ? "bg-go-success" : hint ? "bg-go-warning" : "bg-go-muted")} />
-              {tr(loaded ? "Order loaded" : hint ? "Not yet" : "Saved offline")}
+              {tr(message.kind === "sent" ? "Sent" : loaded ? "Order loaded" : hint ? "Not yet" : "Saved offline")}
             </span>
             <span className="text-go-muted">{loaded ? clock(message.at) : tr("Just now")}</span>
           </div>

@@ -13,6 +13,9 @@ import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.identity.application.LoginHandler;
 import com.waypoint.dispatch.identity.application.OperatorRegistry;
 import com.waypoint.dispatch.identity.web.AuthController;
+import com.waypoint.dispatch.issues.contract.IssueEvents.ShortfallResolved;
+import com.waypoint.dispatch.loading.contract.LoadingEvents.LoadingShortfall;
+import com.waypoint.dispatch.loading.contract.LoadingViews.CheckStatus;
 import com.waypoint.dispatch.loading.LoadingTestConfig.MovableClock;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
@@ -387,6 +390,73 @@ class LoadingIntegrationTest {
     long thisTripsShortfalls = java.util.stream.StreamSupport.stream(shortfalls.spliterator(), false)
         .filter(s -> tripId.toString().equals(s.get("tripId").asText())).count();
     assertEquals(1, thisTripsShortfalls);
+  }
+
+  @Test
+  void aLoaderWhoFindsTheGoodsTakesTheFlagBackBeforeReleaseButNotAfter() throws Exception {
+    // R-ISS-17: the flag's issue is resolved "found at the depot" and the shortfall with it.
+    send(isuru, "loading:Start", 1L, "{\"tripId\":\"" + tripId + "\"}", 200);
+    UUID shortfallId = flag(2L, orderB);
+    String issue = issueOf(shortfallId);
+    String found = "{\"issueId\":\"" + issue + "\",\"tripId\":\"" + tripId + "\",\"orderId\":\"" + orderB + "\","
+        + "\"note\":\"found at the depot: behind the next pallet\"}";
+    send(outsider, "issue:RecordReplacement", 1L, found, 403);
+    send(isuru, "loading:Check", 3L,
+        "{\"tripId\":\"" + tripId + "\",\"orderId\":\"" + orderB + "\",\"lineNo\":1,\"status\":\"LOADED\"}", 200);
+    send(isuru, "issue:RecordReplacement", 1L, found, 200);
+    deliver("loading.on-shortfall-resolved",
+        new ShortfallResolved(UUID.fromString(issue), tripId, orderB, "found at the depot: behind the next pallet",
+            Optional.of(shortfallId)));
+    assertTrue(openShortfalls().isEmpty(), "the flag is taken back");
+
+    // ISS-27: two flags on one order, one found; the other stays open.
+    UUID first = flag(4L, orderA, 1);
+    UUID second = flag(5L, orderA, 2);
+    send(isuru, "issue:RecordReplacement", 1L,
+        "{\"issueId\":\"" + issueOf(first) + "\",\"tripId\":\"" + tripId + "\",\"orderId\":\"" + orderA + "\","
+            + "\"note\":\"found at the depot: under the shelf\"}", 200);
+    deliver("loading.on-shortfall-resolved",
+        new ShortfallResolved(UUID.fromString(issueOf(first)), tripId, orderA, "found", Optional.of(first)));
+    assertEquals(List.of(second.toString()),
+        openShortfalls().stream().map(s -> s.get("shortfallId").asText()).toList());
+
+    // Once the vehicle has left, nothing more can be loaded on it.
+    UUID late = second;
+    send(isuru, "loading:Release", 6L, release(true), 200);
+    String refused = send(isuru, "issue:RecordReplacement", 1L,
+        "{\"issueId\":\"" + issueOf(late) + "\",\"tripId\":\"" + tripId + "\",\"orderId\":\"" + orderA + "\","
+            + "\"note\":\"found it after all\"}", 409);
+    assertTrue(refused.contains("R-ISS-17"), refused);
+  }
+
+  private UUID flag(long version, UUID orderId) throws Exception {
+    return flag(version, orderId, 1);
+  }
+
+  /** Flags the whole line as missing: orderA has 2 then 3 units, orderB 4. */
+  private UUID flag(long version, UUID orderId, int lineNo) throws Exception {
+    int units = orderId.equals(orderB) ? 4 : lineNo == 1 ? 2 : 3;
+    send(isuru, "loading:Shortfall", version,
+        "{\"tripId\":\"" + tripId + "\",\"orderId\":\"" + orderId + "\",\"lineNo\":" + lineNo + ",\"kind\":\"MISSING\","
+            + "\"missingUnits\":" + units + ",\"reason\":\"Not on the pallet\",\"photoAttachmentId\":null}", 200);
+    JsonNode open = openShortfalls().stream().filter(s -> orderId.toString().equals(s.get("orderId").asText()))
+        .filter(s -> s.get("lineNo").asInt() == lineNo).findFirst().orElseThrow();
+    UUID shortfallId = UUID.fromString(open.get("shortfallId").asText());
+    deliver("issues.on-loading-shortfall", new LoadingShortfall(shortfallId, tripId, orderId, depot, CheckStatus.MISSING,
+        units, "Not on the pallet", List.of()));
+    return shortfallId;
+  }
+
+  private String issueOf(UUID shortfallId) throws Exception {
+    return json(read(isuru, "/api/issues/by-subject?type=shortfall&id=" + shortfallId, 200)).get(0).get("issueId").asText();
+  }
+
+  private List<JsonNode> openShortfalls() throws Exception {
+    JsonNode all = json(read(isuru, "/api/loading/shortfalls?depot=" + depot, 200));
+    return java.util.stream.StreamSupport.stream(all.spliterator(), false)
+        .filter(s -> tripId.toString().equals(s.get("tripId").asText()))
+        .filter(s -> s.get("resolvedAt") == null || s.get("resolvedAt").isNull())
+        .toList();
   }
 
   @Test

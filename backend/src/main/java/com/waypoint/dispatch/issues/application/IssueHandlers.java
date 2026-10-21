@@ -7,6 +7,8 @@ import com.waypoint.dispatch.issues.contract.IssueEvents.ShortfallResolved;
 import com.waypoint.dispatch.issues.domain.Issue;
 import com.waypoint.dispatch.issues.domain.ResolutionAction;
 import com.waypoint.dispatch.issues.infrastructure.JdbcIssueRepository;
+import com.waypoint.dispatch.loading.contract.LoadingQuery;
+import com.waypoint.dispatch.loading.contract.LoadingViews.ManifestView;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.messaging.Command;
 import com.waypoint.dispatch.platform.messaging.CommandPayload;
@@ -92,11 +94,19 @@ final class IssueHandlers {
     }
   }
 
-  /** A replacement for a loading shortfall was loaded; Loading may recheck and release (LOD-01). */
+  /**
+   * A replacement for a loading shortfall was loaded, or the loader found the
+   * goods (R-ISS-17); Loading may recheck and release (LOD-01). Refused once the
+   * trip is released, read from Loading's contract.
+   */
   @Component
   static class RecordReplacementHandler extends IssueCommandHandler {
-    RecordReplacementHandler(Database d, JdbcIssueRepository i, EventPublisher e, Metrics m, Clock c, IssueScope s) {
+    private final LoadingQuery loading;
+
+    RecordReplacementHandler(
+        Database d, JdbcIssueRepository i, EventPublisher e, Metrics m, Clock c, IssueScope s, LoadingQuery loading) {
       super(d, i, e, m, c, s);
+      this.loading = loading;
     }
 
     @Override
@@ -107,7 +117,9 @@ final class IssueHandlers {
     @Override
     protected Issue decide(Issue current, Command command, Actor actor, Instant now) {
       CommandPayload p = CommandPayload.of(command);
-      return current.recordReplacement(p.uuid("tripId"), p.uuid("orderId"), note(command, "note"), actor.userId(), now);
+      UUID tripId = p.uuid("tripId");
+      boolean released = loading.manifest(tripId).flatMap(ManifestView::releasedAt).isPresent();
+      return current.recordReplacement(tripId, p.uuid("orderId"), released, note(command, "note"), actor.userId(), now);
     }
 
     @Override

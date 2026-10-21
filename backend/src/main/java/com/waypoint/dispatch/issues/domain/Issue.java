@@ -119,11 +119,22 @@ public record Issue(
     return with(IssueStatus.RESOLVED, assignee, Optional.of(new Resolution(action, why, actor, at)), redeliveryRequestedAt);
   }
 
-  /** A replacement was loaded for a loading shortfall. Resolves the issue as {@code REPLACEMENT}. */
-  public Issue recordReplacement(UUID tripId, UUID orderId, String note, UUID actor, Instant at) {
+  /**
+   * A replacement was loaded for a loading shortfall, or the loader found the
+   * goods at the depot (R-ISS-17). Resolves the issue as {@code REPLACEMENT}.
+   * Only before the trip is released: once the vehicle has left, nothing more
+   * can be loaded, and the shortfall is a redelivery or a write-off.
+   */
+  public Issue recordReplacement(UUID tripId, UUID orderId, boolean released, String note, UUID actor, Instant at) {
     if (type != IssueType.LOADING_SHORTFALL) {
       throw new DomainException(
           ErrorCode.CONFLICT, "only a loading shortfall takes a replacement; this is " + type, List.of("R-ISS-04"));
+    }
+    if (released) {
+      throw new DomainException(
+          ErrorCode.CONFLICT,
+          "the trip has left the depot, so nothing more can be loaded on it; resolve the shortfall another way",
+          List.of("R-ISS-17"));
     }
     requireSubject("trip", tripId);
     requireSubject("order", orderId);

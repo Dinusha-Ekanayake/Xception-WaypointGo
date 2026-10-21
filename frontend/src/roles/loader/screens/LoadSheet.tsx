@@ -271,6 +271,15 @@ export default function LoadSheet({
             }
             return outcome.ok;
           }}
+          online={online}
+          // Only before release, and only on a line the loader holds (R-ISS-17).
+          onFound={t.found && editable ? async (item, reason) => {
+            const line = t.lines.find((l) => l.items.some((i) => i === item)) ?? issueFor?.line;
+            if (!line) return false;
+            const outcome = await t.found!(line, item, reason);
+            if (outcome.ok) setToast({ kind: "sent", at: businessNow(), title: tr("Flag removed"), detail: tr("The dispatcher sees the item as found and loaded.") });
+            return outcome.ok;
+          } : null}
           onClose={() => setIssueFor(undefined)}
         />
       )}

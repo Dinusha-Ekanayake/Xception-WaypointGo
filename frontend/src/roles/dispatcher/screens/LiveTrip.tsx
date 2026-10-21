@@ -108,12 +108,12 @@ export default function LiveTrip({
           <table className="w-full text-left text-[13px]">
             <thead>
               <tr className="border-b border-go-rule text-[12px] text-go-secondary">
-                <th className="py-2 font-normal">Outlet</th>
-                <th className="py-2 font-normal">Expected</th>
-                <th className="py-2 font-normal">Status</th>
-                <th className="py-2 font-normal">Told</th>
-                <th className="py-2 font-normal">Response</th>
-                <th className="py-2 font-normal"><span className="sr-only">Action</span></th>
+                <th className="py-2 pr-3 font-normal">Outlet</th>
+                <th className="py-2 pr-3 font-normal">Expected</th>
+                <th className="py-2 pr-3 font-normal">Status</th>
+                <th className="py-2 pr-3 font-normal">Told</th>
+                <th className="py-2 pr-3 font-normal">Response</th>
+                <th className="py-2 pr-3 font-normal"><span className="sr-only">Action</span></th>
               </tr>
             </thead>
             <tbody>
@@ -121,14 +121,14 @@ export default function LiveTrip({
                 const st = stopStatus(s, run, next);
                 return (
                   <tr key={s.deliveryId} className={cx("border-b border-go-rule last:border-0", st.done && "text-go-secondary")}>
-                    <td className="py-3 font-semibold text-go-ink">
+                    <td className="whitespace-nowrap py-3 pr-3 font-semibold text-go-ink">
                       <span aria-hidden className={cx("mr-2 inline-block size-2 rounded-full", st.dot)} />
                       {s.outletId}
                     </td>
-                    <td className="py-3 tabular-nums">{etaOf(s)}</td>
-                    <td className={cx("py-3", st.text)}>{st.label}</td>
-                    <td className="py-3 text-go-secondary">-</td>
-                    <td className="py-3 text-go-secondary">-</td>
+                    <td className="py-3 pr-3 tabular-nums">{etaOf(s)}</td>
+                    <td className={cx("py-3 pr-3", st.text)}>{st.label}</td>
+                    <td className="py-3 pr-3 text-go-secondary">-</td>
+                    <td className="py-3 pr-3 text-go-secondary">-</td>
                     <td className="py-3 text-right">
                       <SkipStopButton stop={s} online={online} />
                     </td>

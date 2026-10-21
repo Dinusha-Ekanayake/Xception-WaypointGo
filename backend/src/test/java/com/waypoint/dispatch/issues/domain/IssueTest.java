@@ -108,17 +108,23 @@ class IssueTest {
   @Test
   void aReplacementOnlyAnswersALoadingShortfallAboutThatTripAndOrder() {
     Issue shortfall = raise(IssueType.LOADING_SHORTFALL, false);
-    Issue done = shortfall.recordReplacement(trip, order, "replacement carton loaded", DISPATCHER, RAISED);
+    Issue done = shortfall.recordReplacement(trip, order, false, "replacement carton loaded", DISPATCHER, RAISED);
     assertEquals(ResolutionAction.REPLACEMENT, done.resolution().orElseThrow().action());
 
     assertEquals(
         ErrorCode.CONFLICT,
         assertThrows(DomainException.class,
-            () -> raise(IssueType.DAMAGED_GOODS, false).recordReplacement(trip, order, "x x", DISPATCHER, RAISED))
+            () -> raise(IssueType.DAMAGED_GOODS, false).recordReplacement(trip, order, false, "x x", DISPATCHER, RAISED))
             .code());
     assertThrows(
         DomainException.class,
-        () -> shortfall.recordReplacement(UUID.randomUUID(), order, "wrong trip", DISPATCHER, RAISED));
+        () -> shortfall.recordReplacement(UUID.randomUUID(), order, false, "wrong trip", DISPATCHER, RAISED));
+    // R-ISS-17: once the vehicle has left, nothing more is loaded on it.
+    assertEquals(
+        List.of("R-ISS-17"),
+        assertThrows(DomainException.class,
+            () -> shortfall.recordReplacement(trip, order, true, "found at the depot", DISPATCHER, RAISED))
+            .rules());
   }
 
   @Test

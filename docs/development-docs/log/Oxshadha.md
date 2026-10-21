@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-21 - feat: a loader takes back a flag when the goods turn up
+
+`dev` · @Oxshadha
+
+- Piece 3 of the trip-problems vision. On a reported item the loader's report sheet offers "Found, remove flag" with where it was: the order's newest open shortfall issue is resolved "found at the depot" through the existing `issue:RecordReplacement` (a new loader policy version grants it, depot-scoped), and the item is ticked loaded. No new command or event (R-ISS-17, ISS-25 to ISS-27). A flow change to the loader UI under role-ui-scope.md, approved with the vision.
+- A replacement, anyone's, is now refused once the trip is released. Loading resolves only the shortfall the issue names, so finding one item of an order leaves another item's flag open (it used to clear every shortfall of the order).
+
+---
+
 ## 2026-10-21 - feat: goods problems wait for the day's end
 
 `dev` · @Oxshadha
