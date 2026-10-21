@@ -35,4 +35,31 @@ public final class PlaybookViews {
   public record SuggestionsView(
       String situation, String deliveryId, String basis, int version, List<SuggestionView> suggestions,
       PlaybookView playbook) {}
+
+  /**
+   * One trip's outlook (decision suggestions part 2, R-ML-34): the chance of each
+   * decision about the trip and of each outcome for every stop still waiting.
+   *
+   * @param situation the trip's situation, when a breakdown, a blocked road or running late is on it
+   * @param trip End trip, Wait and Carry on, most likely first; empty with no trip situation
+   * @param signals what it was made from, so the screen can say where a chip came from
+   */
+  public record TripOutlookView(
+      String tripId, int version, Optional<String> situation, List<ChanceView> trip, List<SignalView> signals,
+      List<StopOutlookView> stops) {}
+
+  /** @param chance 0 to 1, summing to 1 over the list it is in */
+  public record ChanceView(String action, double chance, Optional<String> warning) {}
+
+  /**
+   * @param action Skip to next day, Skip and cancel, Ask to receive later or Deliver as planned
+   * @param learned the stop's own chances came from what dispatchers chose before
+   * @param because the message ids of the signals behind it
+   */
+  public record StopOutlookView(
+      String deliveryId, String outletId, int sequence, long rowVersion, String situation, List<ChanceView> chances,
+      boolean learned, List<String> because) {}
+
+  /** @param source {@code report} for a report picked by its writer; {@code message} for one read automatically */
+  public record SignalView(String messageId, String situation, String source, Optional<String> outletId) {}
 }

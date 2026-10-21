@@ -203,3 +203,61 @@ test("a report about the vehicle gets its chips too, asked about the next stop, 
   await expect(chat.getByRole("textbox").last()).toHaveValue("VEH020 has broken down on the way to your store. We will tell you as soon as we know when it can come.");
   await expect(chat.getByRole("radio", { name: "Everyone on the trip" })).toHaveAttribute("aria-checked", "true");
 });
+
+test("the chat's top says what is likely for the whole trip and each store waiting, and a tap opens the decision (R-ML-34)", async ({ page }) => {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
+    said("r1", "2027-03-01T10:05:00Z", { kind: "report", reportType: "vehicle_fault", authorName: "Dilan R.", authorRole: "driver", audience: "dispatch", body: "Engine light" }),
+  ]);
+  const desk = await serve(page, { ...liveDay(), threads: [thread] });
+  const asked: string[] = [];
+  await page.route("**/api/ml/trip-outlook**", (route) => {
+    asked.push(new URL(route.request().url()).searchParams.get("tripId") ?? "");
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        tripId: "t-VEH020", version: 1, situation: "BREAKDOWN",
+        trip: [{ action: "END_TRIP", chance: 0.5, warning: null }, { action: "WAIT", chance: 0.4, warning: null }, { action: "CARRY_ON", chance: 0.1, warning: null }],
+        signals: [{ messageId: "r1", situation: "BREAKDOWN", source: "report", outletId: null }],
+        stops: [{
+          deliveryId: "d-VEH020-2", outletId: "OUT063", sequence: 2, rowVersion: 1, situation: "BREAKDOWN", learned: false, because: ["r1"],
+          chances: [
+            { action: "SKIP_NEXT_DAY", chance: 0.6, warning: "Deferred before: this store would be skipped twice in a row" },
+            { action: "DELIVER", chance: 0.3, warning: null },
+            { action: "ASK_RECEIVE_LATER", chance: 0.1, warning: null },
+          ],
+        }],
+      }),
+    });
+  });
+  await page.goto("/#/live");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("region", { name: "Timeline" }).getByTestId("report-sign").first().click();
+
+  const chat = page.getByRole("dialog", { name: "Trip messages" });
+  const likely = chat.getByRole("region", { name: "Likely decisions" });
+  await expect(likely.getByRole("group", { name: "VEH020 · Breakdown" }).getByRole("button")).toHaveText(["End trip · 50%", "Wait · 40%", "Carry on · 10%"]);
+  const store = likely.getByRole("group", { name: "OUT063 · Breakdown" });
+  await expect(store.getByRole("button")).toHaveText(["Skip to next day · 60%", "Deliver as planned · 30%", "Ask to receive later · 10%"]);
+  await expect(store).toContainText("skipped twice in a row");
+  expect(asked[0]).toBe("t-VEH020");
+  // The report it covers offers no second set of chips; its Skip stays.
+  await expect(chat.locator("#message-r1").getByRole("group", { name: "Suggested decisions" })).toHaveCount(0);
+  if (process.env.SHOTS_DIR) {
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: `${process.env.SHOTS_DIR}/19-trip-outlook-chips.png` });
+  }
+
+  // Asking the store puts the question to that store in the composer.
+  await store.getByRole("button", { name: /Ask to receive later/ }).click();
+  await expect(chat.getByRole("textbox").last()).toHaveValue(/VEH020 is held up on the way to you/);
+
+  // Skip opens the skip already set to the next day, in place; the dispatcher still confirms with a reason.
+  await chat.getByRole("region", { name: "Likely decisions" }).getByRole("group", { name: "OUT063 · Breakdown" }).getByRole("button", { name: /Skip to next day/ }).click();
+  const form = chat.getByRole("group", { name: "Skip OUT063" });
+  await expect(form.getByRole("radio", { name: "Next day" })).toHaveAttribute("aria-checked", "true");
+  await form.getByRole("textbox", { name: "Why" }).fill("Broken down, cannot reach it today");
+  await form.getByRole("button", { name: "Skip to next day" }).click();
+  await expect.poll(() => desk.commands.find((c) => c.kind === "delivery:SkipStop")?.payload).toMatchObject({ deliveryId: "d-VEH020-2", then: "NEXT_DAY" });
+});

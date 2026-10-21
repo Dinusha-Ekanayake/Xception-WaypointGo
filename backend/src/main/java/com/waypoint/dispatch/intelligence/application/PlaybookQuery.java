@@ -109,7 +109,7 @@ public class PlaybookQuery {
         suggestions, view(Playbooks.playbook(s)));
   }
 
-  private static Playbooks.Tally tally(com.waypoint.dispatch.intelligence.infrastructure.JdbcDecisionSuggestions.Tally t) {
+  static Playbooks.Tally tally(com.waypoint.dispatch.intelligence.infrastructure.JdbcDecisionSuggestions.Tally t) {
     java.util.Map<Playbooks.Action, Integer> shown = new java.util.EnumMap<>(Playbooks.Action.class);
     java.util.Map<Playbooks.Action, Integer> chosen = new java.util.EnumMap<>(Playbooks.Action.class);
     t.shown().forEach((k, v) -> shown.put(Playbooks.Action.parse(k), v));

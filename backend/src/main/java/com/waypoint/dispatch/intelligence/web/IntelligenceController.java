@@ -52,6 +52,7 @@ public class IntelligenceController {
   private final RequestAuthorizer authorizer;
   private final com.waypoint.dispatch.intelligence.application.AiExplainer explainer;
   private final com.waypoint.dispatch.intelligence.application.PlaybookQuery playbooks;
+  private final com.waypoint.dispatch.intelligence.application.TripOutlookQuery tripOutlook;
   private final com.waypoint.dispatch.intelligence.application.AiHealthQuery aiHealth;
 
   public IntelligenceController(
@@ -65,10 +66,12 @@ public class IntelligenceController {
       RequestAuthorizer authorizer,
       com.waypoint.dispatch.intelligence.application.AiExplainer explainer,
       com.waypoint.dispatch.intelligence.application.PlaybookQuery playbooks,
+      com.waypoint.dispatch.intelligence.application.TripOutlookQuery tripOutlook,
       com.waypoint.dispatch.intelligence.application.AiHealthQuery aiHealth) {
     this.aiHealth = aiHealth;
     this.explainer = explainer;
     this.playbooks = playbooks;
+    this.tripOutlook = tripOutlook;
     this.intelligence = intelligence;
     this.outlook = outlook;
     this.attention = attention;
@@ -282,6 +285,17 @@ public class IntelligenceController {
       @org.springframework.web.bind.annotation.RequestParam String situation,
       HttpServletRequest request) {
     return playbooks.forStop(read(request, "wpt:ml:delivery:" + deliveryId), deliveryId, situation);
+  }
+
+  /**
+   * One trip's decision outlook (R-ML-34): the chance of each decision about the
+   * trip and of each outcome for every stop still waiting, from its open reports.
+   * Advice only.
+   */
+  @GetMapping("/trip-outlook")
+  public com.waypoint.dispatch.intelligence.contract.PlaybookViews.TripOutlookView tripOutlook(
+      @org.springframework.web.bind.annotation.RequestParam String tripId, HttpServletRequest request) {
+    return tripOutlook.forTrip(read(request, "wpt:ml:trip:" + tripId), tripId);
   }
 
   private Actor read(HttpServletRequest request, String resource) {

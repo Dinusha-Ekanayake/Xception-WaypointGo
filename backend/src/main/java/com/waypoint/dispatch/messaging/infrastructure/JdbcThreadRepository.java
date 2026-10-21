@@ -468,6 +468,18 @@ public class JdbcThreadRepository {
         depotCode, serviceDate);
   }
 
+  /** One thread's reports not yet resolved, oldest first (decision suggestions part 2). */
+  public List<Map<String, Object>> openReports(UUID threadId) {
+    return database.query(
+        """
+        SELECT message_id, report_type, author_role, about_outlet, created_at
+          FROM messaging.messages
+         WHERE thread_id = ? AND kind = 'report' AND resolved_at IS NULL AND report_type IS NOT NULL
+         ORDER BY created_at, message_id
+        """,
+        threadId);
+  }
+
   private static Thread thread(Map<String, Object> row) {
     return new Thread(
         (UUID) row.get("thread_id"),

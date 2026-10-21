@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-23 - feat: one decision outlook per trip, at the top of the trip's chat
+
+`dev` · @Oxshadha
+
+- Part 2, PR 1 of decision suggestions ([PLAN](../../issues/decision-suggestions/PLAN.md)): from a trip's open reports, the chance of End trip, Wait and Carry on, and of each outcome for every store still waiting. A breakdown changes every store's chances at once; a store's own report keeps its own. R-ML-34; the starting numbers are ours (A-46) until @jv-ransika sets them.
+- Messaging gained `TripReportQuery` for it; no words of a report cross. The report's own chips step aside when the outlook covers it, so a decision is offered once.
+- Left: Jev reading free text into the same outlook (PR 2), and logging what the outlook showed and what was taken (PR 3).
+
+---
+
 ## 2026-10-23 - fix: decision chips for every live problem in the chat; the trip page gives the stops the width
 
 `dev` · @Oxshadha

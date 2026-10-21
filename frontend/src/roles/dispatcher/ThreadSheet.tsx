@@ -12,6 +12,7 @@ import { useDispatcherInbox, type OpenThread } from "./inbox.tsx";
 import { EndTripButton, SkipStopButton, skippable } from "./screens/LiveTripSkip.tsx";
 import ReportSuggestions from "./screens/ReportSuggestions.tsx";
 import TellEachStore from "./screens/TellEachStore.tsx";
+import TripOutlookChips, { useTripOutlook } from "./screens/TripOutlookChips.tsx";
 
 // A trip's thread in a sheet on the right (issue #136), over whichever screen
 // opened it: a warning sign on the timeline, the trip page, a notification.
@@ -89,6 +90,10 @@ function ThreadSheetPanel({
   // A report about the vehicle (a breakdown, a blocked road, running late) names no stop: its chips are
   // asked about the next stop still open, and its word goes to everyone on the trip.
   const nextOpen = [...openStops].sort((x, y) => x.sequence - y.sequence)[0];
+  // R-ML-34: the trip's outlook at the top covers its reports; a report's own chips stay only as the
+  // fallback while the outlook cannot be read, so the same decision is never offered twice.
+  const outlook = useTripOutlook(head?.subjectId ?? null, head?.depotCode ?? null, online);
+  const covered = new Set((outlook?.signals ?? []).map((x) => x.messageId));
   const reportActions = (m: MessageView) => {
     const named = tripStops.find((s) => s.outletId === m.aboutOutletId);
     const wholeTrip = !named && m.reportType !== null && VEHICLE_REPORTS.has(m.reportType);
@@ -97,7 +102,7 @@ function ThreadSheetPanel({
     if (!about) return null;
     return (
       <div className="flex flex-col gap-2">
-        {m.reportType && m.resolvedAt === null && (
+        {m.reportType && m.resolvedAt === null && !covered.has(m.messageId) && (
           <ReportSuggestions
             stop={about}
             report={m.reportType}
@@ -143,6 +148,17 @@ function ThreadSheetPanel({
             <EndTripButton tripId={head.subjectId} open={openStops} online={online} inline />
             {date && <TellEachStore threadId={open.threadId} stops={tripStops} serviceDate={date} online={online} />}
           </div>
+        )}
+        {head && openStops.length > 0 && (
+          <TripOutlookChips
+            view={outlook}
+            tripId={head.subjectId}
+            vehicleId={head.vehicleId}
+            stops={tripStops}
+            openStops={openStops}
+            online={online}
+            onDraft={(draft) => inbox?.openThread({ threadId: open.threadId, draft })}
+          />
         )}
         {!online && (
           <p role="status" className="rounded-go-card-s bg-go-warning-tint px-3.5 py-2.5 text-sm text-go-warning-text">

@@ -378,6 +378,36 @@ export type SuggestionsView = {
   playbook: PlaybookView;
 };
 
+/** One decision's chance, 0 to 1, summing to 1 over the list it is in (R-ML-34). */
+export type ChanceView = { action: string; chance: number; warning: string | null };
+
+/**
+ * GET /api/ml/trip-outlook?tripId=: one trip's decision outlook (decision
+ * suggestions part 2, R-ML-34). The chance of each decision about the trip and
+ * of each outcome for every stop still waiting, from its open reports.
+ */
+export type TripOutlookView = {
+  tripId: string;
+  version: number;
+  /** BREAKDOWN, ROAD_BLOCKED or RUNNING_LATE when one is on the trip. */
+  situation: string | null;
+  /** END_TRIP, WAIT, CARRY_ON, most likely first; empty with no trip situation. */
+  trip: ChanceView[];
+  /** What it was made from; `source` is "report" or "message" (read automatically). */
+  signals: { messageId: string; situation: string; source: "report" | "message"; outletId: string | null }[];
+  stops: {
+    deliveryId: string;
+    outletId: string;
+    sequence: number;
+    rowVersion: number;
+    situation: string;
+    /** SKIP_NEXT_DAY, SKIP_CANCEL, ASK_RECEIVE_LATER, DELIVER, most likely first. */
+    chances: ChanceView[];
+    learned: boolean;
+    because: string[];
+  }[];
+};
+
 export const SuggestionCommandKind = {
   /** The suggestions shown beside a stop and the one taken, or none. */
   record: "ml:RecordSuggestion",

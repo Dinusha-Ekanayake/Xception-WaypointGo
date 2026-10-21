@@ -93,6 +93,8 @@ Jev classifies driver and store typed messages, voice transcripts and reports se
 
 ### Pull requests
 
+**PR 1 built 2026-10-23:** `TripOutlook` (pure, `TripOutlookTest`), Messaging's `TripReportQuery` (a trip's open reports, read as the asking person), `TripOutlookQuery` and `GET /api/ml/trip-outlook?tripId=`, and "Likely decisions" at the top of the trip's chat (`TripOutlookChips`). A report the outlook covers no longer shows part 1's chips beside it; they stay as the fallback while the outlook cannot be read. Until PR 3 the outlook's chips are not logged; part 1's log still counts decisions taken by Skip and End trip. Rule R-ML-34, assumption A-46, edge case ML-53.
+
 1. `TripOutlook` in `intelligence/domain` (pure, tested), `TripOutlookQuery` and the endpoint, the chips at the top of the chat, from typed reports only.
 2. Jev live: classify the four kinds of text, keep each class (`ml.message_situations`), the threshold as a registered parameter, degrade visibly.
 3. The log per trip: what was shown and taken for the trip and for each stop, and the learned counts per scope.

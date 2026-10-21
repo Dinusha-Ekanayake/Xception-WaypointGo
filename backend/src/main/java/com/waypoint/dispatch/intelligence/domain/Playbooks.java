@@ -242,6 +242,28 @@ public final class Playbooks {
 
   /** As {@link #suggest(Situation, Facts)}, the chances learned from the log once there is enough of it. */
   public static List<Suggestion> suggest(Situation s, Facts f, Tally tally) {
+    List<Suggestion> allowed = allowed(s, f, tally);
+    return normalised(allowed.subList(0, Math.min(SHOWN, allowed.size())));
+  }
+
+  /**
+   * Every decision the rules allow here, not only the {@link #SHOWN} on screen,
+   * with chances summing to one over all of them: what a trip's outlook adds up
+   * into a stop's outcome (decision suggestions part 2).
+   */
+  public static List<Suggestion> chances(Situation s, Facts f, Tally tally) {
+    return normalised(allowed(s, f, tally));
+  }
+
+  private static List<Suggestion> normalised(List<Suggestion> top) {
+    double sum = top.stream().mapToDouble(Suggestion::chance).sum();
+    return top.stream()
+        .map(x -> new Suggestion(x.action(), sum == 0 ? 0 : Math.round(x.chance() / sum * 100) / 100.0, x.warning()))
+        .toList();
+  }
+
+  /** The priors less what the rules rule out, the warnings attached, most likely first; not yet summing to one. */
+  private static List<Suggestion> allowed(Situation s, Facts f, Tally tally) {
     Map<Action, Double> priors = PRIORS.getOrDefault(s, Map.of());
     List<Suggestion> allowed = new ArrayList<>();
     for (Map.Entry<Action, Double> e : priors.entrySet()) {
@@ -276,10 +298,6 @@ public final class Playbooks {
       allowed.add(new Suggestion(a, chance, warning));
     }
     allowed.sort(Comparator.comparingDouble(Suggestion::chance).reversed());
-    List<Suggestion> top = allowed.subList(0, Math.min(SHOWN, allowed.size()));
-    double sum = top.stream().mapToDouble(Suggestion::chance).sum();
-    return top.stream()
-        .map(x -> new Suggestion(x.action(), sum == 0 ? 0 : Math.round(x.chance() / sum * 100) / 100.0, x.warning()))
-        .toList();
+    return allowed;
   }
 }

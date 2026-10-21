@@ -384,6 +384,51 @@ class StopSkipIntegrationTest {
   }
 
   @Test
+  void theTripsOutlookFollowsItsOpenReportsAcrossEveryStopStillWaiting() throws Exception {
+    // R-ML-34: nothing reported yet, nothing to suggest.
+    String path = "/api/ml/trip-outlook?tripId=" + tripId;
+    JsonNode quiet = json(read(dispatcher, path, 200));
+    assertTrue(quiet.get("trip").isEmpty() && quiet.get("stops").isEmpty(), quiet.toString());
+
+    // The van is at the first store and finds it closed, then breaks down.
+    command(driver, "delivery:RecordArrival", 1L, stop(stopOne), 200);
+    command(driver, "delivery:ReportStopProblem", null, "{\"deliveryId\":\"" + stopOne + "\",\"problem\":\"STORE_CLOSED\"}", 200);
+    command(driver, "delivery:ReportFault", null,
+        "{\"vehicleId\":\"" + vehicleId + "\",\"kind\":\"vehicle\",\"description\":\"clutch gone\"}", 200);
+    drain();
+
+    JsonNode o = json(read(dispatcher, path, 200));
+    assertEquals("BREAKDOWN", o.get("situation").asText(), o.toString());
+    assertEquals("END_TRIP", o.get("trip").get(0).get("action").asText());
+    assertEquals(3, o.get("stops").size(), "every stop still waiting");
+    JsonNode first = o.get("stops").get(0);
+    assertEquals(stopOne.toString(), first.get("deliveryId").asText());
+    assertEquals("STORE_CLOSED", first.get("situation").asText(), "its own report leads at its own stop");
+    JsonNode second = o.get("stops").get(1);
+    assertEquals("BREAKDOWN", second.get("situation").asText());
+    double skip = 0;
+    for (JsonNode c : second.get("chances")) {
+      if ("SKIP_NEXT_DAY".equals(c.get("action").asText())) {
+        skip = c.get("chance").asDouble();
+      }
+    }
+    assertTrue(skip >= o.get("trip").get(0).get("chance").asDouble(), "ending the trip sends it to the next day");
+    assertTrue(o.get("signals").size() >= 2, o.toString());
+    assertFalse(o.toString().contains("clutch"), "no words of a report cross");
+
+    // Skipping the closed store decides it: it leaves the outlook.
+    skip(dispatcher, stopOne, json(read(driver, "/api/execution/run-sheets?date=" + day, 200)).get(0).get("stops").get(0).get("rowVersion").asLong(),
+        "NEXT_DAY", "Store closed, the driver reported it", 200);
+    drain();
+    JsonNode after = json(read(dispatcher, path, 200));
+    assertEquals(2, after.get("stops").size(), after.toString());
+
+    // Another depot's dispatcher and a store manager are refused, never answered with nothing.
+    read(farDispatcher, path, 403);
+    read(storeTwo, path, 403);
+  }
+
+  @Test
   void aDecisionTakenWithoutAChipIsLoggedAgainstTheChipsThatWereShown() throws Exception {
     // The chips beside a report were on screen; the dispatcher skipped with the Skip button instead.
     long version = json(command(driver, "delivery:RecordArrival", 1L, stop(stopOne), 200)).get("result").get("rowVersion").asLong();
