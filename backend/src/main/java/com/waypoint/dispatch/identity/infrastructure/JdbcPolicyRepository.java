@@ -38,6 +38,16 @@ public class JdbcPolicyRepository {
              AND a.principal_id IN (SELECT role_code FROM iam.user_roles WHERE user_id = ?))
       """;
 
+  /** The documents in force for this person, each with its policy, for the editor's preview (R-IAM-42). */
+  public List<Map<String, Object>> documentsFor(UUID userId) {
+    return database.query(
+        "SELECT DISTINCT a.policy_id, v.document::text AS document FROM iam.policy_attachments a"
+            + " JOIN iam.policy_versions v ON v.policy_id = a.policy_id AND v.is_default"
+            + " WHERE (a.principal_type = 'user' AND a.principal_id = ?::text)"
+            + " OR (a.principal_type = 'role' AND a.principal_id IN (SELECT role_code FROM iam.user_roles WHERE user_id = ?))",
+        userId.toString(), userId);
+  }
+
   /** Every statement in force for this actor, from user and role attachments alike. */
   public List<Statement> statementsFor(UUID userId) {
     List<Map<String, Object>> rows =

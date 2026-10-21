@@ -43,4 +43,44 @@ public class PolicyAdminController {
     authorizer.require(request, "iam:ReadPolicy", "wpt:iam:policy:*");
     return policies.list(after, limit);
   }
+
+  // ---- the permission editor (R-IAM-42) -------------------------------------
+
+  @GetMapping("/{name}/versions")
+  public java.util.List<PolicyAdminUseCase.VersionView> versions(
+      @org.springframework.web.bind.annotation.PathVariable String name, HttpServletRequest request) {
+    authorizer.require(request, "iam:ReadPolicy", "wpt:iam:policy:" + name);
+    return policies.versions(name);
+  }
+
+  @GetMapping("/{name}/versions/{version}")
+  public com.fasterxml.jackson.databind.JsonNode version(
+      @org.springframework.web.bind.annotation.PathVariable String name,
+      @org.springframework.web.bind.annotation.PathVariable int version, HttpServletRequest request) throws Exception {
+    authorizer.require(request, "iam:ReadPolicy", "wpt:iam:policy:" + name);
+    return MAPPER.readTree(policies.document(name, version));
+  }
+
+  @GetMapping("/{name}/attachments")
+  public java.util.List<PolicyAdminUseCase.Attachment> attachments(
+      @org.springframework.web.bind.annotation.PathVariable String name, HttpServletRequest request) {
+    authorizer.require(request, "iam:ReadPolicy", "wpt:iam:policy:" + name);
+    return policies.attachments(name);
+  }
+
+  /**
+   * What saving {@code document} as the policy's new default would change, for
+   * each person it reaches. Read only: nothing is written, so it is not a
+   * command; only someone who may author policy may ask.
+   */
+  @org.springframework.web.bind.annotation.PostMapping("/{name}/preview-change")
+  public PolicyAdminUseCase.Preview preview(
+      @org.springframework.web.bind.annotation.PathVariable String name,
+      @org.springframework.web.bind.annotation.RequestBody com.fasterxml.jackson.databind.JsonNode body,
+      HttpServletRequest request) {
+    authorizer.require(request, "iam:CreatePolicy", "wpt:iam:policy:" + name);
+    return policies.preview(name, body.path("document").toString());
+  }
+
+  private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
 }

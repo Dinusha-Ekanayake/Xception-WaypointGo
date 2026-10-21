@@ -1,3 +1,5 @@
+import type { IsoInstant } from "./common.ts";
+
 /** Safe personal MCP connection context, mirrored from Identity's published contract. */
 export type McpContextView = {
   userId: string;
@@ -88,12 +90,42 @@ export type McpPrincipalAccessView = {
 export type PolicySummaryView = {
   policyId: string;
   name: string;
-  versionNumber: number;
+  /** The server names it defaultVersion; versionNumber is kept for older readers. */
+  versionNumber?: number;
+  defaultVersion?: number;
   rowVersion: number;
 };
 
+/** R-IAM-42: one version of a policy, for the editor's history. */
+export type PolicyVersionView = { versionNumber: number; isDefault: boolean; createdAt: IsoInstant; createdBy: string | null };
+
+/** Who a policy is attached to: a role with how many active people hold it, or one person. */
+export type PolicyAttachmentView = { principalType: "role" | "user"; principalId: string; label: string; people: number };
+
+/** POST /api/policies/{name}/preview-change: problems by statement (0 is the whole document), or what changes for whom. */
+export type PolicyPreviewView = {
+  problems: Array<{ statement: number; message: string }>;
+  changes: Array<{ holds: string; people: string[]; count: number; gained: string[]; lost: string[]; reachChanged: string[] }>;
+};
+
+/** A statement of a policy document, as the editor's rows hold it. */
+export type PolicyStatement = {
+  Sid?: string;
+  Effect: "Allow" | "Deny";
+  Action: string[];
+  Resource: string[];
+  Condition?: unknown;
+};
+
+export type PolicyDocumentView = { Version?: string; Statement: PolicyStatement[] };
+
 /** Policy commands; payload `{name, principalType, principalId}`, guarded by the policy's rowVersion. */
-export const PolicyCommandKind = { Attach: "iam:AttachPolicy", Detach: "iam:DetachPolicy" } as const;
+export const PolicyCommandKind = {
+  Attach: "iam:AttachPolicy",
+  Detach: "iam:DetachPolicy",
+  CreateVersion: "iam:CreatePolicyVersion",
+  SetDefaultVersion: "iam:SetDefaultPolicyVersion",
+} as const;
 
 /** GET /api/profile: a person's own account (R-IAM-32), with the version a change sends back. */
 export type ProfileView = {

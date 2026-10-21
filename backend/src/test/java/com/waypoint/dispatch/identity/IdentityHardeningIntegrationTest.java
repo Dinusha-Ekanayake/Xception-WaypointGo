@@ -416,6 +416,80 @@ class IdentityHardeningIntegrationTest {
     assertTrue(found || listed.size() == 100, "the new policy is listed with its rowVersion");
   }
 
+  /**
+   * R-IAM-42: the permission editor. The preview says who gains and loses which
+   * action, worked out by the decision point's own evaluator; a save makes it so;
+   * an old version can be restored. Problems come back per statement.
+   */
+  @Test
+  @Order(30)
+  void thePermissionEditorPreviewsAChangeThatTheSaveThenMakesAndARestoreUndoes() throws Exception {
+    String name = "HrdEditor" + RUN;
+    String v1 = "{\"Version\":\"test\",\"Statement\":[{\"Sid\":\"Register\",\"Effect\":\"Allow\",\"Action\":[\"iam:RegisterDevice\"],\"Resource\":[\"*\"]}]}";
+    ack(ADMIN, UUID.randomUUID().toString(), "iam:CreatePolicy", null,
+        "{\"name\":\"%s\",\"description\":\"editor\",\"document\":%s}".formatted(name, v1), 200);
+    ack(ADMIN, UUID.randomUUID().toString(), "iam:AttachPolicy", policyRowVersion(name),
+        "{\"name\":\"%s\",\"principalType\":\"user\",\"principalId\":\"%s\"}".formatted(name, userIdOf(LOADER)), 200);
+    UUID loader = userIdOf(LOADER);
+    assertTrue(identity.permits(loader, "iam:RegisterDevice", "wpt:iam:device:*"));
+    assertFalse(identity.permits(loader, "audit:Read", "wpt:audit:event:*"));
+
+    String v2 = "{\"Version\":\"test\",\"Statement\":[{\"Sid\":\"Audit\",\"Effect\":\"Allow\",\"Action\":[\"audit:Read\"],\"Resource\":[\"wpt:audit:*\"]}]}";
+    JsonNode preview = mapper.readTree(preview(ADMIN, name, v2, 200));
+    assertEquals(0, preview.get("problems").size(), preview.toString());
+    JsonNode mine = null;
+    for (JsonNode change : preview.get("changes")) {
+      for (JsonNode person : change.get("people")) if (person.asText().equals("Hardening Loader")) mine = change;
+    }
+    assertNotNull(mine, "the loader the policy is attached to is named: " + preview);
+    assertTrue(mine.get("gained").toString().contains("audit:Read"), mine.toString());
+    assertTrue(mine.get("lost").toString().contains("iam:RegisterDevice"), mine.toString());
+
+    // Problems per statement, nothing previewed; and the same refused on save.
+    JsonNode bad = mapper.readTree(preview(ADMIN, name,
+        "{\"Version\":\"test\",\"Statement\":[{\"Sid\":\"A\",\"Effect\":\"Allow\",\"Action\":[\"audit:Raed\"],\"Resource\":[\"audit-everything\"]}]}", 200));
+    assertEquals(2, bad.get("problems").size(), bad.toString());
+    assertEquals(1, bad.get("problems").get(0).get("statement").asInt());
+    ack(ADMIN, UUID.randomUUID().toString(), "iam:CreatePolicyVersion", policyRowVersion(name),
+        "{\"name\":\"%s\",\"document\":{\"Version\":\"test\",\"Statement\":[{\"Sid\":\"A\",\"Effect\":\"Allow\",\"Action\":[\"audit:Read\"],\"Resource\":[\"audit-everything\"]}]}}".formatted(name), 422);
+    preview(LOADER, name, v2, 403);
+
+    // Save: a new version, then the default. The decision point now answers as the preview said.
+    JsonNode saved = ack(ADMIN, UUID.randomUUID().toString(), "iam:CreatePolicyVersion", policyRowVersion(name),
+        "{\"name\":\"%s\",\"document\":%s}".formatted(name, v2), 200);
+    int version = saved.get("result").get("versionNumber").asInt();
+    ack(ADMIN, UUID.randomUUID().toString(), "iam:SetDefaultPolicyVersion", policyRowVersion(name),
+        "{\"name\":\"%s\",\"versionNumber\":%d}".formatted(name, version), 200);
+    assertTrue(identity.permits(loader, "audit:Read", "wpt:audit:event:*"));
+    assertFalse(identity.permits(loader, "iam:RegisterDevice", "wpt:iam:device:*"));
+
+    JsonNode versions = mapper.readTree(read(ADMIN, "/api/policies/" + name + "/versions", 200));
+    assertEquals(2, versions.size());
+    assertTrue(versions.get(0).get("isDefault").asBoolean());
+    assertEquals("Register", mapper.readTree(read(ADMIN, "/api/policies/" + name + "/versions/1", 200))
+        .at("/Statement/0/Sid").asText());
+    assertEquals("user", mapper.readTree(read(ADMIN, "/api/policies/" + name + "/attachments", 200))
+        .get(0).get("principalType").asText());
+
+    // Restore: the old version is the default again, and the old access is back.
+    ack(ADMIN, UUID.randomUUID().toString(), "iam:SetDefaultPolicyVersion", policyRowVersion(name),
+        "{\"name\":\"%s\",\"versionNumber\":1}".formatted(name), 200);
+    assertTrue(identity.permits(loader, "iam:RegisterDevice", "wpt:iam:device:*"));
+    assertFalse(identity.permits(loader, "audit:Read", "wpt:audit:event:*"));
+    // Leave the loader as the later tests expect it.
+    ack(ADMIN, UUID.randomUUID().toString(), "iam:DetachPolicy", policyRowVersion(name),
+        "{\"name\":\"%s\",\"principalType\":\"user\",\"principalId\":\"%s\"}".formatted(name, loader), 200);
+  }
+
+  private String preview(String email, String name, String document, int expectedStatus) throws Exception {
+    MvcResult result = http.perform(post("/api/policies/" + name + "/preview-change").cookie(sessionOf(email))
+            .contentType(MediaType.APPLICATION_JSON).content("{\"document\":" + document + "}"))
+        .andReturn();
+    String response = result.getResponse().getContentAsString();
+    assertEquals(expectedStatus, result.getResponse().getStatus(), response);
+    return response;
+  }
+
   /** The write endpoints are gone, not merely unused. */
   @Test
   @Order(31)

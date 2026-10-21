@@ -14,6 +14,7 @@ import { OrdersScreen } from "./OrdersScreen";
 import { TripsScreen, type TripsSubTab } from "./TripsScreen";
 import { CatalogueScreen, PeopleScreen, PersonasScreen } from "./screens";
 import { ActionsScreen } from "./RoleActionScreens";
+import PoliciesScreen from "./PoliciesScreen";
 import { AuditConsole } from "./audit/AuditConsole";
 import { SystemConstraintsScreen } from "./SystemConstraintsScreen";
 import { ModelsScreen } from "./ModelsScreen";
@@ -26,7 +27,7 @@ import type { RoleView, ActionView } from "@shared/domain/identity";
 import { ProfilePhotoDialog } from "./ProfilePhotoDialog";
 import "./access-demo.css";
 
-type Tab = "people" | "personas" | "actions" | "catalogue" | "history" | "audit" | "assistants" | "forecasts" | "models" | "ai" | "vehicles" | "depots" | "outlets" | "orders" | "trips" | "trips_planned" | "trips_live" | "constraints" | "demo";
+type Tab = "people" | "personas" | "actions" | "policies" | "catalogue" | "history" | "audit" | "assistants" | "forecasts" | "models" | "ai" | "vehicles" | "depots" | "outlets" | "orders" | "trips" | "trips_planned" | "trips_live" | "constraints" | "demo";
 type Route = { tab: Tab; member: string | null; persona: Persona | null };
 type Draft = { target: "member" | "persona"; id: string; action: string; choice: Decision; reason: string; place: string; expires: string; stage: "edit" | "review" };
 type Details = { capability: Capability; member?: Member; persona?: Persona };
@@ -44,7 +45,7 @@ const DEFAULT_ADMIN: Member = {
 function routeFromHash(): Route {
   if (typeof window === "undefined") return { tab: "people", member: null, persona: null };
   const [rawTab, id] = window.location.hash.replace(/^#\/?/, "").split("/");
-  const tab: Tab = rawTab === "roles" ? "personas" : (rawTab === "personas" || rawTab === "actions" || rawTab === "catalogue" || rawTab === "history" || rawTab === "audit" || rawTab === "assistants" || rawTab === "forecasts" || rawTab === "models" || rawTab === "ai" || rawTab === "vehicles" || rawTab === "depots" || rawTab === "outlets" || rawTab === "orders" || rawTab === "trips" || rawTab === "trips_planned" || rawTab === "trips_live" || rawTab === "constraints" || rawTab === "demo" ? rawTab : "people");
+  const tab: Tab = rawTab === "roles" ? "personas" : (rawTab === "personas" || rawTab === "actions" || rawTab === "policies" || rawTab === "catalogue" || rawTab === "history" || rawTab === "audit" || rawTab === "assistants" || rawTab === "forecasts" || rawTab === "models" || rawTab === "ai" || rawTab === "vehicles" || rawTab === "depots" || rawTab === "outlets" || rawTab === "orders" || rawTab === "trips" || rawTab === "trips_planned" || rawTab === "trips_live" || rawTab === "constraints" || rawTab === "demo" ? rawTab : "people");
   return { tab, member: tab === "people" && id || null, persona: tab === "personas" && PERSONAS.some((item) => item.id === id && item.id !== "super_admin") ? id as Persona : null };
 }
 
@@ -66,10 +67,11 @@ const NAV: Array<{ tab: Tab; label: string; icon: IconName; also?: Tab[] }> = [
 const PEOPLE_NAV: Array<{ tab: Tab; label: string; icon: IconName }> = [
   { tab: "personas", label: "Personas", icon: "persona" },
   { tab: "actions", label: "Actions", icon: "bolt" },
+  { tab: "policies", label: "Policies", icon: "permission-list" },
   { tab: "catalogue", label: "Permission catalogue", icon: "permission-list" },
   { tab: "history", label: "Change history", icon: "history" },
 ];
-const PEOPLE_TABS: Tab[] = ["people", "personas", "actions", "catalogue", "history"];
+const PEOPLE_TABS: Tab[] = ["people", "personas", "actions", "policies", "catalogue", "history"];
 const TRIPS_NAV: Array<{ tab: Tab; label: string; icon: IconName }> = [
   { tab: "trips_planned", label: "Planned trips", icon: "calendar" },
   { tab: "trips_live", label: "Live trips", icon: "live" },
@@ -81,6 +83,7 @@ const TRIPS: [string, string] = ["Trips & execution", "Planning run summary, veh
 const TITLES: Record<Tab, [string, string]> = {
   people: PEOPLE, personas: PEOPLE, catalogue: PEOPLE, history: PEOPLE,
   actions: ["Actions", "Action catalogue entries."],
+  policies: ["Policies", "Change what each role and person may do, and see who it affects first."],
   audit: ["Audit console", "Review access changes across the operation."],
   constraints: ["System constraints", "Review and schedule operational rules."],
   assistants: ["AI assistants", "Review connected assistant apps, their activity, and access."],
@@ -525,6 +528,7 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
       {route.tab === "people" && <PeopleScreen state={state} selected={route.member} setSelected={(id) => navigate("people", id)} filterPersona={filterPersona} setFilterPersona={setFilterPersona} actions={{ onDetails: showDetails, onEdit: openEditor }} viewer={viewer} onAddMember={() => setNewMemberPersona("dispatcher")} liveConnected={liveConnected} />}
       {route.tab === "personas" && <PersonasScreen state={state} selected={route.persona} setSelected={(id) => navigate("personas", id)} actions={{ onDetails: showDetails, onEdit: openEditor }} viewer={viewer} onMembers={(persona) => { setFilterPersona(persona); navigate("people"); }} onAddMember={(persona) => { if (persona !== "admin" || viewer === "super_admin") setNewMemberPersona(persona); }} roles={rolesList} />}
       {route.tab === "actions" && <ActionsScreen actions={actionsList} liveConnected={actionsLiveConnected} />}
+      {route.tab === "policies" && <PoliciesScreen actions={actionsList} />}
       {route.tab === "catalogue" && <CatalogueScreen state={state} actions={{ onDetails: showDetails, onEdit: openEditor }} />}
       {route.tab === "history" && <AuditConsole key="permission-history" changes={state.history} viewer={viewer} focused />}
       {route.tab === "audit" && <AuditConsole key="audit-console" changes={state.history} viewer={viewer} />}

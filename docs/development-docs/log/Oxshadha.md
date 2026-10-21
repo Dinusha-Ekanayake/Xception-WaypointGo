@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-22 - feat: the permission editor shows who a change affects before it is saved
+
+`dev` · @Oxshadha
+
+- Item 8 of @jv-ransika's plan ([plan](../../issues/permission-editor/PLAN.md)): a Policies tab in the admin console with rule rows, raw JSON, "What changes" (who gains, loses or reaches other records with which action, from the decision point's own evaluator), save as a new default version with a reason, and Restore. Drafts are checked per statement, and a save refuses what the check refuses (R-IAM-42, IAM-PE-01, IAM-PE-02).
+
+---
+
 ## 2026-10-22 - feat: the driver marks the vehicle broken or OK, and the plan follows
 
 `dev` · @Oxshadha

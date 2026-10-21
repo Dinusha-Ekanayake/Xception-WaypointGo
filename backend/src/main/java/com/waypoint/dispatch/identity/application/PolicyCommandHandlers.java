@@ -49,8 +49,8 @@ public class PolicyCommandHandlers {
       @Override
       public Object handle(Actor actor, Command command) {
         String name = CommandPayload.of(command).requiredText("name");
-        int version =
-            policies.applyCreateVersion(actor, name, document(command), command.expectedVersion());
+        int version = policies.applyCreateVersion(
+            actor, name, document(command), command.expectedVersion(), CommandPayload.of(command).text("reason"));
         return Map.of("name", name, "versionNumber", version);
       }
     };
@@ -66,7 +66,8 @@ public class PolicyCommandHandlers {
         if (version == null || !version.canConvertToInt()) {
           throw new DomainException(ErrorCode.VALIDATION_FAILED, "versionNumber must be a number");
         }
-        policies.applySetDefaultVersion(actor, name, version.intValue(), command.expectedVersion());
+        policies.applySetDefaultVersion(
+            actor, name, version.intValue(), command.expectedVersion(), CommandPayload.of(command).text("reason"));
         return Map.of("name", name, "versionNumber", version.intValue());
       }
     };
