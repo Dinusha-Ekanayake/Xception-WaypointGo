@@ -1461,6 +1461,47 @@ class IntelligenceIntegrationTest {
     assertFalse(StubLanguage.JEV_STATE.get().contains("0771234567"));
   }
 
+  @Test
+  void jevGuessesTheSituationOfAChatReportFromItsWordsAndIsScoredAgainstTheTypePicked() throws Exception {
+    UUID picked = UUID.randomUUID();
+    UUID other = UUID.randomUUID();
+    UUID spoken = UUID.randomUUID();
+    UUID dispatcherOwn = UUID.randomUUID();
+    knownNames.forget();
+    deliver("ml.on-report-posted-jev", UUID.randomUUID(), report(picked, "driver", "store_closed",
+        "Shutter is down at the store, ask mld-" + run + ", call 0771234567", Optional.empty()));
+    deliver("ml.on-report-posted-jev", UUID.randomUUID(), report(other, "driver", "other",
+        "Something odd happened at the gate", Optional.empty()));
+    deliver("ml.on-report-posted-jev", UUID.randomUUID(), report(spoken, "driver", "store_closed",
+        "Voice note", Optional.of(UUID.randomUUID())));
+    deliver("ml.on-report-posted-jev", UUID.randomUUID(), report(dispatcherOwn, "dispatcher", "store_closed",
+        "Store says they are closed today", Optional.empty()));
+
+    StubLanguage.JEV_ANSWER.set("ROAD_BLOCKED");
+    jevJob.runAt(Instant.now());
+    List<Map<String, Object>> rows = database.asSystem(ModuleRole.ML, () -> database.query(
+        "SELECT issue_id, source, actual_type, status, agrees, masked_text, prompt_version FROM ml.jev_shadow"
+            + " WHERE issue_id IN (?, ?, ?, ?)", picked, other, spoken, dispatcherOwn));
+    assertEquals(1, rows.size(), "only the typed, written report of a worker is asked about: " + rows);
+    Map<String, Object> row = rows.get(0);
+    assertEquals("report", row.get("source"));
+    assertEquals("STORE_CLOSED", row.get("actual_type"));
+    assertEquals("answered", row.get("status"));
+    assertEquals(Boolean.FALSE, row.get("agrees"), "a wrong guess is scored as one");
+    assertEquals(JevShadow.REPORT_PROMPT_VERSION, row.get("prompt_version"));
+    assertFalse(((String) row.get("masked_text")).contains("mld-" + run), row.toString());
+    assertTrue(((String) row.get("masked_text")).contains("[phone]"), row.toString());
+    assertTrue(StubLanguage.JEV_STATE.get() == null || !StubLanguage.JEV_STATE.get().contains("0771234567"));
+  }
+
+  private com.waypoint.dispatch.messaging.contract.MessagingEvents.MessagePosted report(
+      UUID messageId, String role, String type, String words, Optional<UUID> voice) {
+    return new com.waypoint.dispatch.messaging.contract.MessagingEvents.MessagePosted(
+        UUID.randomUUID(), messageId, "trip", UUID.randomUUID().toString(), depot, Optional.of("VEH001"),
+        Optional.of(serviceDate), "Kasun", role, "report", Optional.of(type), "dispatch", List.of(), words,
+        Instant.now(), voice, Optional.empty(), List.of());
+  }
+
   // ---- the attention watch (issue #268) ---------------------------------------------
 
   @Test

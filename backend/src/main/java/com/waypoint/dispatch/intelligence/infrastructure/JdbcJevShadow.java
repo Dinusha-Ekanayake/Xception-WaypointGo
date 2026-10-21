@@ -15,7 +15,9 @@ import org.springframework.stereotype.Repository;
 /** Jev's shadow guesses (ml.jev_shadow). Read and written as the system. */
 @Repository
 public class JdbcJevShadow {
-  public record Pending(UUID issueId, String maskedText, String actualType, List<String> optionOrder, int attempts) {}
+  /** {@code source} is issue, or report when {@code issueId} is a trip-chat report message. */
+  public record Pending(
+      UUID issueId, String source, String maskedText, String actualType, List<String> optionOrder, int attempts) {}
 
   private final Database database;
 
@@ -23,20 +25,21 @@ public class JdbcJevShadow {
     this.database = database;
   }
 
-  /** Once per issue: a redelivered event asks nothing new. */
-  public void queue(UUID issueId, String depotCode, String maskedText, String actualType, List<String> order, Instant at) {
+  /** Once per issue or report: a redelivered event asks nothing new. */
+  public void queue(UUID issueId, String source, String depotCode, String maskedText, String actualType,
+      List<String> order, Instant at) {
     database.update(
-        "INSERT INTO ml.jev_shadow (issue_id, depot_code, masked_text, actual_type, option_order, created_at)"
-            + " VALUES (?, ?, ?, ?, ?::text[], ?) ON CONFLICT (issue_id) DO NOTHING",
-        issueId, depotCode, maskedText, actualType, "{" + String.join(",", order) + "}", Timestamp.from(at));
+        "INSERT INTO ml.jev_shadow (issue_id, source, depot_code, masked_text, actual_type, option_order, created_at)"
+            + " VALUES (?, ?, ?, ?, ?, ?::text[], ?) ON CONFLICT (issue_id) DO NOTHING",
+        issueId, source, depotCode, maskedText, actualType, "{" + String.join(",", order) + "}", Timestamp.from(at));
   }
 
   public List<Pending> pending(int limit) {
     return database.query(
-            "SELECT issue_id, masked_text, actual_type, option_order, attempts FROM ml.jev_shadow"
+            "SELECT issue_id, source, masked_text, actual_type, option_order, attempts FROM ml.jev_shadow"
                 + " WHERE status = 'pending' ORDER BY created_at LIMIT ?", limit)
         .stream()
-        .map(r -> new Pending((UUID) r.get("issue_id"), (String) r.get("masked_text"), (String) r.get("actual_type"),
+        .map(r -> new Pending((UUID) r.get("issue_id"), (String) r.get("source"), (String) r.get("masked_text"), (String) r.get("actual_type"),
             strings(r.get("option_order")), ((Number) r.get("attempts")).intValue()))
         .toList();
   }

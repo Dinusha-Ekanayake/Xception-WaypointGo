@@ -628,7 +628,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `warehouse.discrepancy_found` | Warehouse | Issues |
 | `catalogue.synced` | Warehouse | Ordering |
 | `reference.version_published`, `vehicle.status_changed`, `calendar.overridden` | Reference | Planning, Notification |
-| `message.posted` | Messaging | Notification |
+| `message.posted` | Messaging | Notification; Intelligence (a worker's typed report, for Jev in shadow, R-ML-33) |
 | `demo.driver_notifications_requested` | Demo | Notification |
 | `order.outlook_changed` | Intelligence | Notification |
 | `stop.likely_late` | Intelligence | Notification |

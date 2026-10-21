@@ -335,6 +335,7 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | ML-47a | An account's first name is also a field name in the facts ("Next", "Reason") | Only values are masked, never keys, so the facts keep their shape | `PromptNames.Session.maskValues` | none | `PromptNamesTest.factsKeepTheirKeysWhenAFirstNameIsAlsoAKey` |
 | ML-48 | A new account's name is used in a report within 10 minutes of its creation | Known gap by design: the name list is read again at most every 10 minutes, so that name may go unmasked until then; phone numbers, IDs, badges and links are still masked | `KnownNames.KEEP` | none | `PromptNamesTest` covers matching; the window is a parameter |
 | ML-49 | The model orders the raised items with one it invented, leaves one out, or names a figure not in the facts | Recorded as unfaithful and not used; nothing changes on any screen | `WatchReview.judge`, `WatchReviewJob.read`, `PromptFacts.faithful` | `waypoint_ai_watch_review_total{outcome=unfaithful}` | `WatchReviewTest`, `IntelligenceIntegrationTest.theWatchersAiLayerOrdersWhatTheRulesRaisedInShadowAndAnInventedItemIsRefused` |
+| ML-50 | A trip-chat report has no type of its own ("other"), is a voice note, or is the dispatcher's | Not queued for Jev: with no label it cannot be scored, a voice note's words are a transcript and not the excerpt, and the dispatcher is not the one reporting | `JevShadow.OnReportPosted` | none | `IntelligenceIntegrationTest.jevGuessesTheSituationOfAChatReportFromItsWordsAndIsScoredAgainstTheTypePicked` |
 
 ## 7d. Messaging
 
