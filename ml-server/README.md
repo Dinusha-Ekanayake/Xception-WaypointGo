@@ -9,6 +9,15 @@ Serves the trained Datathon models to the backend (issue #16). It only predicts:
 | `delivery_risk` | `datathon-task1-parallel` 2026.10.1: service minutes and P(late) per stop, scored over whole planned routes. A Monte-Carlo route simulator (500 draws per route, delays carried from stop to stop) and LightGBM run side by side; P(late) is blended 50/50 in log-odds, service time 55/45. A route whose date has no road-conditions row is scored by the copy trained without them, in the same file. | `POST /v1/delivery-risk` |
 | `demand_forecast` | `datathon-task2a` 2026.10.1: weekly total and chilled m³ per depot and brand, as every expected order of each outlet times its expected size | `POST /v1/demand-forecast` |
 
+### Model comparison — Datathon Task 1
+
+| Model | Service MAE ↓ | Late log-loss ↓ | Accuracy at 0.5 ↑ | False alarms ↓ | Final training time ↓ | Inference per order ↓ | Number of Monte Carlo runs | ML libraries | Model size ↓ |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |
+| Statistical baseline | 5.235 min | 0.302 | 85.811% | 368 | 10.14 ms | Not supplied | — | pandas | negligible |
+| Single LightGBM | 3.748 min | 0.133 | 94.491% | 115 | 18.05 s | Not supplied | — | LightGBM | not recorded |
+| Two-pipeline ensemble | **3.664 min** | **0.125** | **94.626%** | **89** | **16.02 min** | **1.987 s** | — | LightGBM + XGBoost + CatBoost | **33.442 MB** |
+| **Selected parallel hybrid** | 3.718 min | 0.131 | 94.491% | 95 | **1.49 min** | **48 ms** | **250** | **LightGBM only** | **9.747 MB** |
+
 `GET /health` names the loaded models and their versions. The backend uses a model only when this name and version match the active entry in its registry.
 
 `manifest.json` lists each model's version, its training range, its validation metrics and the SHA-256 of every file in `models/`. **The service refuses to start if any file differs.**
