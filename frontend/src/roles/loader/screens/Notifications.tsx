@@ -90,11 +90,13 @@ export default function Notifications({
         )
       ) : (
         // The phones' shared list scroll (rubber band, fades, rows easing out), as on the driver and store.
-        <div style={feed.maskStyle} className="relative min-h-0 overflow-hidden">
+        // Room inside the clip for the focus ring (3 px outline, 3 px offset, globals.css),
+        // taken back by the negative margin, so a tapped card's ring is drawn whole.
+        <div style={feed.maskStyle} className="relative -mx-2 min-h-0 overflow-hidden">
           <div
             ref={feed.scrollRef}
             {...feed.handlers}
-            className="max-h-[55dvh] overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="max-h-[55dvh] overflow-y-auto overscroll-contain p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             <ul
               style={{
