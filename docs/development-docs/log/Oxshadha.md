@@ -28,7 +28,7 @@
 
 - @jv-ransika's decision of 2026-10-21, built before the truck-breakdown work. A locked order is no longer pinned to its vehicle and trip: a regenerate that keeps decisions places it right after the hand placements, on any vehicle that passes every rule, and refuses the whole run, naming the order and its failing rules, when none does (`mustPlace` beside `pins`). A locked order on a broken truck goes out on another and stays locked. Hand placements keep today's behaviour. A lock now falls away only when unlocked or out of the plan, not when moved to another trip (R-PLN-35, R-PLN-36 rewritten; PLN-50 to PLN-52; glossary "lock").
 - The later stages still stand aside whenever decisions are kept, so a locked order is never dropped or deferred; letting the cost stage move a locked order between trucks is allowed by the owner but not built.
-- Open, for @jv-ransika: should a lock also hold on a regenerate from scratch? Recommended yes (a lock is the dispatcher's promise the order goes out); not built until confirmed.
+- @jv-ransika answered no: a regenerate from scratch decides everything again, locks included; a lock binds only a regenerate that keeps decisions. That is today's behaviour (`PlanningSnapshotsIntegrationTest.aRegenerateFromScratchLetsTheEngineDecideAgain`), so only R-PLN-36's wording changed.
 
 ---
 
