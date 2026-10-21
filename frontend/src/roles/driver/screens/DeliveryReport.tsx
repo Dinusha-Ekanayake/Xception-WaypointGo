@@ -24,7 +24,8 @@ export const REASON_LABEL: Record<FailureReason, string> = {
   other: "Something else",
 };
 
-export type Report = { record: RecordDraft; proof: ProofDraft | null };
+/** `damaged`: some units were damaged and the rest handed over; a quiet goods problem goes with it (R-ISS-16). */
+export type Report = { record: RecordDraft; proof: ProofDraft | null; damaged?: boolean };
 
 export default function DeliveryReport({
   stop,
@@ -51,12 +52,17 @@ export default function DeliveryReport({
   // R-EXE-32: a stop the driver reported is the dispatcher's to end; the goods may still be handed over.
   const reported = withDispatcher(stop);
   const deliverable = stop.outcome === "ARRIVED" && canDeliver(stop);
+  // Owner's decision of 2026-10-21: goods damaged is a partial delivery of what is usable,
+  // with a quiet goods problem; only nothing usable is not delivered (as before).
+  const damagedMode = startFailed === "goods_damaged" && deliverable;
   // Not delivered is the driver's choice, or the only outcome a stop not reached (or a late mall) can take.
-  const [choseFailed, setChoseFailed] = useState(startFailed !== null);
+  const [choseFailed, setChoseFailed] = useState(startFailed !== null && !damagedMode);
   const failed = choseFailed || !deliverable;
-  const [units, setUnits] = useState(stop.itemCount);
-  const [reason, setReason] = useState<string>(startFailed ?? (stop.mallOutlet && !deliverable && stop.outcome === "ARRIVED" ? "mall_window_closed" : ""));
-  const [note, setNote] = useState("");
+  const [units, setUnits] = useState(damagedMode ? Math.max(1, stop.itemCount - 1) : stop.itemCount);
+  const [reason, setReason] = useState<string>(
+    damagedMode ? "Goods damaged" : startFailed ?? (stop.mallOutlet && !deliverable && stop.outcome === "ARRIVED" ? "mall_window_closed" : ""),
+  );
+  const [note, setNote] = useState(damagedMode ? "Damaged units kept on the vehicle" : "");
   const [proof, setProof] = useState<ProofDraft>(EMPTY_PROOF);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -71,7 +77,7 @@ export default function DeliveryReport({
     const gap = missing(stop, draft, timingUncertain) ?? (outcome !== "FAILED" ? proofMissing(proof) : null);
     setProblem(gap);
     if (gap) return;
-    onConfirm({ record: draft, proof: wantsProof && stop.outcome === "ARRIVED" ? proof : null });
+    onConfirm({ record: draft, proof: wantsProof && stop.outcome === "ARRIVED" ? proof : null, damaged: damagedMode && outcome === "PARTIAL" });
   };
 
   // Which visible field a gap belongs to, so it is shown there instead of only in
@@ -93,6 +99,12 @@ export default function DeliveryReport({
         <h1 className="mt-2 text-[40px] font-medium leading-[1.05] text-go-ink">{stop.outletId}</h1>
         {outlet && <p className="mt-1 text-[15px] text-go-muted">{outlet.districtName} · {outlet.brandCode}</p>}
       </div>
+
+      {damagedMode && !failed && (
+        <Banner tone="warn" title={t("Goods damaged")}>
+          {t("Set the units handed over in good condition. The rest stay on the vehicle, and a goods problem is recorded for the end of the day. Nothing usable? Tap Could not deliver.")}
+        </Banner>
+      )}
 
       {reported && (
         <Banner tone="warn" title={t(stop.reportedProblem === "CANNOT_UNLOAD" ? "You reported: cannot unload here" : "You reported: store closed")}>
@@ -238,7 +250,7 @@ export default function DeliveryReport({
         <OutlineButton
           onClick={() => {
             setChoseFailed((value) => !value);
-            setReason("");
+            setReason(damagedMode && !choseFailed ? "goods_damaged" : damagedMode ? "Goods damaged" : "");
             setProblem(null);
           }}
         >

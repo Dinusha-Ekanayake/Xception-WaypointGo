@@ -38,7 +38,8 @@ export const CHOICES: Array<{ id: string; label: string; problem: () => Problem;
   { id: "unload", label: "Cannot unload here", onStop: true, problem: () => ({ kind: "stop", problem: "CANNOT_UNLOAD" }) },
   { id: "road", label: "Road blocked", onStop: false, problem: () => ({ kind: "report", fault: "road", description: "Road blocked" }) },
   { id: "vehicle", label: "Vehicle problem", onStop: false, problem: () => ({ kind: "report", fault: "vehicle", description: "Vehicle problem" }) },
-  { id: "damaged", label: "Goods damaged or short", onStop: true, problem: () => ({ kind: "not-delivered", reason: "goods_damaged" }) },
+  // Opens the delivery form for what is usable; nothing usable is still not delivered.
+  { id: "damaged", label: "Goods damaged", onStop: true, problem: () => ({ kind: "not-delivered", reason: "goods_damaged" }) },
 ];
 
 /** A row that sends only when slid across. Arrow right or Enter does the same for a keyboard. */

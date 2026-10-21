@@ -29,6 +29,8 @@ Owner: @Oxshadha. Piece 4 of the trip-problems vision, after Skip store (docs/is
 
 ## Pull requests
 
+All three built on 2026-10-21: R-EXE-32 and R-NOT-21; R-MSG-17 and R-NOT-22; R-EXE-33.
+
 1. Store closed and cannot unload: the command, the event, the chat report and the store's message, the driver's list and route. Tests: domain, integration with one denied case, a report after a skip, browser.
 2. The delay notice for breakdown and road blocked, with the push to stores still waiting.
 3. Goods damaged as partial plus a quiet issue; "Running late" removed.

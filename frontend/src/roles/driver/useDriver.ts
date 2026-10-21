@@ -381,13 +381,28 @@ export function useDriver(userId: string, depot: string | null = null) {
         setError(words(recorded));
         return false;
       }
+      // Goods damaged with some handed over: a quiet goods problem for the end of the day
+      // (R-ISS-16), sent or kept on the phone like the record. A failure here does not undo
+      // the delivery; the driver is told.
+      let damageWarning: string | null = null;
+      if (report.damaged && depot) {
+        const raised = await act("issue:Raise", {
+          type: "DAMAGED_GOODS",
+          severity: "MEDIUM",
+          depotCode: depot,
+          outletId: stop.outletId,
+          subjects: [{ type: "delivery", id: stop.deliveryId }, { type: "order", id: stop.orderId }],
+          description: `Damaged at delivery: ${stop.itemCount - record.deliveredUnits} of ${stop.itemCount} units not usable`,
+        });
+        if (!raised.ok) damageWarning = t("The delivery is recorded, but the damaged goods were not reported. Tell the dispatcher.");
+      }
       // The record moved the stop's version on by one, sent or waiting.
       const proven = report.proof ? await captureProof(stop, stop.rowVersion + 1, report.proof) : null;
       setSaved({
         title: record.outcome === "DELIVERED" ? t("Delivery confirmed") : record.outcome === "PARTIAL" ? t("Partial delivery recorded") : t("Recorded as not delivered"),
         onPhone: recorded.queued || (proven?.ok === true && proven.queued),
         last: stops.every((other) => other.deliveryId === stop.deliveryId || isFinished(other)),
-        warning: proven && !proven.ok ? `The delivery is recorded, but its proof was not: ${proven.error.message} Open the stop from Home to add it.` : null,
+        warning: proven && !proven.ok ? `The delivery is recorded, but its proof was not: ${proven.error.message} Open the stop from Home to add it.` : damageWarning,
         handedOver: record.outcome === "FAILED" ? null : stop,
       });
       return true;
