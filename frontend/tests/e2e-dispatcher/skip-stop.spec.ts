@@ -109,9 +109,11 @@ test("the chat suggests the likely decisions beside a report, and keeps which on
   await form.getByRole("textbox", { name: "Why" }).fill("Nobody came to the door");
   await form.getByRole("button", { name: "Skip to next day" }).click();
 
-  await expect.poll(() => desk.commands.find((c) => c.kind === "ml:RecordSuggestion")?.payload).toEqual({
-    deliveryId: "d-VEH020-2", situation: "STORE_CLOSED", shown: ["CALL_STORE", "SKIP_NEXT_DAY", "WAIT"], chosen: "SKIP_NEXT_DAY",
-  });
+  // First what was on screen (so a decision taken another way is logged too), then what was taken.
+  await expect.poll(() => desk.commands.filter((c) => c.kind === "ml:RecordSuggestion").map((c) => c.payload)).toEqual([
+    { deliveryId: "d-VEH020-2", situation: "STORE_CLOSED", shown: ["CALL_STORE", "SKIP_NEXT_DAY", "WAIT"], shownOnly: true },
+    { deliveryId: "d-VEH020-2", situation: "STORE_CLOSED", shown: ["CALL_STORE", "SKIP_NEXT_DAY", "WAIT"], chosen: "SKIP_NEXT_DAY" },
+  ]);
   expect(desk.commands.find((c) => c.kind === "delivery:SkipStop")?.payload).toMatchObject({ then: "NEXT_DAY" });
 });
 

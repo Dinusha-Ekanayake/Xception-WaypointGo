@@ -384,6 +384,24 @@ class StopSkipIntegrationTest {
   }
 
   @Test
+  void aDecisionTakenWithoutAChipIsLoggedAgainstTheChipsThatWereShown() throws Exception {
+    // The chips beside a report were on screen; the dispatcher skipped with the Skip button instead.
+    long version = json(command(driver, "delivery:RecordArrival", 1L, stop(stopOne), 200)).get("result").get("rowVersion").asLong();
+    String shown = "\"shown\":[\"CALL_STORE\",\"SKIP_NEXT_DAY\",\"WAIT\"]";
+    command(dispatcher, "ml:RecordSuggestion", null,
+        "{\"deliveryId\":\"" + stopOne + "\",\"situation\":\"STORE_CLOSED\"," + shown + ",\"shownOnly\":true}", 200);
+    skip(dispatcher, stopOne, version, "CANCEL", "Store closed for the season", 200);
+    drain();
+
+    java.util.Map<String, Object> row = database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT chosen, taken, via_chip FROM ml.decision_suggestions WHERE delivery_id = ? ORDER BY decided_at DESC LIMIT 1",
+        stopOne));
+    assertEquals("SKIP_CANCEL", row.get("taken"), "what was done");
+    assertEquals(null, row.get("chosen"), "not among the chips shown");
+    assertEquals(false, row.get("via_chip"));
+  }
+
+  @Test
   void afterTwentyDecisionsTheChancesAreCountedFromWhatDispatchersTook() throws Exception {
     command(driver, "delivery:RecordArrival", 1L, stop(stopTwo), 200);
     // A situation of its own, so the rule-prior test above stays on rules whatever the order.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import { SuggestionCommandKind, type DecisionAction, type RunSheetStopView, type SuggestionsView } from "@shared/domain/types";
@@ -36,6 +36,9 @@ const DONE: Partial<Record<DecisionAction, string>> = {
   ASK_RECEIVE_LATER: "Ask the store from the trip page's question, with the time.",
 };
 
+/** What was shown this page's life, by stop, situation and chips: recorded once (a decision taken without a chip is logged against it). */
+const recordedShown = new Set<string>();
+
 export default function ReportSuggestions({
   stop,
   report,
@@ -66,6 +69,15 @@ export default function ReportSuggestions({
   const [chosen, setChosen] = useState<DecisionAction | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const view = read.data;
+  // The chips are on screen: say so once, so a skip or End trip taken another way is logged against them.
+  const shownKey = view && view.suggestions.length > 0 ? `${stop.deliveryId}|${view.situation}|${view.suggestions.map((s) => s.action).join(",")}` : null;
+  useEffect(() => {
+    if (!shownKey || !online || recordedShown.has(shownKey) || !view) return;
+    recordedShown.add(shownKey);
+    void run(SuggestionCommandKind.record, { deliveryId: stop.deliveryId, situation: view.situation, shown: view.suggestions.map((s) => s.action), shownOnly: true }, null);
+    // Keyed on what was shown, not on the view object a re-read replaces.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shownKey, online]);
   if (!view || view.suggestions.length === 0) return null;
   const shown = view.suggestions.map((s) => s.action);
 

@@ -613,7 +613,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `loading.interchange_requested` | Loading | Planning |
 | `trip.released` | Loading | Execution, Ordering, Warehouse (shipped), Notification, Planning (freeze, R-PLN-44) |
 | `delivery.started`, `delivery.completed`, `delivery.failed`, `eta.changed` | Execution | Ordering, Receipt, Warehouse (delivered), Issues, Notification |
-| `delivery.skipped` | Execution | Ordering |
+| `delivery.skipped` | Execution | Ordering, Intelligence (a decision taken without a chip) |
 | `delivery.problem_reported` | Execution | Messaging, Notification |
 | `delivery.arrived` | Execution | Notification (store: unload and check, R-EXE-25) |
 | `vehicle.at_depot` | Execution | Loading (dock board, R-LOD-12), Notification (loaders, R-EXE-24) |

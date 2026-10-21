@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-21 - feat: a decision taken without a chip is logged too
+
+`dev` · @Oxshadha
+
+- The suggestion log knew only decisions taken by tapping a chip, so a skip from Live or a button left the chances blind. The chat now records the chips it showed once; a skip or End trip taken any other way within three hours is logged against them by Intelligence, with what was taken and that no chip took it ([plan](../../issues/decision-suggestions/PLAN.md)). Decided cases count both ways.
+
+---
+
 ## 2026-10-21 - feat: the watcher's AI layer, in shadow
 
 `dev` · @Oxshadha

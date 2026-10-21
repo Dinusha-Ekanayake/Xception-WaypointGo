@@ -95,6 +95,15 @@ class RecordSuggestionHandler implements CommandHandler {
         .depotCode();
     Instant at = clock.now();
     UUID id = UuidV7.generate(at, random);
+    if (p.flag("shownOnly", false)) {
+      // The chips are on screen; a decision taken later by any route is logged against them.
+      if (chosen != null) {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, "a shown-only record names no choice");
+      }
+      log.impression(id, deliveryId, depot, now.situation(), now.version(), shown, actor.userId(), at);
+      metrics.increment("waypoint.ml.suggestion_shown", "situation", now.situation().toLowerCase(java.util.Locale.ROOT));
+      return Map.of("impressionId", id.toString());
+    }
     log.insert(id, deliveryId, depot, now.situation(), now.version(), shown, chosen, actor.userId(), at);
     metrics.increment("waypoint.ml.suggestion", "situation", now.situation().toLowerCase(java.util.Locale.ROOT),
         "chosen", chosen == null ? "none" : chosen.toLowerCase(java.util.Locale.ROOT),

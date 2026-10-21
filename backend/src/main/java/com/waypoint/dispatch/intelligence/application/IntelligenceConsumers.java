@@ -1,6 +1,8 @@
 package com.waypoint.dispatch.intelligence.application;
 
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliverySkipped;
 import com.waypoint.dispatch.intelligence.contract.AttentionViews.AttentionKind;
+import com.waypoint.dispatch.intelligence.infrastructure.JdbcDecisionSuggestions;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcAttentionRepository;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcIntelligenceRepository;
 import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionAnswered;
@@ -148,6 +150,59 @@ final class IntelligenceConsumers {
                       .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
                   + ("phone".equals(e.via()) ? " (by phone)" : ""),
               clock.now(), s.rowVersion()));
+    }
+  }
+
+  /**
+   * A decision taken without a chip (docs/issues/decision-suggestions/PLAN.md):
+   * the dispatcher skipped the store or ended the trip from Live or a button,
+   * with the chips beside a report on screen in the last three hours. The
+   * decision row is written from that impression, with what was taken and that
+   * no chip took it; a decision a chip already logged is not written again.
+   */
+  @Component
+  static class OnDeliverySkippedWithoutAChip implements EventSubscriber<DeliverySkipped> {
+    static final java.time.Duration RECENT = java.time.Duration.ofHours(3);
+
+    private final JdbcDecisionSuggestions log;
+    private final Metrics metrics;
+    private final java.security.SecureRandom random = new java.security.SecureRandom();
+
+    OnDeliverySkippedWithoutAChip(JdbcDecisionSuggestions log, Metrics metrics) {
+      this.log = log;
+      this.metrics = metrics;
+    }
+
+    @Override
+    public String consumerName() {
+      return "ml.on-delivery-skipped-suggestions";
+    }
+
+    @Override
+    public Class<DeliverySkipped> eventType() {
+      return DeliverySkipped.class;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.ML;
+    }
+
+    @Override
+    public void on(EventEnvelope<DeliverySkipped> envelope) {
+      DeliverySkipped e = envelope.payload();
+      String taken = e.wholeTrip() ? "END_TRIP" : "CANCEL".equals(e.then()) ? "SKIP_CANCEL" : "SKIP_NEXT_DAY";
+      log.undecidedImpression(e.deliveryId(), e.skippedAt().minus(RECENT)).ifPresent(row -> {
+        java.util.List<String> shown = java.util.List.of(((String) row.get("shown")).split(","));
+        String chosen = shown.contains(taken) ? taken : null;
+        log.insertTaken(
+            com.waypoint.dispatch.shared.util.UuidV7.generate(e.skippedAt(), random), e.deliveryId(),
+            (String) row.get("depot_code"), (String) row.get("situation"),
+            ((Number) row.get("catalogue_version")).intValue(), shown, chosen, taken,
+            envelope.actorId().orElse(Actor.SYSTEM_ID), e.skippedAt());
+        metrics.increment("waypoint.ml.suggestion_without_chip", "taken", taken.toLowerCase(java.util.Locale.ROOT),
+            "was_suggested", String.valueOf(chosen != null));
+      });
     }
   }
 }
