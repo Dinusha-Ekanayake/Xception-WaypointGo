@@ -45,7 +45,8 @@ export default function PageHeader({
       <header className="flex w-full flex-wrap items-center gap-3">
         <div className="flex min-w-[240px] flex-1 flex-col gap-0.5">
           <h1 className="text-[26px] font-medium tracking-normal text-go-ink md:truncate md:text-[30px]">{title}</h1>
-          <p className="truncate text-sm text-go-secondary">{subtitle}</p>
+          {/* Two lines at most: a long summary wraps rather than hiding its end. */}
+          <p className="line-clamp-2 text-sm text-go-secondary">{subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">
           {!hideDepots && <DepotSwitch />}

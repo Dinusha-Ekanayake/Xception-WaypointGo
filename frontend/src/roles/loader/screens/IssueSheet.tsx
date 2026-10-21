@@ -149,6 +149,15 @@ export default function IssueSheet({
           </button>
         </div>
 
+        {/* A reported item: taking the flag back comes first, before reporting it again (R-ISS-17). */}
+        {item !== null && isFlagged(item.status) && onFound && (
+          <FoundFlag online={online} busy={busy} onFound={async (why) => {
+            const problem = await onFound(item, why);
+            if (problem === null) onClose();
+            return problem;
+          }} />
+        )}
+
         <Picker
           label={tr("Which order?")}
           title={line ? `${tr("Order {ref}", { ref: orderLabel(line) })} · ${tr(line.temperature === "chilled" ? "Chilled" : "Ambient")}` : ""}
@@ -309,14 +318,6 @@ export default function IssueSheet({
             </button>
           )}
         </div>
-
-        {item !== null && isFlagged(item.status) && onFound && (
-          <FoundFlag online={online} busy={busy} onFound={async (why) => {
-            const problem = await onFound(item, why);
-            if (problem === null) onClose();
-            return problem;
-          }} />
-        )}
 
         {item !== null && isFlagged(item.status) && (
           <Notice tone="info" title={tr("This item is already reported")}>

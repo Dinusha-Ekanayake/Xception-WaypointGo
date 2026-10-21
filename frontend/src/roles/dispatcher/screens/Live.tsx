@@ -105,7 +105,7 @@ export default function Live({
   const subtitle = !live.data
     ? "Loading"
     : view === "needs"
-      ? `${cards.length} need you · ${closedOnTheirOwn(inDepot)} closed on their own · ${onTheRoad} on the road${atDock ? ` · ${atDock} at the dock` : ""}${goods.size ? ` · ${goods.size} ${goods.size === 1 ? "store" : "stores"} with a goods problem` : ""}`
+      ? `${cards.length} need you · ${closedOnTheirOwn(inDepot)} closed on their own · ${onTheRoad} on the road${atDock ? ` · ${atDock} at the dock` : ""}${goods.size ? ` · ${goods.size} ${goods.size === 1 ? "goods problem" : "goods problems"}` : ""}`
       : [`${onTheRoad} on the road`, ...(depot === "all" && depotNames.length > 1 ? depotSummaries(runs).map((s) => `${s.depot} ${s.onTheRoad}`) : [scopeLabel])].join(" · ");
   const punctual = punctuality(inDepot.map((r) => ({ vehicleId: r.day.vehicleId, serviceDate: date, stops: r.day.stops })));
 
