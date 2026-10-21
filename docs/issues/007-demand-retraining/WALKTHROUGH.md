@@ -52,8 +52,8 @@ The export's backend test is `IntelligenceIntegrationTest.theOrderHistoryExportC
 
 ## Decisions and where they are recorded
 
-- What counts as demand: the orders `dailyVolumes` counts, redeliveries included (R-ML-28, EDGE-CASES ML-43; PLAN decision 1, changed from the first draft).
-- The backtest and the gate (R-ML-29, EDGE-CASES ML-44; PLAN decision 5, starts corrected when built).
+- What counts as demand: the orders `dailyVolumes` counts, redeliveries included (R-ML-29, EDGE-CASES ML-45; PLAN decision 1, changed from the first draft).
+- The backtest and the gate (R-ML-30, EDGE-CASES ML-46; PLAN decision 5, starts corrected when built).
 - One model for all depots, a year of history first, `waypoint-demand` by date: PLAN decisions 2, 4 and 6.
 
 ## Known gaps

@@ -8,7 +8,7 @@
 
 `feat/demand-retrain-tool` · @tharushaudana · [#7](https://github.com/jv-ransika/yi-yi/issues/7)
 
-Second of #7's two pull requests ([walkthrough](../../issues/007-demand-retraining/WALKTHROUGH.md)). `training.retrain_demand` refits the `DemandModel` on the order export and backtests it from rolling Mondays. A `waypoint-demand` model, allowed in production, is handed over only when both total and chilled WAPE beat a naive 8-week mean and are no worse than the model in use (R-ML-29, ML-44). `training.run` builds one each week beside the late-risk model; the registry loads whichever demand model the manifest names. The plan's backtest starts are corrected: 10 finished weeks are needed after each.
+Second of #7's two pull requests ([walkthrough](../../issues/007-demand-retraining/WALKTHROUGH.md)). `training.retrain_demand` refits the `DemandModel` on the order export and backtests it from rolling Mondays. A `waypoint-demand` model, allowed in production, is handed over only when both total and chilled WAPE beat a naive 8-week mean and are no worse than the model in use (R-ML-30, ML-46). `training.run` builds one each week beside the late-risk model; the registry loads whichever demand model the manifest names. The plan's backtest starts are corrected: 10 finished weeks are needed after each.
 Verified: `ml-server` pytest (36, 8 for the demand retrain on a synthetic 78-week history).
 Open: the dry run on the Datathon order history (licensed data, not on this machine); no depot has a year of our own orders yet.
 
@@ -18,7 +18,7 @@ Open: the dry run on the Datathon order history (licensed data, not on this mach
 
 `feat/demand-retraining` · @tharushaudana · [#7](https://github.com/jv-ransika/yi-yi/issues/7)
 
-First of two pull requests for retraining the demand model on our own orders ([plan](../../issues/007-demand-retraining/PLAN.md)). `OrderQuery.orderHistory` gives a depot's orders one by one, keyset-paged on placement, and `GET /api/ml/training/orders` exports them behind `ml:ExportTrainingData`; a depot outside scope is 403 and audited. It counts exactly what `dailyVolumes` counts for the forecast's actuals, so redeliveries stay (the plan first left them out; R-ML-28, ML-43). `training.fetch --kind orders` pages it.
+First of two pull requests for retraining the demand model on our own orders ([plan](../../issues/007-demand-retraining/PLAN.md)). `OrderQuery.orderHistory` gives a depot's orders one by one, keyset-paged on placement, and `GET /api/ml/training/orders` exports them behind `ml:ExportTrainingData`; a depot outside scope is 403 and audited. It counts exactly what `dailyVolumes` counts for the forecast's actuals, so redeliveries stay (the plan first left them out; R-ML-29, ML-45). `training.fetch --kind orders` pages it.
 Verified: `IntelligenceIntegrationTest` (46, the export's test among them) and the full backend suite (759) on a fresh local PostgreSQL 17 database; `ml-server` pytest.
 Open: the retrain tool is the second pull request.
 

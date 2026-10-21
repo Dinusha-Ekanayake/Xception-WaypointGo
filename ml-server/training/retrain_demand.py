@@ -1,4 +1,4 @@
-"""Retrain the demand forecast on our own orders (issue #7, R-ML-28).
+"""Retrain the demand forecast on our own orders (issue #7, R-ML-29).
 
 Fits the vendored ``task2a_demand.DemandModel`` on the order history the backend
 exports (``/api/ml/training/orders``, one order per line, ``training/fetch.py

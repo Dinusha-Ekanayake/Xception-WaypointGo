@@ -125,7 +125,7 @@ python -m training.retrain_demand --export orders.jsonl --version 2026.10.21 --o
     --current models/task2a_model.joblib
 ```
 
-The export counts each order once by the day it was placed, as the forecast's actuals count it (R-ML-28). An order without a temperature is left out and counted in the report; one without a volume still counts towards the order schedule but not the order-size regressions.
+The export counts each order once by the day it was placed, as the forecast's actuals count it (R-ML-29). An order without a temperature is left out and counted in the report; one without a volume still counts towards the order schedule but not the order-size regressions.
 
 `retrain_demand` writes the model file, `manifest-entry.json` and `report.json`. It exits 2 without a model, with the reason in the report, when:
 
@@ -133,7 +133,7 @@ The export counts each order once by the day it was placed, as the forecast's ac
 - an order day is not in the calendar (import a newer reference first);
 - there are fewer than 4 backtest starts.
 
-It also exits 2, writing the model but not handing it over, when the backtest says so (R-ML-29):
+It also exits 2, writing the model but not handing it over, when the backtest says so (R-ML-30):
 
 - Starts: the latest Monday with 10 finished weeks after it, then every 4 weeks back, at most 6, each with 26 weeks or more of orders before it. Each start's model is fitted only on the orders before it and forecasts 10 weeks.
 - The candidate must have lower total and chilled WAPE than a naive forecast on the same weeks: each depot and brand's mean of the 8 weeks before the start, a yardstick for this check rather than the product's fallback.
