@@ -44,8 +44,10 @@ final class JevShadow {
     private final IssueQuery issues;
     private final JdbcJevShadow shadow;
     private final Clock clock;
+    private final KnownNames knownNames;
 
-    OnIssueRaised(AiProperties properties, IssueQuery issues, JdbcJevShadow shadow, Clock clock) {
+    OnIssueRaised(AiProperties properties, IssueQuery issues, JdbcJevShadow shadow, Clock clock, KnownNames knownNames) {
+      this.knownNames = knownNames;
       this.properties = properties;
       this.issues = issues;
       this.shadow = shadow;
@@ -73,9 +75,14 @@ final class JevShadow {
         return;
       }
       IssueRaised e = envelope.payload();
+      // R-ML-31: names are masked before the text is even stored for Jev. Without the
+      // list the event is retried later rather than kept unmasked.
+      com.waypoint.dispatch.intelligence.domain.PromptNames names = knownNames.current()
+          .orElseThrow(() -> new IllegalStateException("account names not read yet; retried"));
       issues.issue(e.issueId())
           .filter(issue -> !Actor.SYSTEM_ID.equals(issue.raisedBy()))
           .flatMap(issue -> IssueTriage.state(issue.description()))
+          .map(text -> names.session().mask(text))
           .ifPresent(text -> shadow.queue(
               e.issueId(), e.depotCode(), text, e.issueType().name().toLowerCase(java.util.Locale.ROOT),
               List.copyOf(IssueTriage.shuffled(e.issueId().getMostSignificantBits()).keySet()), clock.now()));

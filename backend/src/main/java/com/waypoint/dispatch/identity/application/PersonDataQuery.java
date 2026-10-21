@@ -21,6 +21,17 @@ public class PersonDataQuery implements PersonQuery {
   }
 
   @Override
+  public java.util.List<String> activeNames() {
+    return database.readAs(
+        ModuleRole.IAM,
+        null,
+        () ->
+            database.query("SELECT display_name FROM iam.users WHERE is_active").stream()
+                .map(r -> (String) r.get("display_name"))
+                .toList());
+  }
+
+  @Override
   public Optional<PersonView> person(UUID userId) {
     if (userId == null) {
       return Optional.empty();

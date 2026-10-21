@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-21 - feat: people's names are masked before anything reaches a language model
+
+`dev` · @Oxshadha
+
+- Patterns caught phones, IDs and links but no names, and no pattern can tell a Sinhala or Tamil name. Our own accounts' names now become `[person-N]` before an explanation is sent or a report is kept for Jev, and staff badges become `[staff]`; the answer gets the names back on our side (R-ML-31, ML-47, ML-48). Names come from a new Identity contract read, `PersonQuery.activeNames`, kept 10 minutes.
+
+---
+
 ## 2026-10-21 - feat: AI health for the administrator, with a prompt version on every call
 
 `dev` · @Oxshadha

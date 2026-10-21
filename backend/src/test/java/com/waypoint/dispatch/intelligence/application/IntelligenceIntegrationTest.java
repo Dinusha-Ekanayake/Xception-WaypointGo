@@ -150,6 +150,7 @@ class IntelligenceIntegrationTest {
   @Autowired com.waypoint.dispatch.intelligence.infrastructure.JdbcAttentionRepository attentionItems;
   @Autowired AttentionWatchJob attentionWatch;
   @Autowired JevShadow.Job jevJob;
+  @Autowired KnownNames knownNames;
   @Autowired ModelMetricsJob metricsJob;
   @Autowired FallbackTuningJob tuningJob;
   @Autowired ModelQualityJob qualityJob;
@@ -1400,6 +1401,26 @@ class IntelligenceIntegrationTest {
         "SELECT outcome FROM ml.ai_calls WHERE cache_key = ? ORDER BY asked_at DESC LIMIT 1", key));
   }
 
+  @Test
+  void aPersonsNameNeverReachesTheModelAndComesBackInTheAnswer() throws Exception {
+    // R-ML-31: our accounts' names become [person-N] before sending and are put back on our side.
+    String name = "Kasun Wije" + run;
+    accounts.createAccount("mln-" + run + "@intelligence.test", name, PASSWORD, "driver");
+    knownNames.forget();
+    UUID planId = publishedPlan();
+    StubLanguage.ANSWER.set("[person-1] carries 2 orders today.");
+    JsonNode answer = explain(dispatcher, "plan:" + planId + ":names",
+        "{\"headline\":\"" + name + " carries 2 orders, badge DRV-00133\"}", 200);
+    assertEquals("worded", answer.get("state").asText());
+    assertEquals(name + " carries 2 orders today.", answer.get("text").asText(), "the name is put back for the reader");
+    String sent = StubLanguage.SENT.get();
+    assertFalse(sent.contains("Kasun"), sent);
+    assertTrue(sent.contains("[person-1]") && sent.contains("[staff]"), sent);
+    String kept = (String) database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT sent_facts::text AS s FROM ml.ai_calls WHERE cache_key = ?", "plan:" + planId + ":names")).get("s");
+    assertFalse(kept.contains("Kasun"), "the record keeps what was sent, masked");
+  }
+
   // ---- Jev in shadow (roadmap AI-J1, R-ML-11) ----------------------------------------
 
   @Test
@@ -1407,13 +1428,14 @@ class IntelligenceIntegrationTest {
     UUID order = demandOf("0.6000");
     JsonNode raised = mapper.readTree(send(dispatcher, envelope("issue:Raise", null,
         "{\"type\":\"ROAD_DISRUPTION\",\"severity\":\"MEDIUM\",\"depotCode\":\"" + depot + "\",\"outletId\":\""
-            + outlet.outletId() + "\",\"subjects\":[{\"type\":\"order\",\"id\":\"" + order + "\"}],\"description\":\"Road flooded near the bridge, call me on 0771234567\"}"),
+            + outlet.outletId() + "\",\"subjects\":[{\"type\":\"order\",\"id\":\"" + order + "\"}],\"description\":\"Road flooded near the bridge, ask mld-" + run + ", call me on 0771234567\"}"),
         200));
     UUID issueId = UUID.fromString(raised.at("/result/issueId").asText());
     com.waypoint.dispatch.issues.contract.IssueEvents.IssueRaised event = new com.waypoint.dispatch.issues.contract.IssueEvents.IssueRaised(
         issueId, com.waypoint.dispatch.issues.contract.IssueViews.IssueType.ROAD_DISRUPTION,
         com.waypoint.dispatch.issues.contract.IssueViews.IssueSeverity.MEDIUM, depot, Optional.of(outlet.outletId()), List.of());
     UUID eventId = UUID.randomUUID();
+    knownNames.forget();
     deliver("ml.on-issue-raised-jev", eventId, event);
     deliver("ml.on-issue-raised-jev", eventId, event);
 
@@ -1425,6 +1447,8 @@ class IntelligenceIntegrationTest {
     assertEquals("road_disruption", row.get("jev_choice"));
     assertEquals(Boolean.TRUE, row.get("agrees"));
     assertTrue(((String) row.get("masked_text")).contains("[phone]"), "the phone number never left: " + row);
+    assertFalse(((String) row.get("masked_text")).contains("mld-" + run), "nor the dispatcher's name (R-ML-31): " + row);
+    assertTrue(((String) row.get("masked_text")).contains("[person-1]"), row.toString());
     assertFalse(StubLanguage.JEV_STATE.get().contains("0771234567"));
   }
 

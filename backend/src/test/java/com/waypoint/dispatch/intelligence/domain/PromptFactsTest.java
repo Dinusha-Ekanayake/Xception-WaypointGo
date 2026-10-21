@@ -15,6 +15,12 @@ import org.junit.jupiter.api.Test;
 class PromptFactsTest {
 
   @Test
+  void aStaffBadgeIsMaskedButAStoreCodeIsKept() {
+    // R-ML-31: a badge names a person; an outlet code names a place the facts need.
+    assertEquals("[staff] at OUT063", PromptFacts.mask("DRV-00133 at OUT063"));
+  }
+
+  @Test
   void aPromptsVersionChangesWithItsWordsAndOnlyThen() {
     // R-ML-27: the version is the instruction's hash, so nobody has to remember to bump it.
     String v = PromptFacts.version("Which kind of problem is it?");

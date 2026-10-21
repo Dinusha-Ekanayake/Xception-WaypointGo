@@ -53,6 +53,8 @@ public final class PromptFacts {
   private static final Pattern PHONE = Pattern.compile("(?<![\\w])(?:\\+?94[\\s-]?|0)\\d{2}[\\s-]?\\d{3}[\\s-]?\\d{4}(?![\\w])");
   private static final Pattern NIC = Pattern.compile("(?<![\\w])(?:\\d{9}[VvXx]|\\d{12})(?![\\w])");
   private static final Pattern EMAIL = Pattern.compile("[\\w.+-]+@[\\w-]+(?:\\.[\\w-]+)+");
+  /** A staff badge such as DRV-00133 or LDR-00038 (R-ML-31). */
+  private static final Pattern STAFF = Pattern.compile("(?<![\\w])[A-Z]{3}-\\d{5}(?![\\w])");
   private static final Pattern LINK = Pattern.compile("(?:https?://|www\\.)\\S+");
   private static final Pattern NUMBER = Pattern.compile("\\d+(?:[.:]\\d+)?");
 
@@ -76,6 +78,7 @@ public final class PromptFacts {
     t = EMAIL.matcher(t).replaceAll("[e-mail]");
     t = NIC.matcher(t).replaceAll("[id]");
     t = PHONE.matcher(t).replaceAll("[phone]");
+    t = STAFF.matcher(t).replaceAll("[staff]");
     return t.length() > MAX_STRING ? t.substring(0, MAX_STRING) : t;
   }
 
