@@ -156,9 +156,11 @@ public class ThreadController {
     // A thread outside the reader's scope is refused and audited, never "not found" (security rules).
     query.thread(actor, threadId);
     VoiceNotes.Audio audio = speech.audio(actor, threadId, messageId);
+    // Revalidated, never served unasked (F-07): each play still checks the reader,
+    // and a clip the phone already holds comes back as a 304 with no body.
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType(audio.contentType()))
-        .cacheControl(CacheControl.noStore())
+        .cacheControl(CacheControl.noCache().cachePrivate())
         .header("X-Content-Type-Options", "nosniff")
         .header("Accept-Ranges", "bytes")
         .body(new ByteArrayResource(audio.content()));

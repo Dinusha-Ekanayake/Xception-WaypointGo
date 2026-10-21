@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-21 - feat: spoken messages are revalidated and their copies kept only while used
+
+`dev` · @Oxshadha
+
+- Every Listen downloaded the clip again (`no-store`). The speech read is now revalidated like other F-07 reads: the reader is checked on every play and a clip the phone holds comes back as a 304 with no body. Spoken copies unused for 30 days lose their audio (rows stay) and are spoken again when next needed; gauges count copies held against messages spoken, the reuse that says whether keeping them pays (R-MSG-10, MSG-11b).
+- Not built: sending audio as it is read. It sits in PostgreSQL and is read whole by the driver either way, so streaming pays only once audio moves to the object store.
+
+---
+
 ## 2026-10-21 - feat: a lock means "must go out", not "same truck"
 
 `dev` · @Oxshadha

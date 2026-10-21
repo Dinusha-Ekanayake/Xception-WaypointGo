@@ -99,6 +99,7 @@ class MessagingIntegrationTest {
   @Autowired com.waypoint.dispatch.messaging.application.VoiceTranscripts.Job transcribe;
   @Autowired com.waypoint.dispatch.messaging.infrastructure.JdbcTranscripts transcriptRows;
   @Autowired com.waypoint.dispatch.messaging.application.MessageSpeech.Job speechJob;
+  @Autowired com.waypoint.dispatch.messaging.application.SpeechRetentionJob speechRetention;
 
   String depot;
   LocalDate day;
@@ -684,9 +685,33 @@ class MessagingIntegrationTest {
       assertTrue(r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8).startsWith("AUDIO:si:"),
           "Sinhala, from the script");
     }
+    // Played again: the phone revalidates and gets no body when it holds the clip.
+    MvcResult once = http.perform(get("/api/threads/" + threadId + "/messages/" + first + "/speech").cookie(session(driver)))
+        .andReturn();
+    String tag = once.getResponse().getHeader("ETag");
+    assertTrue(tag != null && once.getResponse().getHeader("Cache-Control").contains("no-cache"), "revalidated, not kept unasked");
+    MvcResult twice = http.perform(get("/api/threads/" + threadId + "/messages/" + first + "/speech").cookie(session(driver))
+        .header("If-None-Match", tag)).andReturn();
+    assertEquals(304, twice.getResponse().getStatus());
+    // Revalidation still checks the reader: another depot is refused, not answered 304.
+    assertEquals(403, http.perform(get("/api/threads/" + threadId + "/messages/" + first + "/speech")
+        .cookie(session(farDispatcher)).header("If-None-Match", tag)).andReturn().getResponse().getStatus());
     // A store the message was not for hears nothing, and another depot is refused.
     read(manager, "/api/threads/" + threadId + "/messages/" + first + "/speech", 404);
     read(farDispatcher, "/api/threads/" + threadId + "/messages/" + first + "/speech", 403);
+
+    // Unused for 30 days, the copy is cleared (the phone's own voice reads it then);
+    // the same words in a later message are spoken again.
+    speechRetention.runAt(clock.now().plus(java.time.Duration.ofDays(31)));
+    read(driver, "/api/threads/" + threadId + "/messages/" + first + "/speech", 404);
+    UUID later = UUID.fromString(json(say(dispatcher, "{\"to\":\"driver\",\"body\":\"" + sinhala + "\"}", 200))
+        .get("result").get("messageId").asText());
+    drain();
+    int beforeAgain = MessagingTestConfig.SPOKEN.get();
+    speechJob.runAt(clock.now());
+    assertEquals(beforeAgain + 1, MessagingTestConfig.SPOKEN.get(), "spoken again once its copy was cleared");
+    assertEquals(200, http.perform(get("/api/threads/" + threadId + "/messages/" + later + "/speech").cookie(session(driver)))
+        .andReturn().getResponse().getStatus());
   }
 
   // ---- the trip's live channel (FF-04, R-MSG-08) ----
