@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-22 - test: today's features end to end on the running stack
+
+`dev` · @Oxshadha
+
+- `live_check.py` (73 of 73: a full day through every role) and a new `features_check.py` on the local stack, with no mocks: the store phone on the trip, a vehicle not available before its trip and the revision that follows to the dock board, a simulated truck recording all its stops, the permission editor's preview, save and restore checked by a real refused and allowed request, and Jev in shadow. Found and fixed: a driver who holds more than one vehicle could mark only one of them (R-FLT-06 now asks who drives this vehicle), and the live check stamped phone positions with the demo clock (DEMO-12). Screenshots taken from the running app.
+
+---
+
 ## 2026-10-22 - fix: the driver's vehicle status follows the Figma, and resend is dropped
 
 `dev` · @Oxshadha

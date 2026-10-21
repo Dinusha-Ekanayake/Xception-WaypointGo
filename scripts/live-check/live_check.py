@@ -467,7 +467,8 @@ class LiveCheck:
                     slow=SLOW_S if timeout == TIMEOUT_S else timeout)
 
     def fixes(self, points):
-        end = self.now()
+        # A phone stamps its fixes with its own clock, real time, not the demo clock (DEMO-12).
+        end = dt.datetime.now(dt.timezone.utc)
         out = []
         for i, (lat, lon) in enumerate(points):
             at = end - dt.timedelta(seconds=10 * (len(points) - 1 - i) + 2)

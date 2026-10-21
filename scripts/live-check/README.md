@@ -81,3 +81,14 @@ Each command prints its status and time. Each check prints one line:
 The run ends with a summary table and the counts. The exit code is 0 only when
 no check failed. A command the rest depends on that is refused stops the run,
 with the request, the status and the response body printed.
+
+## Today's features, after a day
+
+`features_check.py` runs after `live_check.py` on the same stack and checks the
+features of 2026-10-21/22 the same way, by real commands and reads as each role:
+the store manager's phone on the dispatcher's trip (R-IAM-41), a vehicle marked
+not available before its trip and the plan revision that follows (R-FLT-06), a
+simulated truck recording its own stops (R-DEMO-04), the permission editor's
+preview, save and restore (R-IAM-42), and Jev reading a typed report in shadow
+(R-ML-33). It needs a second driver, `simdriver@waypoint.local`, holding some of
+the depot's vehicles, so the demo trucks have trips the demo driver does not.

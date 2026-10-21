@@ -109,7 +109,8 @@ public class SetVehicleDayStatusHandler implements CommandHandler {
     if (!roles.contains("dispatcher") && !roles.contains("admin")) {
       // R-FLT-06: the driver's own vehicle, today, broken or OK; nothing else.
       LocalDate today = clock.now().atZone(Clock.OPERATING_ZONE).toLocalDate();
-      if (!date.equals(today) || !identity.driverVehicleOn(actor.userId(), today).equals(Optional.of(vehicleId))) {
+      // Who drives this vehicle today must be them: a driver may hold more than one vehicle.
+      if (!date.equals(today) || !identity.driverOn(vehicleId, today).equals(Optional.of(actor.userId()))) {
         throw new DomainException(
             ErrorCode.FORBIDDEN, "A driver marks only the vehicle they drive today", List.of("R-FLT-06"));
       }

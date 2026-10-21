@@ -1144,6 +1144,16 @@ class ExecutionIntegrationTest {
     assertEquals(2, statusEvents());
     drain();
     assertTrue(dispatcherTitles().contains(vehicleId + " back in use"), dispatcherTitles().toString());
+    // A driver who holds two vehicles today may mark either (found on the live stack, 2026-10-22).
+    String second = reference.availableVehicles(depot, day, null).stream().map(v -> v.vehicleId())
+        .filter(v -> !v.equals(vehicleId) && !v.equals(otherVehicleId)).filter(v -> !alreadyAssigned(v, v, day, day.plusDays(1)))
+        .findFirst().orElseThrow();
+    database.asModule(ModuleRole.IAM, null, () -> {
+      assign(driverId, second, day, day.plusDays(1));
+      return null;
+    });
+    send(driver, "vehicle:SetDayStatus", null,
+        "{\"vehicleId\":\"" + second + "\",\"serviceDate\":\"" + day + "\",\"status\":\"unavailable\"}", 200);
   }
 
   private Instant statusSince;
