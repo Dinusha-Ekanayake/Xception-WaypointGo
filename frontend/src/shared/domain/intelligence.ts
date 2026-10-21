@@ -358,7 +358,14 @@ export type DecisionAction =
   | "NOTED";
 
 /** One suggested decision; `chance` 0 to 1, summing to 1 over what is offered. */
-export type SuggestionView = { action: DecisionAction; chance: number; warning: string | null };
+export type SuggestionView = {
+  action: DecisionAction;
+  chance: number;
+  warning: string | null;
+  /** Once learned: how often this was taken here, of how often it was shown. */
+  chosenTimes?: number | null;
+  shownTimes?: number | null;
+};
 
 /** GET /api/ml/decision-suggestions?deliveryId=&situation=: advice for one stop, most likely first. */
 export type SuggestionsView = {

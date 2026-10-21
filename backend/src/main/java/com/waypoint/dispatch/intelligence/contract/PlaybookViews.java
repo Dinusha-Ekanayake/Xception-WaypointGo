@@ -18,8 +18,13 @@ public final class PlaybookViews {
   /** One situation's steps and ready message; {@code message} is empty when there is nobody useful to write to. */
   public record PlaybookView(String situation, List<String> steps, Optional<MessageView> message) {}
 
-  /** @param chance 0 to 1, summing to 1 over the suggestions offered */
-  public record SuggestionView(String action, double chance, Optional<String> warning) {}
+  /**
+   * @param chance 0 to 1, summing to 1 over the suggestions offered
+   * @param chosenTimes once chances are learned: how often this was taken here, of {@code shownTimes} times shown
+   */
+  public record SuggestionView(
+      String action, double chance, Optional<String> warning, Optional<Integer> chosenTimes,
+      Optional<Integer> shownTimes) {}
 
   /**
    * The suggestions for one stop in one situation.

@@ -96,6 +96,42 @@ public final class Playbooks {
   /** @param chance the share of the time this decision is expected, 0 to 1, summing to 1 over what is offered */
   public record Suggestion(Action action, double chance, Optional<String> warning) {}
 
+  /**
+   * The suggestion log for one situation: how often each decision was shown and
+   * taken, and how many suggestions ended in a decision.
+   */
+  public record Tally(Map<Action, Integer> shown, Map<Action, Integer> chosen, int decided) {
+    public static final Tally NONE = new Tally(Map.of(), Map.of(), 0);
+
+    public Tally {
+      shown = Map.copyOf(shown);
+      chosen = Map.copyOf(chosen);
+    }
+  }
+
+  /** Below this many decided cases a situation keeps the rule priors (PLAN, "How it works", 3). */
+  public static final int LEARN_AFTER = 20;
+  /** How many cases the prior counts as, so a few odd choices do not swing a learned chance. */
+  static final double PRIOR_WEIGHT = 5;
+
+  public static boolean learned(Tally t) {
+    return t.decided() >= LEARN_AFTER;
+  }
+
+  /**
+   * Where a decision's chance starts: its rule prior, or once the situation has
+   * {@link #LEARN_AFTER} decided cases, the share of the times it was taken when
+   * it was shown, smoothed toward the prior.
+   */
+  static double start(Action a, double prior, Tally t) {
+    if (!learned(t)) {
+      return prior;
+    }
+    int shown = t.shown().getOrDefault(a, 0);
+    int chosen = t.chosen().getOrDefault(a, 0);
+    return (chosen + PRIOR_WEIGHT * prior) / (shown + PRIOR_WEIGHT);
+  }
+
   // ---- the catalogue --------------------------------------------------------
 
   private static final Map<Situation, Playbook> PLAYBOOKS = new EnumMap<>(Situation.class);
@@ -200,11 +236,16 @@ public final class Playbooks {
    * the chances made to sum to one over what is left.
    */
   public static List<Suggestion> suggest(Situation s, Facts f) {
+    return suggest(s, f, Tally.NONE);
+  }
+
+  /** As {@link #suggest(Situation, Facts)}, the chances learned from the log once there is enough of it. */
+  public static List<Suggestion> suggest(Situation s, Facts f, Tally tally) {
     Map<Action, Double> priors = PRIORS.getOrDefault(s, Map.of());
     List<Suggestion> allowed = new ArrayList<>();
     for (Map.Entry<Action, Double> e : priors.entrySet()) {
       Action a = e.getKey();
-      double chance = e.getValue();
+      double chance = start(a, e.getValue(), tally);
       Optional<String> warning = Optional.empty();
       boolean onTheStop = a == Action.SKIP_NEXT_DAY || a == Action.SKIP_CANCEL || a == Action.ASK_RECEIVE_LATER
           || a == Action.WAIT;

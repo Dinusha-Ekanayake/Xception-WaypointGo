@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-21 - feat: suggested decisions learn from what dispatchers chose (#269)
+
+`dev` · @Oxshadha
+
+- Once a situation has 20 decided cases in 90 days, a suggestion's chance is how often it was taken when shown there, smoothed toward its rule prior, and the chip says "chosen 21 of 30 times"; until then "Suggested by the rules" (R-ML-26). Counted by situation only for now, since the log does not keep the window or the stop's state.
+- Open: this machine ran out of disk (about 200 MB free), which slowed Postgres in Docker until a full backend run timed out in seven tests; each passed again alone at normal speed.
+
+---
+
 ## 2026-10-21 - feat: one playbook catalogue on the server, and suggested decisions in the trip's chat (#269)
 
 `dev` · @Oxshadha

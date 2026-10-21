@@ -108,7 +108,7 @@ export default function ReportSuggestions({
   return (
     <div role="group" aria-label="Suggested decisions" className="flex flex-col gap-1.5">
       <span className="text-[12px] font-medium text-go-secondary">
-        Suggested{view.basis === "rules" ? " by the rules" : ""}
+        {view.basis === "learned" ? "Suggested from what dispatchers chose here" : "Suggested by the rules"}
       </span>
       <div className="flex flex-wrap gap-1.5">
         {view.suggestions.map((s) => (
@@ -121,6 +121,10 @@ export default function ReportSuggestions({
             className="min-h-8 rounded-full bg-go-card px-3 text-[13px] font-medium text-go-teal shadow-[inset_0_0_0_1px_rgb(0_0_0/0.08)] disabled:opacity-40"
           >
             {LABEL[s.action]}
+            {/* Counts in words once learned (PLAN, How it works 4), never a bare percentage. */}
+            {s.chosenTimes != null && s.shownTimes ? (
+              <span className="font-normal text-go-secondary">{` · chosen ${s.chosenTimes} of ${s.shownTimes} times`}</span>
+            ) : null}
           </button>
         ))}
       </div>

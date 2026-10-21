@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { said, tripThread } from "../thread-mocks.ts";
 import { LIVE_NOW, liveDay, serve, type Desk } from "./mocks.ts";
+import { storeClosed } from "../playbook-fixture.ts";
 
 // R-EXE-31: on a trip on the road the dispatcher skips a store (next day or
 // cancel, with a reason) or ends the trip. Each sends the stop's version, says
@@ -112,4 +113,23 @@ test("the chat suggests the likely decisions beside a report, and keeps which on
     deliveryId: "d-VEH020-2", situation: "STORE_CLOSED", shown: ["CALL_STORE", "SKIP_NEXT_DAY", "WAIT"], chosen: "SKIP_NEXT_DAY",
   });
   expect(desk.commands.find((c) => c.kind === "delivery:SkipStop")?.payload).toMatchObject({ then: "NEXT_DAY" });
+});
+
+test("once learned, a chip says how often dispatchers chose it here", async ({ page }) => {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
+    said("r1", "2027-03-01T10:05:00Z", { kind: "report", reportType: "failed_delivery", authorName: "Dilan R.", authorRole: "driver", audience: "dispatch", body: "Shutter down", aboutOutletId: "OUT063" }),
+  ]);
+  await serve(page, { ...liveDay(), threads: [thread] });
+  await page.route("**/api/ml/decision-suggestions**", (route) => {
+    const learned = { ...storeClosed("d-VEH020-2"), basis: "learned" };
+    learned.suggestions = learned.suggestions.map((x, i) => ({ ...x, chosenTimes: [21, 3, 1][i]!, shownTimes: 30 }));
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(learned) });
+  });
+  await page.goto("/#/live");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("region", { name: "Timeline" }).getByTestId("report-sign").first().click();
+  const chips = page.getByRole("dialog", { name: "Trip messages" }).locator("#message-r1").getByRole("group", { name: "Suggested decisions" });
+  await expect(chips).toContainText("Suggested from what dispatchers chose here");
+  await expect(chips.getByRole("button").first()).toHaveText("Call the store · chosen 21 of 30 times");
 });

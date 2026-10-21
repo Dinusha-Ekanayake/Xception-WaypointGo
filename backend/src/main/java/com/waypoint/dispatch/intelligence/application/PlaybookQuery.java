@@ -45,9 +45,15 @@ public class PlaybookQuery {
   private final ReferenceQuery reference;
   private final Database database;
   private final Clock clock;
+  private final com.waypoint.dispatch.intelligence.infrastructure.JdbcDecisionSuggestions log;
+
+  /** How far back the log is counted: a season's choices, not last year's. */
+  static final java.time.Duration COUNTED = java.time.Duration.ofDays(90);
 
   public PlaybookQuery(
-      ExecutionQuery execution, OrderQuery orders, ReferenceQuery reference, Database database, Clock clock) {
+      ExecutionQuery execution, OrderQuery orders, ReferenceQuery reference, Database database, Clock clock,
+      com.waypoint.dispatch.intelligence.infrastructure.JdbcDecisionSuggestions log) {
+    this.log = log;
     this.execution = execution;
     this.orders = orders;
     this.reference = reference;
@@ -91,11 +97,24 @@ public class PlaybookQuery {
         open, stop.outcome() == DeliveryOutcome.ARRIVED, window, MALL_DOCK.equals(outlet.dockType()),
         order.map(o -> "chilled".equals(o.temperature()) || "frozen".equals(o.temperature())).orElse(false),
         order.map(o -> o.deferralCount() > 0).orElse(false), left);
-    List<SuggestionView> suggestions = Playbooks.suggest(s, facts).stream()
-        .map(x -> new SuggestionView(x.action().name(), x.chance(), x.warning()))
+    var counted = log.tally(s.name(), clock.now().minus(COUNTED));
+    Playbooks.Tally tally = tally(counted);
+    boolean learned = Playbooks.learned(tally);
+    List<SuggestionView> suggestions = Playbooks.suggest(s, facts, tally).stream()
+        .map(x -> new SuggestionView(x.action().name(), x.chance(), x.warning(),
+            learned ? Optional.of(counted.chosen().getOrDefault(x.action().name(), 0)) : Optional.empty(),
+            learned ? Optional.of(counted.shown().getOrDefault(x.action().name(), 0)) : Optional.empty()))
         .toList();
-    return new SuggestionsView(s.name(), deliveryId.toString(), "rules", Playbooks.VERSION, suggestions,
-        view(Playbooks.playbook(s)));
+    return new SuggestionsView(s.name(), deliveryId.toString(), learned ? "learned" : "rules", Playbooks.VERSION,
+        suggestions, view(Playbooks.playbook(s)));
+  }
+
+  private static Playbooks.Tally tally(com.waypoint.dispatch.intelligence.infrastructure.JdbcDecisionSuggestions.Tally t) {
+    java.util.Map<Playbooks.Action, Integer> shown = new java.util.EnumMap<>(Playbooks.Action.class);
+    java.util.Map<Playbooks.Action, Integer> chosen = new java.util.EnumMap<>(Playbooks.Action.class);
+    t.shown().forEach((k, v) -> shown.put(Playbooks.Action.parse(k), v));
+    t.chosen().forEach((k, v) -> chosen.put(Playbooks.Action.parse(k), v));
+    return new Playbooks.Tally(shown, chosen, t.decided());
   }
 
   private static PlaybookView view(Playbooks.Playbook p) {

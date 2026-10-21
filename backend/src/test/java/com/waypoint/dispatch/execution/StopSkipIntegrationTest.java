@@ -314,6 +314,22 @@ class StopSkipIntegrationTest {
     assertEquals(1, kept);
   }
 
+  @Test
+  void afterTwentyDecisionsTheChancesAreCountedFromWhatDispatchersTook() throws Exception {
+    command(driver, "delivery:RecordArrival", 1L, stop(stopTwo), 200);
+    String shown = "\"shown\":[\"CALL_STORE\",\"SKIP_NEXT_DAY\",\"WAIT\"]";
+    for (int i = 0; i < 21; i++) {
+      command(dispatcher, "ml:RecordSuggestion", null,
+          "{\"deliveryId\":\"" + stopTwo + "\",\"situation\":\"STORE_CLOSED\"," + shown + ",\"chosen\":\"SKIP_NEXT_DAY\"}", 200);
+    }
+    JsonNode s = json(read(dispatcher, "/api/ml/decision-suggestions?deliveryId=" + stopTwo + "&situation=failed_delivery", 200));
+    assertEquals("learned", s.get("basis").asText());
+    JsonNode first = s.get("suggestions").get(0);
+    assertEquals("SKIP_NEXT_DAY", first.get("action").asText(), "what dispatchers take here comes first");
+    assertTrue(first.get("chosenTimes").asInt() >= 21);
+    assertTrue(first.get("shownTimes").asInt() >= first.get("chosenTimes").asInt());
+  }
+
   // ---- helpers ----
 
   private String skip(String who, UUID deliveryId, Long version, String then, String reason, int expected) throws Exception {

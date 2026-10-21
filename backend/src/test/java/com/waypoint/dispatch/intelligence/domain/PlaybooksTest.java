@@ -92,6 +92,26 @@ class PlaybooksTest {
   }
 
   @Test
+  void belowTwentyDecidedCasesTheRulePriorsStand() {
+    Facts f = at(true, Window.INSIDE, false, false, false, 2);
+    Playbooks.Tally few = new Playbooks.Tally(
+        java.util.Map.of(Action.SKIP_NEXT_DAY, 19), java.util.Map.of(Action.SKIP_NEXT_DAY, 19), 19);
+    assertFalse(Playbooks.learned(few));
+    assertEquals(Playbooks.suggest(Situation.STORE_CLOSED, f), Playbooks.suggest(Situation.STORE_CLOSED, f, few));
+  }
+
+  @Test
+  void onceLearnedWhatDispatchersTakeHereComesFirstAndNothingFallsToZero() {
+    Facts f = at(true, Window.INSIDE, false, false, false, 2);
+    Playbooks.Tally learned = new Playbooks.Tally(
+        java.util.Map.of(Action.CALL_STORE, 30, Action.SKIP_NEXT_DAY, 30, Action.WAIT, 30),
+        java.util.Map.of(Action.SKIP_NEXT_DAY, 24, Action.CALL_STORE, 3), 27);
+    List<Suggestion> s = Playbooks.suggest(Situation.STORE_CLOSED, f, learned);
+    assertEquals(Action.SKIP_NEXT_DAY, s.get(0).action(), "taken 24 of 30 times here");
+    assertTrue(s.stream().allMatch(x -> x.chance() > 0), "a decision never taken keeps a little of its prior");
+  }
+
+  @Test
   void theFiveNeedsYouPlaybooksKeepTheirSteps() {
     assertEquals(3, Playbooks.playbook(Situation.FAILED).steps().size());
     assertTrue(Playbooks.playbook(Situation.ISSUE).message().isEmpty());
