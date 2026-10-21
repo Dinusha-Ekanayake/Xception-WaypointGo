@@ -45,6 +45,17 @@ class DeliveryRecordTest {
   // ---- arrival: waiting and lateness ----
 
   @Test
+  void aClosedStoreOrABlockedStopIsReportedAndAReportedStopIsTheDispatchers() {
+    // R-EXE-32: the driver reports these; the dispatcher's Skip store ends the stop.
+    Optional<String> note = Optional.of("back to the depot");
+    assertEquals("R-EXE-32", rule(() -> stop().fail(FailureReason.OUTLET_CLOSED, note, at("08:30"))));
+    assertEquals("R-EXE-32", rule(() -> stop().fail(FailureReason.ACCESS_BLOCKED, note, at("08:30"))));
+    assertEquals("R-EXE-32", rule(() -> stop().fail(FailureReason.REFUSED, note, at("08:30"), true)));
+    assertEquals(DeliveryOutcome.FAILED, stop().fail(FailureReason.REFUSED, note, at("08:30"), false).outcome());
+    assertEquals(StopProblem.CANNOT_UNLOAD, StopProblem.parse(" cannot_unload "));
+  }
+
+  @Test
   void anEarlyArrivalWaitsAndServiceStartsWhenTheWindowOpens() {
     // EXE-05, EXE-18, R-EXE-04
     DeliveryRecord arrived = stop().arrive(at("07:25"), Optional.empty());

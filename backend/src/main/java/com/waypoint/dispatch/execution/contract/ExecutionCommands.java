@@ -19,6 +19,8 @@ public final class ExecutionCommands {
   public static final String CAPTURE_PROOF = "delivery:CaptureProof";
   public static final String REPORT_VEHICLE_STATUS = "delivery:ReportVehicleStatus";
   public static final String REPORT_FAULT = "delivery:ReportFault";
+  /** R-EXE-32: a closed store or a stop that cannot unload, for the dispatcher to decide. */
+  public static final String REPORT_STOP_PROBLEM = "delivery:ReportStopProblem";
   /** The driver moves on before the store answered, with the reason (issue #21). */
   public static final String LEAVE_WITHOUT_STORE_ANSWER = "delivery:LeaveWithoutStoreAnswer";
   public static final String RECORD_POSITIONS = "delivery:RecordPositions";

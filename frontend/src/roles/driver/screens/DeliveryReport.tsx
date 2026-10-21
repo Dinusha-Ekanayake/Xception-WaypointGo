@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { FailureReasons, type FailureReason, type OutletView } from "@shared/domain/types";
-import { canDeliver, clock, missing, type RecordDraft, type Stop } from "../data/run.ts";
+import { canDeliver, clock, missing, withDispatcher, type RecordDraft, type Stop } from "../data/run.ts";
 import { ActionButton, Banner, Field, OutlineButton, Panel, PinnedAction, input } from "../ui.tsx";
 import ProofCapture, { EMPTY_PROOF, proofMissing, type ProofDraft } from "./ProofCapture.tsx";
 import { useT } from "../i18n.tsx";
@@ -48,6 +48,8 @@ export default function DeliveryReport({
   onConfirm: (report: Report) => void;
 }): React.JSX.Element {
   const t = useT();
+  // R-EXE-32: a stop the driver reported is the dispatcher's to end; the goods may still be handed over.
+  const reported = withDispatcher(stop);
   const deliverable = stop.outcome === "ARRIVED" && canDeliver(stop);
   // Not delivered is the driver's choice, or the only outcome a stop not reached (or a late mall) can take.
   const [choseFailed, setChoseFailed] = useState(startFailed !== null);
@@ -91,6 +93,12 @@ export default function DeliveryReport({
         <h1 className="mt-2 text-[40px] font-medium leading-[1.05] text-go-ink">{stop.outletId}</h1>
         {outlet && <p className="mt-1 text-[15px] text-go-muted">{outlet.districtName} · {outlet.brandCode}</p>}
       </div>
+
+      {reported && (
+        <Banner tone="warn" title={t(stop.reportedProblem === "CANNOT_UNLOAD" ? "You reported: cannot unload here" : "You reported: store closed")}>
+          {t("The dispatcher decides: they take this store off your trip, or tell you to wait. If the store opens, deliver as usual.")}
+        </Banner>
+      )}
 
       {stop.outcome === "ARRIVED" && waited > 0 && (
         <Banner tone="neutral" title={t("Arrived {n} min before the window opens at {time}", { n: waited, time: clock(stop.windowOpen) })}>
@@ -162,7 +170,8 @@ export default function DeliveryReport({
               <option value="" disabled>
                 {t("Choose a reason")}
               </option>
-              {FailureReasons.map((code) => (
+              {/* A closed store or a stop that cannot unload is reported to the dispatcher instead (R-EXE-32). */}
+              {FailureReasons.filter((code) => code !== "outlet_closed" && code !== "access_blocked").map((code) => (
                 <option key={code} value={code}>
                   {t(REASON_LABEL[code])}
                 </option>
@@ -218,12 +227,14 @@ export default function DeliveryReport({
 
       {(bannerProblem || error) && <Banner tone="bad" title={bannerProblem ?? error ?? ""} live />}
 
-      <PinnedAction on="canvas">
-        <ActionButton busy={busy} onClick={confirm}>
-          {t(busy ? "Sending…" : failed ? "Record as not delivered" : "Confirm")}
-        </ActionButton>
-      </PinnedAction>
-      {deliverable && (
+      {!(reported && failed) && (
+        <PinnedAction on="canvas">
+          <ActionButton busy={busy} onClick={confirm}>
+            {t(busy ? "Sending…" : failed ? "Record as not delivered" : "Confirm")}
+          </ActionButton>
+        </PinnedAction>
+      )}
+      {deliverable && !reported && (
         <OutlineButton
           onClick={() => {
             setChoseFailed((value) => !value);

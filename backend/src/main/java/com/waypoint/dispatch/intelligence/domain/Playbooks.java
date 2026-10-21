@@ -221,7 +221,8 @@ public final class Playbooks {
   public static Optional<Situation> ofReport(String reportType) {
     return Optional.ofNullable(
         switch (reportType == null ? "" : reportType) {
-          case "failed_delivery" -> Situation.STORE_CLOSED;
+          case "failed_delivery", "store_closed" -> Situation.STORE_CLOSED;
+          case "cannot_unload" -> Situation.CANNOT_UNLOAD;
           case "vehicle_fault" -> Situation.BREAKDOWN;
           case "road_disruption" -> Situation.ROAD_BLOCKED;
           case "late" -> Situation.RUNNING_LATE;

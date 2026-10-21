@@ -15,6 +15,8 @@ export const REPORT_LABEL: Record<ReportType, string> = {
   stock_discrepancy: "Stock problem",
   late: "Running late",
   other: "Other problem",
+  store_closed: "Store closed",
+  cannot_unload: "Cannot unload",
 };
 
 /** The reports each role may make by hand, in the order a phone offers them. */

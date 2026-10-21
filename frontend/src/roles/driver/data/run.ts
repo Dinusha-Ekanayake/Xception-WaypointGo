@@ -34,6 +34,8 @@ export const DeliveryKind = {
   proof: "delivery:CaptureProof",
   /** Moving on from a handed-over stop before the store answered (issue #21). */
   leave: "delivery:LeaveWithoutStoreAnswer",
+  /** R-EXE-32: a closed store or a stop that cannot unload, for the dispatcher; the stop stays open. */
+  problem: "delivery:ReportStopProblem",
 } as const;
 
 /** A time of day on the service date, as an instant. */
@@ -73,6 +75,12 @@ export function project(sheet: RunSheetView, writes: WaitingWrite[]): Stop[] {
     if (!stop) continue;
     const when = command.clientRecordedAt;
     const payload = command.payload as Record<string, unknown>;
+    // A report leaves the stop as it is on the server, version and all: only the phone marks it.
+    if (command.kind === DeliveryKind.problem) {
+      stop.reportedProblem = payload.problem === "CANNOT_UNLOAD" ? "CANNOT_UNLOAD" : "STORE_CLOSED";
+      stop.waiting = true;
+      continue;
+    }
     switch (command.kind) {
       case DeliveryKind.start:
         stop.startedAt = stop.startedAt ?? when;
@@ -110,9 +118,19 @@ export function isFinished(stop: Pick<Stop, "outcome">): boolean {
   return stop.outcome !== "PENDING" && stop.outcome !== "ARRIVED";
 }
 
-/** The stop to work on: the first one, in order, that has no outcome yet. */
+/**
+ * The stop to work on: the first one, in order, that has no outcome yet. A stop
+ * waiting for the dispatcher's decision (R-EXE-32) comes after every other, so
+ * the driver goes on meanwhile; with nothing else left, it is the one to show.
+ */
 export function nextStop(stops: Stop[]): Stop | null {
-  return stops.find((stop) => !isFinished(stop)) ?? null;
+  const open = stops.filter((stop) => !isFinished(stop));
+  return open.find((stop) => !withDispatcher(stop)) ?? open[0] ?? null;
+}
+
+/** R-EXE-32: the driver reported this stop and the dispatcher has not decided yet. */
+export function withDispatcher(stop: Pick<Stop, "outcome" | "reportedProblem">): boolean {
+  return !isFinished(stop) && stop.reportedProblem != null;
 }
 
 /**

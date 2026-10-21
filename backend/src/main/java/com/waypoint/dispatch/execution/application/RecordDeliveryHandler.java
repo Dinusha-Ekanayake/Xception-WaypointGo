@@ -68,7 +68,8 @@ public class RecordDeliveryHandler extends DeliveryCommandHandler {
     DeliveryLines.Settled settled = new DeliveryLines.Settled(Optional.empty(), List.of());
     try {
       if (outcome == DeliveryOutcome.FAILED) {
-        after = before.fail(FailureReason.parse(payload.requiredText("reason")), note, now);
+        after = before.fail(
+            FailureReason.parse(payload.requiredText("reason")), note, now, deliveries.hasOpenStopProblem(deliveryId));
       } else {
         settled = DeliveryLines.settle(
             deliveries.orderedLines(deliveryId), before.itemCount(), outcome, lines,

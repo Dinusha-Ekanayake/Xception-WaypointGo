@@ -117,8 +117,8 @@ export function StopState({ stop }: { stop: Stop }): React.JSX.Element {
     case "SKIPPED":
       return <Tag>{t("Replanned")}</Tag>;
     case "ARRIVED":
-      return <Tag tone="warn">{on(t("At the stop"))}</Tag>;
+      return <Tag tone="warn">{on(t(stop.reportedProblem ? "With the dispatcher" : "At the stop"))}</Tag>;
     default:
-      return <Tag>{stop.startedAt ? on(t("On the way")) : t("To do")}</Tag>;
+      return <Tag>{stop.reportedProblem ? on(t("With the dispatcher")) : stop.startedAt ? on(t("On the way")) : t("To do")}</Tag>;
   }
 }

@@ -213,3 +213,17 @@ test("a sent command's answer carries the stop's version on, never backwards", (
   const stale = acknowledged(after, { deliveryId: "a", rowVersion: 1, outcome: "PENDING" });
   assert.equal(stale[0]!.stops[0]!.rowVersion, 2, "an older answer changes nothing");
 });
+
+test("a stop reported for the dispatcher waits behind every other, and a queued report marks it without a version", () => {
+  // R-EXE-32: the driver goes on; the stop is the dispatcher's to end.
+  const stops = project(sheet(stop("a", 1, { outcome: "ARRIVED" }), stop("b", 2)), [
+    write(DeliveryKind.problem, { deliveryId: "a", problem: "STORE_CLOSED" }, "2027-03-01T03:00:00Z", 0),
+  ]);
+  assert.equal(stops[0]!.reportedProblem, "STORE_CLOSED");
+  assert.equal(stops[0]!.rowVersion, 1, "a report leaves the stop's version as the server keeps it");
+  assert.equal(stops[0]!.waiting, true);
+  assert.equal(nextStop(stops)!.deliveryId, "b", "on to the next stop");
+  // With nothing else left, the waiting stop is the one to show.
+  const left = project(sheet(stop("a", 1, { outcome: "ARRIVED", reportedProblem: "CANNOT_UNLOAD" }), stop("b", 2, { outcome: "DELIVERED" })), []);
+  assert.equal(nextStop(left)!.deliveryId, "a");
+});

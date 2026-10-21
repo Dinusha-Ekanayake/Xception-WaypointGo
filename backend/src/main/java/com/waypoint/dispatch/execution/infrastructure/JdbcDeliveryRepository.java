@@ -204,6 +204,25 @@ public class JdbcDeliveryRepository {
   }
 
   /** @return false when the stop already has a skip: one per stop, never rewritten (rule 8) */
+  /** R-EXE-32: one driver's report at a stop, append only; {@code afterFinish} when the stop had already ended. */
+  public void insertStopProblem(
+      UUID reportId, UUID deliveryId, String problem, boolean afterFinish, UUID commandId, Stamp stamp) {
+    database.update(
+        """
+        INSERT INTO execution.stop_problems
+            (report_id, delivery_id, problem, after_finish, reported_by, command_id, reported_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        reportId, deliveryId, problem, afterFinish, stamp.actorId(), commandId, Timestamp.from(stamp.serverAt()));
+  }
+
+  /** Whether the driver reported a problem at this stop while it was open (R-EXE-32). */
+  public boolean hasOpenStopProblem(UUID deliveryId) {
+    return database.queryOne(
+            "SELECT 1 AS one FROM execution.stop_problems WHERE delivery_id = ? AND NOT after_finish LIMIT 1", deliveryId)
+        != null;
+  }
+
   public boolean insertStopSkip(UUID deliveryId, String then, String reason, boolean wholeTrip, UUID commandId, Stamp stamp) {
     return database.update(
             """

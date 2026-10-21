@@ -1,6 +1,6 @@
 import type { OutletView } from "@shared/domain/types";
 import { clock, codeLabel, DOCK_TYPE, hhmm } from "../../../shared/wording/index.ts";
-import { isFinished, lateMinutes, summarize, unitsHandedOver, type Stop } from "./run.ts";
+import { isFinished, withDispatcher, lateMinutes, summarize, unitsHandedOver, type Stop } from "./run.ts";
 import { translate, type Translate } from "./strings.ts";
 
 /** The functions below write English unless the screen passes its language (roadmap FF-00). */
@@ -34,6 +34,8 @@ export type RouteStop = {
   mapButtonType: "split" | "wide";
   /** Recorded or replanned: nothing left to do here. */
   finished: boolean;
+  /** R-EXE-32: reported closed or blocked, and the dispatcher has not decided yet. */
+  withDispatcher: boolean;
   /** Recorded as delivered in full; read this, never the status text, which is in the driver's language. */
   delivered: boolean;
   /** One or more writes for this stop are still only on this phone. */
@@ -89,6 +91,7 @@ export function toRouteStops(
       instructions: access(outlet, t),
       mapButtonType: "split",
       finished: isFinished(stop),
+      withDispatcher: withDispatcher(stop),
       delivered: stop.outcome === "DELIVERED",
       onPhone: stop.waiting,
       doneAt: stop.completedAt ? clock(stop.completedAt) : null,

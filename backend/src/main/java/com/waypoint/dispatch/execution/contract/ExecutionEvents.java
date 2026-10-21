@@ -142,6 +142,39 @@ public final class ExecutionEvents {
    * with its goods back at the depot ({@code CANCEL}); the store and the driver
    * are told. A plan revision's skip publishes nothing: the revision says it.
    */
+  /**
+   * R-EXE-32: the driver reports a closed store or a stop that cannot unload. The
+   * stop stays open; the dispatcher decides. Only the kind of problem travels,
+   * never the driver's own words.
+   */
+  public record DeliveryProblemReported(
+      UUID deliveryId,
+      UUID tripId,
+      String outletId,
+      String depotCode,
+      String vehicleId,
+      LocalDate serviceDate,
+      String problem,
+      Instant reportedAt)
+      implements DomainEvent {
+    public static final String TYPE = "delivery.problem_reported";
+
+    @Override
+    public String type() {
+      return TYPE;
+    }
+
+    @Override
+    public String aggregateType() {
+      return "delivery";
+    }
+
+    @Override
+    public String aggregateId() {
+      return deliveryId.toString();
+    }
+  }
+
   public record DeliverySkipped(
       UUID deliveryId,
       UUID orderId,

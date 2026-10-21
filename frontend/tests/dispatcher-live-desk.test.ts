@@ -110,3 +110,10 @@ test("R-EXE-25: offline is the driver's phone not reaching the server, not a sta
   // Without a presence read, the last fix still decides.
   assert.equal(runsOf(days([sheet("VEH020", [stop("VEH020", 1)])]), [trip("VEH020")], [stale], {}, DATE, NOW)[0]!.status, "offline");
 });
+
+test("a stop the driver reported closed is a card to decide, first with the failed ones (R-EXE-32)", () => {
+  const runs = runsOf(days([sheet("VEH001", [stop("VEH001", 1, { outcome: "ARRIVED", reportedProblem: "STORE_CLOSED" }), stop("VEH001", 2)])]), [], [], {}, DATE, NOW);
+  const card = needCards(runs, [], DATE, NOW).find((c) => c.id.startsWith("reported-"))!;
+  assert.equal(card.title, "OUT061 · store closed");
+  assert.equal(card.chip.text, "Decide");
+});

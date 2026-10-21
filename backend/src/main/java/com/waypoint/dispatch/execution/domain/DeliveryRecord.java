@@ -224,8 +224,25 @@ public record DeliveryRecord(
    *     workflow, so this note is the whole record of it (R-EXE-12)
    */
   public DeliveryRecord fail(FailureReason reason, Optional<String> dispositionNote, Instant now) {
+    return fail(reason, dispositionNote, now, false);
+  }
+
+  /**
+   * As {@link #fail(FailureReason, Optional, Instant)}, refusing what only the
+   * dispatcher decides (R-EXE-32): a closed store or a stop that cannot unload is
+   * reported, not failed, and a stop the driver reported ends by Skip store.
+   *
+   * @param reported the driver has reported a problem at this stop
+   */
+  public DeliveryRecord fail(FailureReason reason, Optional<String> dispositionNote, Instant now, boolean reported) {
     if (isFinished()) {
       throw alreadyRecorded("failed");
+    }
+    if (StopProblem.reportedInstead(reason)) {
+      throw refused("Report a closed store or a stop that cannot unload; the dispatcher decides what happens", "R-EXE-32");
+    }
+    if (reported) {
+      throw refused("This stop is with the dispatcher, who takes it off the trip or tells you to wait", "R-EXE-32");
     }
     Optional<String> note = clean(dispositionNote, "dispositionNote");
     if (note.isEmpty()) {

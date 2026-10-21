@@ -4,6 +4,7 @@ import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryArrived;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryCompleted;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.VehicleAtDepot;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryFailed;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryProblemReported;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliverySkipped;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryStarted;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.EtaChanged;
@@ -867,6 +868,40 @@ final class NotificationConsumers {
           .on(e.serviceDate())
           .to(ScopeKind.OUTLET, e.outletId(), "delivery", e.deliveryId())
           .to(ScopeKind.VEHICLE, e.vehicleId(), "delivery", e.deliveryId());
+    }
+  }
+
+  /**
+   * R-NOT-21: a driver's closed store or stop that cannot unload reaches the
+   * depot's dispatchers, who decide (R-EXE-32), and the store, told the dispatcher
+   * decides. Never the driver's own words: only the kind of problem.
+   */
+  @Component
+  static class OnDeliveryProblemReported extends NotificationConsumer<DeliveryProblemReported> {
+    OnDeliveryProblemReported(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-delivery-problem-reported";
+    }
+
+    @Override
+    public Class<DeliveryProblemReported> eventType() {
+      return DeliveryProblemReported.class;
+    }
+
+    @Override
+    Routed route(DeliveryProblemReported e) {
+      boolean unload = "CANNOT_UNLOAD".equals(e.problem());
+      return new Routed()
+          .fact("problem", unload ? "Cannot unload" : "Store closed")
+          .fact("headline", unload ? "The driver cannot unload at your store" : "The driver found your store closed")
+          .fact("outletId", e.outletId()).fact("vehicleId", e.vehicleId()).fact("depotCode", e.depotCode())
+          .on(e.serviceDate())
+          .to(ScopeKind.DEPOT, e.depotCode(), "delivery", e.deliveryId())
+          .to(ScopeKind.OUTLET, e.outletId(), "delivery", e.deliveryId());
     }
   }
 

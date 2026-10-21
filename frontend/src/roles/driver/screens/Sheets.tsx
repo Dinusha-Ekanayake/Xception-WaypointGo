@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { FailureReason } from "@shared/domain/types";
+import type { FailureReason, StopProblem } from "@shared/domain/types";
 import type { Sender } from "@shared/messaging/senders";
 import { newId, postCommand, useTripThread } from "@shared/messaging/useThread";
 import { VOICE_MAX_MS, useRecorder } from "@shared/messaging/recorder";
@@ -19,6 +19,8 @@ import { useT } from "../i18n.tsx";
 
 export type Problem =
   | { kind: "report"; fault: "road" | "vehicle"; description: string }
+  /** R-EXE-32: the dispatcher decides; the stop stays open and the driver may go on. */
+  | { kind: "stop"; problem: StopProblem }
   | { kind: "not-delivered"; reason: FailureReason };
 
 /** The longest report: the limit every voice note has, on the phone and on the server. */
@@ -28,10 +30,13 @@ const HANDLE = 52;
 const INSET = 6;
 
 /** Labels drawn translated; tests/driver-strings.test.ts checks each has its row. */
+// Owner's decisions of 2026-10-21 (docs/issues/trip-problems-driver/PLAN.md): a closed
+// store or a stop that cannot unload goes to the dispatcher, who decides; "Running
+// late" is gone, as arrival times and positions already show it.
 export const CHOICES: Array<{ id: string; label: string; problem: () => Problem; onStop: boolean }> = [
-  { id: "late", label: "Running late", onStop: true, problem: () => ({ kind: "report", fault: "road", description: "Running late" }) },
-  { id: "unload", label: "Cannot unload here", onStop: true, problem: () => ({ kind: "not-delivered", reason: "access_blocked" }) },
-  { id: "nobody", label: "No one at the outlet", onStop: true, problem: () => ({ kind: "not-delivered", reason: "outlet_closed" }) },
+  { id: "nobody", label: "Store closed", onStop: true, problem: () => ({ kind: "stop", problem: "STORE_CLOSED" }) },
+  { id: "unload", label: "Cannot unload here", onStop: true, problem: () => ({ kind: "stop", problem: "CANNOT_UNLOAD" }) },
+  { id: "road", label: "Road blocked", onStop: false, problem: () => ({ kind: "report", fault: "road", description: "Road blocked" }) },
   { id: "vehicle", label: "Vehicle problem", onStop: false, problem: () => ({ kind: "report", fault: "vehicle", description: "Vehicle problem" }) },
   { id: "damaged", label: "Goods damaged or short", onStop: true, problem: () => ({ kind: "not-delivered", reason: "goods_damaged" }) },
 ];
@@ -171,7 +176,7 @@ export function ProblemSheet({
     const problem = choice.problem();
     const ok = await onSend(problem);
     sending.current = false;
-    if (ok && problem.kind === "report") setSent(choice.label);
+    if (ok && problem.kind !== "not-delivered") setSent(choice.label);
     return ok;
   };
 

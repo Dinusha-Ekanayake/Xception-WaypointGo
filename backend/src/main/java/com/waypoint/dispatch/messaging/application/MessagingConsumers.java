@@ -2,6 +2,7 @@ package com.waypoint.dispatch.messaging.application;
 
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryCompleted;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryFailed;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryProblemReported;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliverySkipped;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryStarted;
 import com.waypoint.dispatch.execution.contract.ExecutionQuery;
@@ -354,6 +355,70 @@ final class MessagingConsumers {
               now);
       if (posted) {
         metrics.increment("waypoint.message.skip_told", "then", e.then().toLowerCase(java.util.Locale.ROOT));
+      }
+    }
+  }
+
+  /**
+   * R-EXE-32: the driver reports a closed store or a stop that cannot unload. The
+   * dispatcher reads it as a report on the trip's thread, beside which the
+   * suggested decisions follow (R-ML-26); the store reads, for it alone, that the
+   * dispatcher decides. Each post is once per event: a redelivery adds nothing.
+   */
+  @Component
+  static class OnDeliveryProblemReported implements EventSubscriber<DeliveryProblemReported> {
+    private final JdbcThreadRepository threads;
+    private final Clock clock;
+    private final Metrics metrics;
+    private final SecureRandom random = new SecureRandom();
+
+    OnDeliveryProblemReported(JdbcThreadRepository threads, Clock clock, Metrics metrics) {
+      this.threads = threads;
+      this.clock = clock;
+      this.metrics = metrics;
+    }
+
+    @Override
+    public String consumerName() {
+      return "messaging.on-delivery-problem-reported";
+    }
+
+    @Override
+    public Class<DeliveryProblemReported> eventType() {
+      return DeliveryProblemReported.class;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.MESSAGING;
+    }
+
+    @Override
+    public void on(EventEnvelope<DeliveryProblemReported> envelope) {
+      DeliveryProblemReported e = envelope.payload();
+      Optional<Thread> thread = threads.bySubject("trip", e.tripId().toString());
+      if (thread.isEmpty()) {
+        metrics.increment("waypoint.message.report_without_trip", "type", e.problem());
+        return;
+      }
+      Instant now = clock.now();
+      UUID driver = envelope.actorId().orElse(Actor.SYSTEM_ID);
+      String type = e.problem().toLowerCase(java.util.Locale.ROOT);
+      boolean reported =
+          threads.insert(
+              UuidV7.generate(now, random), thread.get().threadId(), driver, Role.DRIVER.code(), "report",
+              Optional.of(type), "dispatch", Optional.empty(), MessagePolicy.stopProblemReport(e.problem()),
+              Optional.empty(), Optional.empty(), Optional.of(envelope.eventId()), Optional.empty(),
+              Optional.of(e.outletId()), Optional.empty(), now);
+      // A second id of its own, derived from the event's, so the store's notice is once per event too.
+      UUID noticeSource = UUID.nameUUIDFromBytes((envelope.eventId() + ":store").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      threads.insert(
+          UuidV7.generate(now, random), thread.get().threadId(), Actor.SYSTEM_ID, Role.DISPATCHER.code(), "message",
+          Optional.empty(), "outlet", Optional.of(e.outletId()), MessagePolicy.stopProblemNotice(e.problem()),
+          Optional.empty(), Optional.empty(), Optional.of(noticeSource), Optional.empty(), Optional.empty(),
+          Optional.empty(), now);
+      if (reported) {
+        metrics.increment("waypoint.message.reported", "type", type, "role", Role.DRIVER.code());
       }
     }
   }

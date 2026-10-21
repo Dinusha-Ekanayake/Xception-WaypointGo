@@ -72,7 +72,7 @@ public final class MessagePolicy {
   public static final Set<String> REPORT_TYPES =
       Set.of(
           "loading_shortfall", "vehicle_fault", "road_disruption", "failed_delivery", "damaged_goods",
-          "receipt_dispute", "stock_discrepancy", "late", "other");
+          "receipt_dispute", "stock_discrepancy", "late", "other", "store_closed", "cannot_unload");
 
   /**
    * How the actor belongs to the thread. A person may belong more than one way
@@ -360,6 +360,23 @@ public final class MessagePolicy {
                 ? "The trip has ended before your stop. Your delivery moves to the next delivery day and goes first"
                 : "Today's delivery moves to the next delivery day and goes first";
     return what + ". Reason: " + reason;
+  }
+
+  /**
+   * R-EXE-32: the driver's report of a closed store or a stop that cannot unload,
+   * as the dispatcher reads it (no words of the driver's travel with it).
+   */
+  public static String stopProblemReport(String problem) {
+    return "CANNOT_UNLOAD".equals(problem) ? "Cannot unload here" : "Store closed, nobody to receive";
+  }
+
+  /** R-EXE-32: what the store reads when the driver reports at its door. */
+  public static String stopProblemNotice(String problem) {
+    String what =
+        "CANNOT_UNLOAD".equals(problem)
+            ? "The driver cannot unload at your store right now"
+            : "The driver is at your store and found it closed";
+    return what + ". The dispatcher decides what happens to today's delivery and will tell you here.";
   }
 
   public static Optional<ReportOf> reportOf(String issueType, Optional<Role> raisedBy) {

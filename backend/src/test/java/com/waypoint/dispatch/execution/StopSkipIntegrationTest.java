@@ -232,6 +232,47 @@ class StopSkipIntegrationTest {
   }
 
   @Test
+  void aClosedStoreIsReportedForTheDispatcherToDecideAndTheDriverCannotFailIt() throws Exception {
+    // R-EXE-32: the stop stays open; the dispatcher and the store hear; only Skip store ends it.
+    long version = json(command(driver, "delivery:RecordArrival", 1L, stop(stopOne), 200)).get("result").get("rowVersion").asLong();
+    String report = "{\"deliveryId\":\"" + stopOne + "\",\"problem\":\"STORE_CLOSED\"}";
+    command(dispatcher, "delivery:ReportStopProblem", null, report, 403);
+    JsonNode reported = json(command(driver, "delivery:ReportStopProblem", null, report, 200)).get("result");
+    assertFalse(reported.get("stopEnded").asBoolean());
+    assertEquals("STORE_CLOSED", skippedStop(stopOne).get("reportedProblem").asText(), "the run sheet says it waits");
+    assertEquals("ARRIVED", skippedStop(stopOne).get("outcome").asText(), "the stop itself is not touched");
+    drain();
+
+    assertEquals(1, notified(dispatcherId, "delivery.problem_reported"), "the dispatcher decides");
+    assertEquals(1, notified(storeOneId, "delivery.problem_reported"));
+    assertTrue(threadSays(dispatcher, "Store closed, nobody to receive"), "a report on the trip's thread");
+    assertTrue(threadSays(storeOne,
+        "The driver is at your store and found it closed. The dispatcher decides what happens to today's delivery and will tell you here."));
+
+    // The driver cannot end it with "Not delivered", by any reason.
+    String closed = command(driver, "delivery:Record", version,
+        "{\"deliveryId\":\"" + stopOne + "\",\"outcome\":\"FAILED\",\"reason\":\"refused\",\"dispositionNote\":\"back to depot\"}", 409);
+    assertTrue(closed.contains("R-EXE-32"), closed);
+
+    // The dispatcher skips it; a report still queued on a phone with no signal lands quietly.
+    skip(dispatcher, stopOne, version, "NEXT_DAY", "Store closed, the driver reported it", 200);
+    JsonNode late = json(command(driver, "delivery:ReportStopProblem", null, report, 200)).get("result");
+    assertTrue(late.get("stopEnded").asBoolean(), "recorded, no conflict for the driver");
+    drain();
+    assertEquals(1, notified(dispatcherId, "delivery.problem_reported"), "nobody is told twice");
+  }
+
+  @Test
+  void aDriverRecordsNoClosedStoreOrBlockedStopAsNotDelivered() throws Exception {
+    // R-EXE-32: these are reported, not failed, even before any report.
+    for (String reason : List.of("outlet_closed", "access_blocked")) {
+      String refused = command(driver, "delivery:Record", 1L,
+          "{\"deliveryId\":\"" + stopTwo + "\",\"outcome\":\"FAILED\",\"reason\":\"" + reason + "\",\"dispositionNote\":\"back to depot\"}", 409);
+      assertTrue(refused.contains("R-EXE-32"), refused);
+    }
+  }
+
+  @Test
   void aCancelledStopReturnsItsOrderAndTheWarehouseIsNotCalled() throws Exception {
     skip(dispatcher, stopTwo, 1L, "CANCEL", "Store refused the delivery", 200);
     drain();

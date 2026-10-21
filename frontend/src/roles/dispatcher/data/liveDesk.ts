@@ -144,6 +144,20 @@ export function needCards(runs: Run[], issues: IssueView[], date: string, now: D
         issueId: null,
       });
     }
+    // R-EXE-32: the driver found the store closed or cannot unload; only the dispatcher ends the stop.
+    for (const stop of run.day.stops.filter((s) => s.reportedProblem && (s.outcome === "PENDING" || s.outcome === "ARRIVED"))) {
+      cards.push({
+        id: `reported-${stop.deliveryId}`,
+        kind: "failed",
+        minutesLeft: -Infinity,
+        chip: { text: "Decide", tone: "danger" },
+        meta: "the driver is waiting on you",
+        title: `${stop.outletId} · ${stop.reportedProblem === "CANNOT_UNLOAD" ? "cannot unload" : "store closed"}`,
+        detail: [run.day.vehicleId, routeLabel(run), `stop ${stop.sequence}`, "skip it, or tell the driver to wait"].filter(Boolean).join(" · "),
+        vehicleId: run.day.vehicleId,
+        issueId: null,
+      });
+    }
     // Issue #21: the driver moved on before the store answered, and said why.
     // A handover the store checked is its own evidence; this one is not, yet.
     for (const stop of run.day.stops.filter((s) => s.storeAnswerWaived)) {

@@ -26,6 +26,9 @@ public class JdbcExecutionReads {
                AS store_answer_waived,
              s.then_action AS skip_then, s.reason AS skip_reason, s.whole_trip AS skip_whole_trip,
              s.decided_at AS skipped_at,
+             (SELECT p.problem FROM execution.stop_problems p
+               WHERE p.delivery_id = d.delivery_id AND NOT p.after_finish
+               ORDER BY p.reported_at DESC LIMIT 1) AS reported_problem,
              (SELECT coalesce(json_agg(json_build_object(
                          'productId', l.product_id, 'orderedUnits', l.ordered_units,
                          'deliveredUnits', l.delivered_units) ORDER BY l.product_id), '[]')::text

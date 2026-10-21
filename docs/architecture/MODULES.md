@@ -248,7 +248,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 **Commands:** `StartStop`, `RecordArrival`, `RecordDelivery`, `RecordFailedDelivery`, `CaptureProof`, `ReportVehicleStatus`, `ReportRoadFault`, `RecordPositions` (`delivery:RecordPositions`, no event: R-EXE-18 to R-EXE-21).
 **Queries:** `runSheet(vehicle, day)`, `deliveryRecord(allocationId)`, `proof(deliveryRecordId)`. Live map reads (`PositionsQuery`, web only): `GET /api/execution/positions?date=&depot=|outlet=` (last good fix per vehicle, with `offline`) and `GET /api/execution/trips/{tripId}/trail` (keyset on `recordedAt`).
-**Publishes:** `delivery.started`, `delivery.arrived`, `delivery.completed`, `delivery.failed`, `delivery.skipped` (the dispatcher took a stop off a trip on the road: `delivery:SkipStop`, `delivery:EndTrip`, R-EXE-31), `vehicle.at_depot`, `vehicle.fault_reported`, `road.disruption_reported`.
+**Publishes:** `delivery.started`, `delivery.arrived`, `delivery.completed`, `delivery.failed`, `delivery.skipped` (the dispatcher took a stop off a trip on the road: `delivery:SkipStop`, `delivery:EndTrip`, R-EXE-31), `delivery.problem_reported` (the driver found the store closed or cannot unload; the stop stays open for the dispatcher: `delivery:ReportStopProblem`, R-EXE-32), `vehicle.at_depot`, `vehicle.fault_reported`, `road.disruption_reported`.
 **Consumes:** `trip.released`.
 
 **Ports:** `ProofStore`.
@@ -614,6 +614,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `trip.released` | Loading | Execution, Ordering, Warehouse (shipped), Notification, Planning (freeze, R-PLN-44) |
 | `delivery.started`, `delivery.completed`, `delivery.failed`, `eta.changed` | Execution | Ordering, Receipt, Warehouse (delivered), Issues, Notification |
 | `delivery.skipped` | Execution | Ordering |
+| `delivery.problem_reported` | Execution | Messaging, Notification |
 | `delivery.arrived` | Execution | Notification (store: unload and check, R-EXE-25) |
 | `vehicle.at_depot` | Execution | Loading (dock board, R-LOD-12), Notification (loaders, R-EXE-24) |
 | `vehicle.fault_reported`, `road.disruption_reported` | Execution | Issues, Notification |

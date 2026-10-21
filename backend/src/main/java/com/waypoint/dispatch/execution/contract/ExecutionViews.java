@@ -71,7 +71,9 @@ public final class ExecutionViews {
       Optional<java.math.BigDecimal> expectedServiceLow,
       Optional<java.math.BigDecimal> expectedServiceHigh,
       /** R-EXE-31: the dispatcher took this stop off the trip: what then, why, and whether the driver has seen it. */
-      Optional<StopSkipView> skip) {
+      Optional<StopSkipView> skip,
+      /** R-EXE-32: the driver reported a closed store or a stop that cannot unload; the dispatcher decides. */
+      Optional<String> reportedProblem) {
 
     public RunSheetStopView(
         UUID deliveryId, UUID tripId, int sequence, UUID orderId, String outletId, int itemCount, boolean mallOutlet,
@@ -83,14 +85,14 @@ public final class ExecutionViews {
       this(deliveryId, tripId, sequence, orderId, outletId, itemCount, mallOutlet, plannedArrival, windowOpen,
           windowClose, expectedArrival, startedAt, arrivedAt, completedAt, waitMinutes, lateMinutes, outcome,
           deliveredUnits, proofCaptured, rowVersion, lines, storeAnswerWaived, Optional.empty(), Optional.empty(),
-          Optional.empty(), Optional.empty());
+          Optional.empty(), Optional.empty(), Optional.empty());
     }
 
     public RunSheetStopView withSkip(StopSkipView seen) {
       return new RunSheetStopView(deliveryId, tripId, sequence, orderId, outletId, itemCount, mallOutlet, plannedArrival,
           windowOpen, windowClose, expectedArrival, startedAt, arrivedAt, completedAt, waitMinutes, lateMinutes, outcome,
           deliveredUnits, proofCaptured, rowVersion, lines, storeAnswerWaived, expectedServiceMinutes, expectedServiceLow,
-          expectedServiceHigh, Optional.of(seen));
+          expectedServiceHigh, Optional.of(seen), reportedProblem);
     }
 
     public RunSheetStopView {
@@ -98,6 +100,7 @@ public final class ExecutionViews {
       expectedServiceLow = expectedServiceLow == null ? Optional.empty() : expectedServiceLow;
       expectedServiceHigh = expectedServiceHigh == null ? Optional.empty() : expectedServiceHigh;
       skip = skip == null ? Optional.empty() : skip;
+      reportedProblem = reportedProblem == null ? Optional.empty() : reportedProblem;
     }
   }
 

@@ -36,7 +36,8 @@ final class ExecutionViewMapper {
         Optional.ofNullable((String) row.get("skip_then")).map(then -> new StopSkipView(
             then.toUpperCase(java.util.Locale.ROOT), (String) row.get("skip_reason"),
             Boolean.TRUE.equals(row.get("skip_whole_trip")), instant(row.get("skipped_at")).orElseThrow(),
-            Optional.empty(), Optional.empty())));
+            Optional.empty(), Optional.empty())),
+        Optional.ofNullable((String) row.get("reported_problem")).map(p -> p.toUpperCase(java.util.Locale.ROOT)));
   }
 
   /** One sheet per vehicle, in the order the rows came: trips as they left, stops as planned. */

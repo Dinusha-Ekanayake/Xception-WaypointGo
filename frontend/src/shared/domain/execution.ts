@@ -51,7 +51,12 @@ export type RunSheetStopView = {
   expectedServiceHigh?: number | string | null;
   /** R-EXE-31: the dispatcher took the stop off the trip. Absent from an older server or a plan revision's skip. */
   skip?: StopSkipView | null;
+  /** R-EXE-32: the driver reported a closed store or a stop that cannot unload; the dispatcher decides. */
+  reportedProblem?: StopProblem | null;
 };
+
+/** R-EXE-32: what the driver reports at a stop for the dispatcher to decide. */
+export type StopProblem = "STORE_CLOSED" | "CANNOT_UNLOAD";
 
 /** Mirror of ExecutionViews.StopSkipView. `seenByDriver` is the dispatcher's only: null when unknown. */
 export type StopSkipView = {
@@ -162,6 +167,8 @@ export const ExecutionCommandKind = {
   captureProof: "delivery:CaptureProof",
   reportVehicleStatus: "delivery:ReportVehicleStatus",
   reportFault: "delivery:ReportFault",
+  /** R-EXE-32: a closed store or a stop that cannot unload, for the dispatcher to decide. */
+  reportStopProblem: "delivery:ReportStopProblem",
   recordPositions: "delivery:RecordPositions",
   /** R-EXE-24: the driver is at the depot with the vehicle, ready for it to be loaded. */
   arriveAtDepot: "delivery:ArriveAtDepot",

@@ -26,7 +26,10 @@ export type ReportType =
   | "receipt_dispute"
   | "stock_discrepancy"
   | "late"
-  | "other";
+  | "other"
+  /** R-EXE-32: the driver's report at a stop, for the dispatcher to decide. */
+  | "store_closed"
+  | "cannot_unload";
 
 /** GET /api/threads/{id} and /by-subject?type=trip&id= */
 export type ThreadView = {

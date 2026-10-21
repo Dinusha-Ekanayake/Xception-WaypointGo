@@ -145,6 +145,11 @@ export async function serve(
     }
     const target = server.stops.find((s) => s.deliveryId === command.payload.deliveryId);
     if (!target || command.kind === "delivery:ReportFault") return null;
+    // R-EXE-32: a report leaves the stop and its version as they are; the run sheet says it waits.
+    if (command.kind === "delivery:ReportStopProblem") {
+      target.reportedProblem = command.payload.problem as RunSheetStopView["reportedProblem"];
+      return target.rowVersion;
+    }
     const now = new Date().toISOString();
     if (command.kind === "delivery:Start") target.startedAt = now;
     if (command.kind === "delivery:RecordArrival") Object.assign(target, { outcome: "ARRIVED", arrivedAt: now, waitMinutes: 0, lateMinutes: 0 });

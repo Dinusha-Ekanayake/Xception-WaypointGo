@@ -41,7 +41,7 @@ function doneState(stop: RouteStop, t: Translate): string {
 
 /** What a stop in the list says: its outcome, or still to do, and whether it is only on this phone. */
 function stopState(stop: RouteStop, t: Translate): string {
-  const state = stop.finished ? stop.windowStatus : t("To do");
+  const state = stop.finished ? stop.windowStatus : stop.withDispatcher ? t("With the dispatcher") : t("To do");
   return stop.onPhone ? t("{state} · on phone", { state }) : state;
 }
 
