@@ -148,7 +148,8 @@ public class MessagingQuery {
               m.authorUserId().equals(actor.userId()), m.voicePeaks(), m.resolvedAt(),
               m.resolvedBy().map(by -> resolver(by, names)), m.resolutionNote(), m.redirectedAt(),
               m.redirectReason(), read.map(Optional::isPresent), read.flatMap(r -> r),
-              m.voiceNoteId().map(v -> transcript(heard.get(v))), m.sourceIssueId()));
+              m.voiceNoteId().map(v -> transcript(heard.get(v))), m.sourceIssueId(),
+              m.kind().equals("report") ? m.aboutOutlet() : Optional.empty()));
     }
     return new MessagePage(items, page.nextCursor());
   }

@@ -2,6 +2,7 @@ package com.waypoint.dispatch.ordering.application;
 
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryCompleted;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryFailed;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliverySkipped;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryOutcome;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.LoadingStarted;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.ReleasedStop;
@@ -13,11 +14,13 @@ import com.waypoint.dispatch.planning.contract.PlanEvents.OrderDeferred;
 import com.waypoint.dispatch.planning.contract.PlanEvents.OrderUnservable;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
+import com.waypoint.dispatch.platform.messaging.EventPublisher;
 import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.receipt.contract.ReceiptEvents.ReceiptAutoClosed;
 import com.waypoint.dispatch.receipt.contract.ReceiptEvents.ReceiptConfirmed;
 import com.waypoint.dispatch.receipt.contract.ReceiptEvents.ReceiptDisputed;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
+import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.event.EventEnvelope;
 import java.time.LocalDate;
 import org.springframework.stereotype.Component;
@@ -203,6 +206,64 @@ final class OrderingConsumers {
         transitions.move(
             stop.orderId(), OrderStatus.IN_TRANSIT, "released on " + e.vehicleId(), envelope);
       }
+    }
+  }
+
+  /**
+   * R-EXE-31: the dispatcher took the order's stop off its trip. {@code NEXT_DAY}
+   * carries the same order to the next operating day, onto the deferred list the
+   * next plan reads; {@code CANCEL} cancels it with its goods back at the depot,
+   * and says so ({@code order.cancelled}, returned to depot), so the warehouse is
+   * not called. Delivery is at least once: a skip of an earlier day, redelivered
+   * after the order was planned again and is on the road, changes nothing.
+   */
+  @Component
+  static class OnDeliverySkipped extends OrderingConsumer<DeliverySkipped> {
+    private final JdbcOrderRepository orders;
+    private final ReferenceQuery reference;
+    private final EventPublisher events;
+    private final Metrics metrics;
+
+    OnDeliverySkipped(
+        OrderTransitions transitions, JdbcOrderRepository orders, ReferenceQuery reference, EventPublisher events,
+        Metrics metrics) {
+      super(transitions);
+      this.orders = orders;
+      this.reference = reference;
+      this.events = events;
+      this.metrics = metrics;
+    }
+
+    @Override
+    public String consumerName() {
+      return "ordering.on-delivery-skipped";
+    }
+
+    @Override
+    public Class<DeliverySkipped> eventType() {
+      return DeliverySkipped.class;
+    }
+
+    @Override
+    public void on(EventEnvelope<DeliverySkipped> envelope) {
+      DeliverySkipped e = envelope.payload();
+      Order current = orders.find(e.orderId()).orElse(null);
+      if (current != null && !current.deliveryDate().equals(e.serviceDate())) {
+        metrics.increment("waypoint.order.event_stale", "event", envelope.type());
+        return;
+      }
+      String why = "skipped by the dispatcher on " + e.vehicleId() + ": " + e.reason();
+      if ("CANCEL".equals(e.then())) {
+        OrderTransitions.Result moved =
+            transitions.apply(e.orderId(), OrderStatus.CANCELLED, o -> o.moveTo(OrderStatus.CANCELLED),
+                "returned to depot and cancelled, " + why, envelope);
+        if (moved == OrderTransitions.Result.APPLIED) {
+          events.publish(Actor.SYSTEM, OrderMessages.returned(current, "returned to depot: " + e.reason()));
+        }
+        return;
+      }
+      LocalDate next = reference.nextOperatingDay(e.serviceDate().plusDays(1));
+      transitions.apply(e.orderId(), OrderStatus.DEFERRED, o -> o.deferTo(next, 0), why, envelope);
     }
   }
 

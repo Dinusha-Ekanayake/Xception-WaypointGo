@@ -3,16 +3,19 @@
 import { useRef } from "react";
 import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
-import type { DecisionView, ReplyRankingView, RunSheetView, ThreadView } from "@shared/domain/types";
+import type { DecisionView, MessageView, ReplyRankingView, RunSheetView, ThreadView } from "@shared/domain/types";
 import { rankReplies, replies } from "@shared/messaging/templates";
 import { rankingNote } from "./data/replyRanking.ts";
 import { TripThread, useOverlay } from "@shared/ui";
 import { dayLabel } from "@shared/wording";
 import { useDispatcherInbox, type OpenThread } from "./inbox.tsx";
+import { EndTripButton, SkipStopButton, skippable } from "./screens/LiveTripSkip.tsx";
 
 // A trip's thread in a sheet on the right (issue #136), over whichever screen
 // opened it: a warning sign on the timeline, the trip page, a notification.
-// The dispatcher reads every message on it and writes to anyone on the trip.
+// The dispatcher reads every message on it and writes to anyone on the trip, and
+// decides here (R-EXE-31): Skip store beside a report about a stop still open,
+// End trip in the header. Stores and the driver see only the outcome.
 
 export default function ThreadSheet({ online }: { online: boolean }): React.JSX.Element | null {
   const ctx = useDispatcherInbox();
@@ -46,6 +49,8 @@ function ThreadSheetPanel({
     date ? (signal: AbortSignal) => request<RunSheetView[]>(`/api/execution/run-sheets?date=${encodeURIComponent(date)}`, { signal }) : null,
     `thread-sheets|${date}`,
     30_000,
+    // A stop skipped here or recorded on the road changes the buttons at once (F-07b).
+    head ? { depots: [head.depotCode], topics: ["delivery", "trip"] } : undefined,
   );
   const answers = useResource(
     date ? (signal: AbortSignal) => request<DecisionView[]>(`/api/issues/decisions?date=${encodeURIComponent(date)}`, { signal }) : null,
@@ -72,6 +77,12 @@ function ThreadSheetPanel({
         })
       : [];
   const ordered = rankReplies(ready, ranking.data ?? null, roll.current);
+  const openStops = tripStops.filter(skippable);
+  // The decision beside a report is about the stop it names, while that stop is still open.
+  const reportActions = (m: MessageView) => {
+    const stop = openStops.find((s) => s.outletId === m.aboutOutletId);
+    return stop ? <SkipStopButton stop={stop} online={online} inline /> : null;
+  };
 
   return (
     <div data-closing={closing || undefined} className="go-overlay fixed inset-0 z-50 flex justify-end" role="presentation">
@@ -98,6 +109,11 @@ function ThreadSheetPanel({
             Close
           </button>
         </header>
+        {head && openStops.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <EndTripButton tripId={head.subjectId} open={openStops} online={online} inline />
+          </div>
+        )}
         {!online && (
           <p role="status" className="rounded-go-card-s bg-go-warning-tint px-3.5 py-2.5 text-sm text-go-warning-text">
             Offline. Showing what arrived; writing needs a connection.
@@ -111,6 +127,7 @@ function ThreadSheetPanel({
           focusMessageId={open.messageId ?? null}
           {...(open.draft ? { draft: open.draft } : {})}
           {...(ordered.length > 0 ? { replies: ordered, repliesNote: rankingNote(ranking.data ?? null, ranking.error != null) } : {})}
+          reportActions={reportActions}
         />
       </section>
     </div>

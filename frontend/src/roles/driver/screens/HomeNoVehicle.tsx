@@ -12,6 +12,7 @@ import type { NextRun } from "../data/run.ts";
 import type { FuelPassState } from "../data/fuelPass.ts";
 import { DriverHeader, VoiceMessagePlayer } from "../ui.tsx";
 import FuelPassSheet from "./FuelPassSheet.tsx";
+import VehicleStatusConfirmSheet from "./VehicleStatusConfirmSheet.tsx";
 import { useCappedScroll } from "./cappedScroll.ts";
 import { useT } from "../i18n.tsx";
 
@@ -83,6 +84,8 @@ export default function HomeNoVehicle({
   const t = useT();
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
   const [fuelQr, setFuelQr] = useState(false);
+  // The status the switch would report, waiting for the driver to confirm it.
+  const [confirmStatus, setConfirmStatus] = useState<ReportedVehicleStatus | null>(null);
   const [markingRead, setMarkingRead] = useState(false);
   const { scrollRef, pullY, isPulling, compact, maskStyle, handlers } = useRubberBandScroll();
   useScrollMemory("driver:home", scrollRef, { page: false });
@@ -222,7 +225,8 @@ export default function HomeNoVehicle({
                       role="switch"
                       aria-checked={vehicleStatus !== "at_workshop" && vehicleStatus !== "fault"}
                       aria-label={t("Available")}
-                      onClick={() => onVehicleStatus((vehicleStatus === "at_workshop" || vehicleStatus === "fault" ? "available" : "at_workshop") as ReportedVehicleStatus)}
+                      // Asks first: an accidental tap must not tell the dispatcher the vehicle is out.
+                      onClick={() => setConfirmStatus((vehicleStatus === "at_workshop" || vehicleStatus === "fault" ? "available" : "at_workshop") as ReportedVehicleStatus)}
                       className="flex items-center gap-2"
                     >
                       <span
@@ -439,6 +443,18 @@ export default function HomeNoVehicle({
       </div>
       {fuelQr && vehicle && (
         <FuelPassSheet vehicleId={vehicle.vehicleId} kind={vehicle.van ? "Van" : "Truck"} load={loadFuelPass} onClose={() => setFuelQr(false)} />
+      )}
+      {confirmStatus && vehicle && (
+        <VehicleStatusConfirmSheet
+          vehicleId={vehicle.vehicleId}
+          next={confirmStatus}
+          isNight={isNight}
+          onConfirm={() => {
+            onVehicleStatus(confirmStatus);
+            setConfirmStatus(null);
+          }}
+          onClose={() => setConfirmStatus(null)}
+        />
       )}
     </div>
   );

@@ -347,6 +347,21 @@ public final class MessagePolicy {
    * delivery the driver's, a dispute or a stock problem the store's. An issue a
    * person raised is theirs, whatever its type.
    */
+  /**
+   * R-EXE-31: what a store reads when the dispatcher takes it off a trip, in
+   * plain words with the dispatcher's whole reason (at most 500 characters, so
+   * well inside {@link #BODY_MAX}).
+   */
+  public static String skipNotice(String then, boolean wholeTrip, String reason) {
+    String what =
+        "CANCEL".equals(then)
+            ? "Today's delivery is cancelled and the goods go back to the depot"
+            : wholeTrip
+                ? "The trip has ended before your stop. Your delivery moves to the next delivery day and goes first"
+                : "Today's delivery moves to the next delivery day and goes first";
+    return what + ". Reason: " + reason;
+  }
+
   public static Optional<ReportOf> reportOf(String issueType, Optional<Role> raisedBy) {
     String type =
         switch (issueType) {

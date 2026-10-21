@@ -81,7 +81,9 @@ public class JdbcThreadRepository {
       Optional<Instant> redirectedAt,
       Optional<String> redirectReason,
       /** The issue a report was made from (R-MSG-05); empty for a person's own message. */
-      Optional<UUID> sourceIssueId) {}
+      Optional<UUID> sourceIssueId,
+      /** The stop a report is about, when known. */
+      Optional<String> aboutOutlet) {}
 
   /** A stored voice note, without its bytes. */
   public record VoiceNote(
@@ -498,7 +500,8 @@ public class JdbcThreadRepository {
         Optional.ofNullable((String) row.get("resolution_note")),
         Optional.ofNullable((Timestamp) row.get("redirected_at")).map(Timestamp::toInstant),
         Optional.ofNullable((String) row.get("redirect_reason")),
-        Optional.ofNullable((UUID) row.get("source_issue_id")));
+        Optional.ofNullable((UUID) row.get("source_issue_id")),
+        Optional.ofNullable((String) row.get("about_outlet")));
   }
 
   // ---- reports ------------------------------------------------------------------

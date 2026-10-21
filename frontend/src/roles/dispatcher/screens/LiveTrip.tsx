@@ -8,6 +8,7 @@ import { useFuel } from "../data/useDay.ts";
 import { driverLine, useDriver } from "./LivePanel.tsx";
 import { Bar, Chip, STATUS } from "./LiveParts.tsx";
 import LiveTripUpdate from "./LiveTripUpdate.tsx";
+import { EndTripButton, SkipStopButton, skippable } from "./LiveTripSkip.tsx";
 
 // Figma "05 Live · trip" (189:21943), opened from "Open trip": the driver, the
 // trip's limits right now, its stops and what each outlet was told, what has
@@ -36,7 +37,9 @@ export default function LiveTrip({
   const look = STATUS[run.status];
   const next = run.day.current;
   const quiet = silentMinutes(run, now);
-  const waiting = run.day.stops.filter((s) => s.outcome === "PENDING" || s.outcome === "ARRIVED");
+  const waiting = run.day.stops.filter(skippable);
+  // End trip ends the trip under way, not the vehicle's later trip of the day.
+  const tripId = (next ?? waiting[0])?.tripId ?? null;
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -49,6 +52,7 @@ export default function LiveTrip({
           <p className="text-[14px] text-go-secondary">{driverLine(run, name) || `${run.day.done} of ${run.day.stops.length} stops done`}</p>
         </div>
         <div className="flex items-center gap-3">
+          {tripId && <EndTripButton tripId={tripId} open={waiting.filter((s) => s.tripId === tripId)} online={online} />}
           <Chip tone={look.tone}>{`${look.label}${next && run.status !== "on-time" ? ` · ${next.outletId}` : ""}`}</Chip>
           <ConnectionStatus online={online} lastSyncedAt={lastSyncedAt} offlineNote="read only" />
         </div>
@@ -109,6 +113,7 @@ export default function LiveTrip({
                 <th className="py-2 font-normal">Status</th>
                 <th className="py-2 font-normal">Told</th>
                 <th className="py-2 font-normal">Response</th>
+                <th className="py-2 font-normal"><span className="sr-only">Action</span></th>
               </tr>
             </thead>
             <tbody>
@@ -124,6 +129,9 @@ export default function LiveTrip({
                     <td className={cx("py-3", st.text)}>{st.label}</td>
                     <td className="py-3 text-go-secondary">-</td>
                     <td className="py-3 text-go-secondary">-</td>
+                    <td className="py-3 text-right">
+                      <SkipStopButton stop={s} online={online} />
+                    </td>
                   </tr>
                 );
               })}
@@ -172,7 +180,8 @@ function stopStatus(s: RunSheetStopView, run: Run, next: RunSheetStopView | null
   if (s.outcome === "DELIVERED") return { label: (s.lateMinutes ?? 0) > 0 ? `Delivered · ${s.lateMinutes} min late` : "Delivered", dot: "bg-go-teal", text: "text-go-teal", done: true };
   if (s.outcome === "PARTIAL") return { label: "Partly delivered", dot: "bg-[#c08a3e]", text: "text-go-warning-text", done: true };
   if (s.outcome === "FAILED") return { label: "Not delivered", dot: "bg-go-danger", text: "text-go-danger-strong", done: true };
-  if (s.outcome === "SKIPPED") return { label: "Replanned", dot: "bg-go-divider", text: "text-go-secondary", done: true };
+  // A plan revision or the dispatcher's Skip store or End trip (R-EXE-31): either way off this trip.
+  if (s.outcome === "SKIPPED") return { label: "Off the trip", dot: "bg-go-divider", text: "text-go-secondary", done: true };
   if (s.outcome === "ARRIVED") return { label: "At the stop", dot: "bg-go-info", text: "text-go-info", done: false };
   if (next?.deliveryId === s.deliveryId && (run.status === "at-risk" || run.status === "late")) return { label: "At risk", dot: "bg-[#c08a3e]", text: "text-go-warning-text", done: false };
   return { label: "Planned", dot: "bg-go-divider", text: "text-go-ink", done: false };

@@ -179,6 +179,43 @@ public class JdbcDeliveryRepository {
         .toList();
   }
 
+  /** R-EXE-31: the stops of a trip not yet done, reached or not, in stop order. */
+  public List<DeliveryRecord> openOfTrip(UUID tripId) {
+    return database
+        .query(
+            "SELECT " + COLUMNS + " FROM execution.delivery_records"
+                + " WHERE trip_id = ? AND outcome IN ('pending','arrived') ORDER BY stop_sequence",
+            tripId)
+        .stream()
+        .map(JdbcDeliveryRepository::record)
+        .toList();
+  }
+
+  /** The trip's depot, if the actor may see the trip; absent and out of scope read the same. */
+  public Optional<String> tripDepot(UUID tripId) {
+    return Optional.ofNullable(database.queryOne("SELECT depot_code FROM execution.trips WHERE trip_id = ?", tripId))
+        .map(row -> (String) row.get("depot_code"));
+  }
+
+  /** Whether the actor oversees the depot as its dispatcher (R-EXE-31); loaders and drivers do not. */
+  public boolean oversees(String depotCode) {
+    return Boolean.TRUE.equals(
+        database.queryOne("SELECT app.actor_oversees_depot(?) AS allowed", depotCode).get("allowed"));
+  }
+
+  /** @return false when the stop already has a skip: one per stop, never rewritten (rule 8) */
+  public boolean insertStopSkip(UUID deliveryId, String then, String reason, boolean wholeTrip, UUID commandId, Stamp stamp) {
+    return database.update(
+            """
+            INSERT INTO execution.stop_skips
+                (delivery_id, then_action, reason, whole_trip, decided_by, command_id, decided_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (delivery_id) DO NOTHING
+            """,
+            deliveryId, then, reason, wholeTrip, stamp.actorId(), commandId, Timestamp.from(stamp.serverAt()))
+        == 1;
+  }
+
   /** One stop of a trip with what its estimate needs (roadmap T1-03). */
   public record TripStop(
       DeliveryRecord record,

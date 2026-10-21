@@ -1,0 +1,83 @@
+import { expect, test, type Page } from "@playwright/test";
+import { said, tripThread } from "../thread-mocks.ts";
+import { LIVE_NOW, liveDay, serve, type Desk } from "./mocks.ts";
+
+// R-EXE-31: on a trip on the road the dispatcher skips a store (next day or
+// cancel, with a reason) or ends the trip. Each sends the stop's version, says
+// who is told, and the stop reads "Off the trip" once Execution took it off.
+
+async function openTrip(page: Page): Promise<Desk> {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const desk = await serve(page, liveDay());
+  await page.goto("/#/live");
+  const needs = page.getByRole("region", { name: "Needs you" });
+  await needs.getByRole("listitem").filter({ hasText: "OUT010" }).getByRole("button", { name: "Open trip" }).click();
+  await expect(page.getByRole("heading", { name: /VEH030/ })).toBeVisible();
+  return desk;
+}
+
+test("the dispatcher skips a store and cancels its order, with a reason", async ({ page }) => {
+  const desk = await openTrip(page);
+  const row = page.getByRole("row", { name: /OUT012/ });
+  // A failed stop is done: nothing to skip there.
+  await expect(page.getByRole("row", { name: /OUT010/ }).getByRole("button", { name: "Skip store" })).toHaveCount(0);
+
+  await row.getByRole("button", { name: "Skip store" }).click();
+  const sheet = page.getByRole("dialog", { name: "Skip OUT012" });
+  await expect(sheet.getByRole("button", { name: "Skip to next day" })).toBeDisabled();
+  await sheet.getByRole("radio", { name: "Cancel" }).click();
+  await expect(sheet).toContainText("the warehouse is not called");
+  await sheet.getByRole("textbox", { name: "Why" }).fill("Store refused the delivery");
+  await sheet.getByRole("button", { name: "Skip and cancel" }).click();
+
+  await expect(sheet).toBeHidden();
+  const sent = desk.commands.find((c) => c.kind === "delivery:SkipStop");
+  expect(sent?.payload).toEqual({ deliveryId: "d-VEH030-2", then: "CANCEL", reason: "Store refused the delivery" });
+  expect(sent?.expectedVersion).toBe(1);
+  await expect(row).toContainText("Off the trip");
+  await expect(row.getByRole("button", { name: "Skip store" })).toHaveCount(0);
+});
+
+test("ending the trip says how many stops go to the next day and sends one command", async ({ page }) => {
+  const desk = await openTrip(page);
+  await page.getByRole("button", { name: "End trip" }).click();
+  const sheet = page.getByRole("dialog", { name: "End trip" });
+  await expect(sheet).toContainText("1 stop not yet done goes to the next delivery day");
+  await expect(sheet).toContainText("OUT012");
+  await sheet.getByRole("textbox", { name: "Why" }).fill("Vehicle broke down");
+  await sheet.getByRole("button", { name: "End trip · 1 stop" }).click();
+
+  await expect(sheet).toBeHidden();
+  expect(desk.commands.filter((c) => c.kind === "delivery:EndTrip").map((c) => c.payload)).toEqual([{ tripId: "t-VEH030", reason: "Vehicle broke down" }]);
+  await expect(page.getByRole("row", { name: /OUT012/ })).toContainText("Off the trip");
+  await expect(page.getByRole("button", { name: "End trip" })).toHaveCount(0);
+});
+
+test("the dispatcher decides from the trip's chat: Skip beside the report, End trip in the header", async ({ page }) => {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
+    said("r1", "2027-03-01T10:05:00Z", {
+      kind: "report", reportType: "failed_delivery", authorName: "Dilan R.", authorRole: "driver", audience: "dispatch",
+      body: "OUT063 shutter is down, nobody answers", aboutOutletId: "OUT063",
+    }),
+  ]);
+  const desk = await serve(page, { ...liveDay(), threads: [thread] });
+  await page.goto("/#/live");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("region", { name: "Timeline" }).getByTestId("report-sign").first().click();
+
+  const chat = page.getByRole("dialog", { name: "Trip messages" });
+  await expect(chat.getByRole("button", { name: "End trip" })).toBeVisible();
+  const report = chat.locator("#message-r1");
+  await report.getByRole("button", { name: "Skip OUT063" }).click();
+  const form = report.getByRole("group", { name: "Skip OUT063" });
+  await form.getByRole("textbox", { name: "Why" }).fill("Store closed, nobody answers");
+  await form.getByRole("button", { name: "Skip to next day" }).click();
+
+  await expect.poll(() => desk.commands.find((c) => c.kind === "delivery:SkipStop")?.payload).toEqual({
+    deliveryId: "d-VEH020-2", then: "NEXT_DAY", reason: "Store closed, nobody answers",
+  });
+  // The stop is off the trip: no skip left beside the report, and nothing left for End trip.
+  await expect(report.getByRole("button", { name: "Skip OUT063" })).toHaveCount(0);
+  await expect(chat.getByRole("button", { name: "End trip" })).toHaveCount(0);
+});

@@ -31,6 +31,7 @@ export function TripThread({
   replies,
   repliesNote,
   playAll = false,
+  reportActions,
   tr = plain,
 }: {
   threadId: string;
@@ -49,6 +50,8 @@ export function TripThread({
   repliesNote?: string;
   /** A "Play messages" bar for the messages not heard yet (the driver's, when stopped). */
   playAll?: boolean;
+  /** The dispatcher's decisions beside a report (R-EXE-31). */
+  reportActions?: (message: import("../domain/messaging.ts").MessageView) => React.ReactNode;
   /** The reader's language; English when absent. */
   tr?: Translate;
 }): React.JSX.Element {
@@ -91,6 +94,7 @@ export function TripThread({
             compact={variant === "phone"}
             tr={tr}
             {...(accountId ? { accountId } : {})}
+            {...(thread?.memberRole === "dispatcher" && reportActions ? { reportActions } : {})}
             {...(thread?.memberRole === "dispatcher"
               ? {
                   onResolve: async (messageId: string, note: string) => {

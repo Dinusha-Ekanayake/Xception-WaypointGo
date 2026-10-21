@@ -185,6 +185,18 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (command.kind === "message:Post") {
       return postToThread(desk.threads ?? [], payload as unknown as PostMessagePayload, { name: SESSION.displayName, role: "dispatcher" }, new Date().toISOString());
     }
+    // R-EXE-31: Execution takes the stop off the trip under its version.
+    if (command.kind === "delivery:SkipStop" || command.kind === "delivery:EndTrip") {
+      const open = (st: RunSheetStopView) => st.outcome === "PENDING" || st.outcome === "ARRIVED";
+      const hit = (st: RunSheetStopView) =>
+        command.kind === "delivery:SkipStop" ? st.deliveryId === payload.deliveryId : st.tripId === payload.tripId && open(st);
+      let skipped = 0;
+      desk.sheets = desk.sheets.map((sheet) => ({
+        ...sheet,
+        stops: sheet.stops.map((st) => (hit(st) ? (skipped++, { ...st, outcome: "SKIPPED" as const, rowVersion: st.rowVersion + 1 }) : st)),
+      }));
+      return command.kind === "delivery:SkipStop" ? { deliveryId: payload.deliveryId, outcome: "SKIPPED" } : { tripId: payload.tripId, skipped };
+    }
     if (command.kind === "order:CloseForDay") return { alreadyClosed: false };
     if (command.kind === "plan:Generate") {
       // Planning v2 (R-PLN-41): Generate queues a job; the worker writes the draft and the screen follows the job.

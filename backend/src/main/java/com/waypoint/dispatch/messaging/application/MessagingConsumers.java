@@ -2,6 +2,7 @@ package com.waypoint.dispatch.messaging.application;
 
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryCompleted;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryFailed;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliverySkipped;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryStarted;
 import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryRecordView;
@@ -299,6 +300,61 @@ final class MessagingConsumers {
     public void on(EventEnvelope<DeliveryFailed> envelope) {
       DeliveryFailed e = envelope.payload();
       threads.orderDone(e.tripId().toString(), e.outletId(), e.orderId(), clock.now());
+    }
+  }
+
+  /**
+   * R-EXE-31: the dispatcher took a store off the trip. The store reads why on
+   * the trip's thread, for it alone, and its channel goes read only as for a
+   * stop done. Once per event: a redelivery posts nothing new.
+   */
+  @Component
+  static class OnDeliverySkipped implements EventSubscriber<DeliverySkipped> {
+    private final JdbcThreadRepository threads;
+    private final Clock clock;
+    private final Metrics metrics;
+    private final SecureRandom random = new SecureRandom();
+
+    OnDeliverySkipped(JdbcThreadRepository threads, Clock clock, Metrics metrics) {
+      this.threads = threads;
+      this.clock = clock;
+      this.metrics = metrics;
+    }
+
+    @Override
+    public String consumerName() {
+      return "messaging.on-delivery-skipped";
+    }
+
+    @Override
+    public Class<DeliverySkipped> eventType() {
+      return DeliverySkipped.class;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.MESSAGING;
+    }
+
+    @Override
+    public void on(EventEnvelope<DeliverySkipped> envelope) {
+      DeliverySkipped e = envelope.payload();
+      Instant now = clock.now();
+      threads.orderDone(e.tripId().toString(), e.outletId(), e.orderId(), now);
+      Optional<Thread> thread = threads.bySubject("trip", e.tripId().toString());
+      if (thread.isEmpty()) {
+        return;
+      }
+      String body = MessagePolicy.skipNotice(e.then(), e.wholeTrip(), e.reason());
+      boolean posted =
+          threads.insert(
+              UuidV7.generate(now, random), thread.get().threadId(), Actor.SYSTEM_ID, Role.DISPATCHER.code(),
+              "message", Optional.empty(), "outlet", Optional.of(e.outletId()), body, Optional.empty(),
+              Optional.empty(), Optional.of(envelope.eventId()), Optional.empty(), Optional.empty(), Optional.empty(),
+              now);
+      if (posted) {
+        metrics.increment("waypoint.message.skip_told", "then", e.then().toLowerCase(java.util.Locale.ROOT));
+      }
     }
   }
 

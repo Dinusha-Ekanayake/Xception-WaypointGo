@@ -19,7 +19,7 @@ class RecordingEventPublisherTest {
     Actor actor = Actor.user(UUID.randomUUID());
     OrdersClosed closed = new OrdersClosed("PELIYAGODA", LocalDate.of(2026, 10, 1), List.of());
     OrderCancelled cancelled =
-        new OrderCancelled(UUID.randomUUID(), "OUT001", "PELIYAGODA", Optional.empty(), "test");
+        new OrderCancelled(UUID.randomUUID(), "OUT001", "PELIYAGODA", Optional.empty(), "test", false);
 
     publisher.publish(actor, closed);
     publisher.publish(null, cancelled);

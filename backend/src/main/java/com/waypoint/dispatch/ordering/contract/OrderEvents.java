@@ -75,12 +75,18 @@ public final class OrderEvents {
    * @param warehouseOrderRef the reservation Warehouse must cancel; empty when
    *     none was ever made
    */
+  /**
+   * @param returnedToDepot the order was on a trip the dispatcher skipped
+   *     (R-EXE-31): its goods are back at the depot and staff put the stock
+   *     right by hand, so nothing is sent to the warehouse
+   */
   public record OrderCancelled(
       UUID orderId,
       String outletId,
       String depotCode,
       Optional<String> warehouseOrderRef,
-      String reason)
+      String reason,
+      boolean returnedToDepot)
       implements DomainEvent {
     public static final String TYPE = "order.cancelled";
 

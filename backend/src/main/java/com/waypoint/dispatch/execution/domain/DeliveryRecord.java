@@ -26,6 +26,7 @@ import java.util.UUID;
  *      │                   └──────fail──────▶ FAILED
  *      ├──fail──▶ FAILED      (never reached the outlet)
  *      └──skip──▶ SKIPPED     (the plan was revised and the stop left the trip)
+ *   PENDING | ARRIVED ──dispatcher skip──▶ SKIPPED  (R-EXE-31: skip store, end trip)
  * </pre>
  *
  * <p>An outcome is recorded once. Nothing leaves DELIVERED, PARTIAL, FAILED or
@@ -72,6 +73,8 @@ public record DeliveryRecord(
   public static final String RECORDED_AFTER_RECONNECT = "recorded_after_reconnect";
 
   public static final String REPLANNED = "replanned";
+  /** The failure reason column of a stop the dispatcher took off the trip; the decision itself is a {@link StopSkip}. */
+  public static final String SKIPPED_BY_DISPATCHER = "skipped_by_dispatcher";
 
   public static final int NOTE_LIMIT = 500;
 
@@ -238,6 +241,20 @@ public record DeliveryRecord(
     requireOutcome("skipped", DeliveryOutcome.PENDING);
     return with(DeliveryOutcome.SKIPPED, startedAt, arrivedAt, serviceStartedAt, Optional.of(now), waitMinutes,
         lateMinutes, lateReason, timingUncertain, deliveredUnits, Optional.of(REPLANNED), dispositionNote,
+        lowEvidence, proofId);
+  }
+
+  /**
+   * R-EXE-31: the dispatcher takes a stop not yet done off the trip, reached or
+   * not (a store closed with the van at the door). A stop already delivered,
+   * partly delivered, failed or skipped is refused: nothing leaves those.
+   */
+  public DeliveryRecord skipByDispatcher(Instant now) {
+    if (isFinished()) {
+      throw alreadyRecorded("skipped");
+    }
+    return with(DeliveryOutcome.SKIPPED, startedAt, arrivedAt, serviceStartedAt, Optional.of(now), waitMinutes,
+        lateMinutes, lateReason, timingUncertain, deliveredUnits, Optional.of(SKIPPED_BY_DISPATCHER), dispositionNote,
         lowEvidence, proofId);
   }
 

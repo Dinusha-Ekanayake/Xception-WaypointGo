@@ -85,7 +85,13 @@ public final class MessagingViews {
        * resolving the issue (R-MSG-07), so the dispatcher's screen acts on the
        * issue; empty for a message a person wrote.
        */
-      Optional<UUID> issueId) {
+      Optional<UUID> issueId,
+      /**
+       * The stop a report is about (a store's own outlet, or the issue's), so the
+       * dispatcher can act on that stop beside the report (R-EXE-31); empty for a
+       * message, or a report about no stop.
+       */
+      Optional<String> aboutOutletId) {
     public MessageView {
       voicePeaks = List.copyOf(voicePeaks);
     }

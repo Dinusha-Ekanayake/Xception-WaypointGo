@@ -54,8 +54,11 @@ public final class OrderStateMachine {
     EDGES.put(ALLOCATED, EnumSet.of(LOADING, DEFERRED, UNSERVABLE, CANCELLED));
     // A trip deferred as a unit after a failed interchange carries its orders
     // forward with identity intact (MODULES "Vehicle interchange").
-    EDGES.put(LOADING, EnumSet.of(IN_TRANSIT, DEFERRED));
-    EDGES.put(IN_TRANSIT, EnumSet.of(DELIVERED, PARTIALLY_DELIVERED, FAILED));
+    // R-EXE-31: the dispatcher takes a stop off a trip on the road (or a trip
+    // still loading): the same order goes to the next day or is cancelled with
+    // its goods back at the depot. A store still cannot cancel (CANCELLABLE).
+    EDGES.put(LOADING, EnumSet.of(IN_TRANSIT, DEFERRED, CANCELLED));
+    EDGES.put(IN_TRANSIT, EnumSet.of(DELIVERED, PARTIALLY_DELIVERED, FAILED, DEFERRED, CANCELLED));
     EDGES.put(DELIVERED, EnumSet.of(RECEIVED, UNCONFIRMED));
     EDGES.put(PARTIALLY_DELIVERED, EnumSet.of(RECEIVED, UNCONFIRMED));
     // A failed delivery is never redelivered in place: Issues asks for a new,

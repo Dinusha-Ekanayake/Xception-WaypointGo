@@ -130,7 +130,7 @@ Revised 2026-09-30. `OrderStatus` in `ordering/contract` is the one vocabulary; 
 **Commands:** `order:Place`, `order:Amend`, `order:Cancel`, `order:CloseForDay`.
 **Queries:** `confirmedDemand(depot, day)`, `order(id)`, `timeline(orderId)`, `ordersForOutlet(outletId, cursor)`.
 **Publishes:** `order.placed`, `order.amended`, `order.cancelled`, `order.auto_deferred`, `orders.closed`.
-**Consumes:** `plan.published`, `plan.revised`, `order.deferred`, `order.unservable`, `loading.started`, `trip.released`, `delivery.completed`, `delivery.failed`, `receipt.confirmed`, `receipt.auto_closed`, `redelivery.requested`, `warehouse.order_status_changed`. `loading.started` is what makes an order `loading`, after which amendment is refused (ORD-06).
+**Consumes:** `plan.published`, `plan.revised`, `order.deferred`, `order.unservable`, `loading.started`, `trip.released`, `delivery.completed`, `delivery.failed`, `delivery.skipped` (the same order to the next operating day, or cancelled and returned to the depot, R-EXE-31), `receipt.confirmed`, `receipt.auto_closed`, `redelivery.requested`, `warehouse.order_status_changed`. `loading.started` is what makes an order `loading`, after which amendment is refused (ORD-06).
 **Job:** `ordering.cutoff` at 16:00 Asia/Colombo.
 
 **Ports:** `StockPort` (Warehouse contract), called synchronously at placement.
@@ -248,7 +248,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 **Commands:** `StartStop`, `RecordArrival`, `RecordDelivery`, `RecordFailedDelivery`, `CaptureProof`, `ReportVehicleStatus`, `ReportRoadFault`, `RecordPositions` (`delivery:RecordPositions`, no event: R-EXE-18 to R-EXE-21).
 **Queries:** `runSheet(vehicle, day)`, `deliveryRecord(allocationId)`, `proof(deliveryRecordId)`. Live map reads (`PositionsQuery`, web only): `GET /api/execution/positions?date=&depot=|outlet=` (last good fix per vehicle, with `offline`) and `GET /api/execution/trips/{tripId}/trail` (keyset on `recordedAt`).
-**Publishes:** `delivery.started`, `delivery.arrived`, `delivery.completed`, `delivery.failed`, `vehicle.at_depot`, `vehicle.fault_reported`, `road.disruption_reported`.
+**Publishes:** `delivery.started`, `delivery.arrived`, `delivery.completed`, `delivery.failed`, `delivery.skipped` (the dispatcher took a stop off a trip on the road: `delivery:SkipStop`, `delivery:EndTrip`, R-EXE-31), `vehicle.at_depot`, `vehicle.fault_reported`, `road.disruption_reported`.
 **Consumes:** `trip.released`.
 
 **Ports:** `ProofStore`.
@@ -534,7 +534,7 @@ Revised 2026-09-30 against the verified API (RULES-AND-POLICIES §2) and decisio
 | `StockPort.placeOrder(orderRef, lines)` | Ordering, synchronously | Order placed | 2 s | Circuit opens, the order saves as `stock_unknown` and the dispatcher sees the degraded banner. **Never assume reserved** |
 | `StockPort.amendOrder(ref, lines)` | Ordering, synchronously | Order amended | 2 s | As above |
 | Retry of a `stock_unknown` placement | Warehouse module | Warehouse reachable again | 2 s | Queries by `orderRef` first, because `POST /orders` is not idempotent (R-STK-11) |
-| Cancel (`PUT status cancelled`) | Warehouse module, on `order.cancelled` | Order cancelled | 5 s | Retried through the outbox until acknowledged. Deferral does **not** cancel (D-H) |
+| Cancel (`PUT status cancelled`) | Warehouse module, on `order.cancelled` | Order cancelled | 5 s | Retried through the outbox until acknowledged. Deferral does **not** cancel (D-H). An order cancelled off a skipped trip (`returnedToDepot`, R-EXE-31) was shipped and came back: nothing is sent, depot staff put the stock right, and it is counted (`waypoint.warehouse.returned_to_depot`) |
 | Ship and deliver (`PUT status`) | Warehouse module, on `trip.released` and `delivery.completed` | Trip leaves, stop completes | 5 s | Retried through the outbox; an invalid transition is recorded and alerted |
 | Catalogue sync (`GET /products`) | Warehouse module, scheduled | Bulk sync | 60 s | Keep the last good copy, mark it stale with its age |
 
@@ -613,6 +613,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `loading.interchange_requested` | Loading | Planning |
 | `trip.released` | Loading | Execution, Ordering, Warehouse (shipped), Notification, Planning (freeze, R-PLN-44) |
 | `delivery.started`, `delivery.completed`, `delivery.failed`, `eta.changed` | Execution | Ordering, Receipt, Warehouse (delivered), Issues, Notification |
+| `delivery.skipped` | Execution | Ordering |
 | `delivery.arrived` | Execution | Notification (store: unload and check, R-EXE-25) |
 | `vehicle.at_depot` | Execution | Loading (dock board, R-LOD-12), Notification (loaders, R-EXE-24) |
 | `vehicle.fault_reported`, `road.disruption_reported` | Execution | Issues, Notification |

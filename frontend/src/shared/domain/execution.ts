@@ -157,7 +157,17 @@ export const ExecutionCommandKind = {
   leaveWithoutStoreAnswer: "delivery:LeaveWithoutStoreAnswer",
   /** FF-06b: an administrator withdraws a vehicle's Fuel Pass QR, with a reason. The upload is a PUT, not a command. */
   revokeFuelPass: "vehicle:RevokeFuelPass",
+  /** R-EXE-31: the dispatcher takes one stop off a trip on the road, next day or cancel, with a reason. */
+  skipStop: "delivery:SkipStop",
+  /** R-EXE-31: the dispatcher ends a trip on the road; every stop not yet done goes to the next day. */
+  endTrip: "delivery:EndTrip",
 } as const;
+
+/** delivery:SkipStop, sent with the stop's rowVersion. */
+export type SkipStopPayload = { deliveryId: Uuid; then: "NEXT_DAY" | "CANCEL"; reason: string };
+
+/** delivery:EndTrip. */
+export type EndTripPayload = { tripId: Uuid; reason: string };
 
 /** serviceDate: today unless tomorrow's trip is loaded tonight (R-LOD-13). */
 export type ArriveAtDepot = { vehicleId: string; serviceDate?: string };

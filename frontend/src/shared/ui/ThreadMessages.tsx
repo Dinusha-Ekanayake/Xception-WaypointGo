@@ -26,6 +26,7 @@ export function ThreadMessages({
   tr = plain,
   onResolve,
   onRedirect,
+  reportActions,
   accountId,
 }: {
   messages: MessageView[];
@@ -39,6 +40,8 @@ export function ThreadMessages({
   onResolve?: (messageId: string, note: string) => Promise<void>;
   /** The dispatcher's way to move a post off the trip's channel (R-MSG-08). */
   onRedirect?: (messageId: string, reason: string) => Promise<void>;
+  /** The dispatcher's decisions beside a report, such as Skip store (R-EXE-31); absent for everyone else. */
+  reportActions?: (message: MessageView) => React.ReactNode;
   /** Plays the audio kept on this phone first (R-MSG-11). */
   accountId?: string;
 }): React.JSX.Element {
@@ -87,6 +90,7 @@ export function ThreadMessages({
                 tr={tr}
                 {...(onResolve ? { onResolve } : {})}
                 {...(onRedirect ? { onRedirect } : {})}
+                {...(reportActions ? { reportActions } : {})}
                 {...(accountId ? { accountId } : {})}
               />
             ))}
@@ -131,6 +135,7 @@ function Message({
   tr,
   onResolve,
   onRedirect,
+  reportActions,
   accountId,
 }: {
   message: MessageView;
@@ -139,6 +144,7 @@ function Message({
   tr: Translate;
   onResolve?: (messageId: string, note: string) => Promise<void>;
   onRedirect?: (messageId: string, reason: string) => Promise<void>;
+  reportActions?: (message: MessageView) => React.ReactNode;
   accountId?: string;
 }): React.JSX.Element {
   const voiceSrc = usePlayableUrl(accountId, m.voiceNoteId ? voiceUrl(m.threadId, m.voiceNoteId) : "");
@@ -226,6 +232,7 @@ function Message({
             {m.resolutionNote && <span className="text-go-ink">{m.resolutionNote}</span>}
           </p>
         )}
+        {report && reportActions?.(m)}
         {open && onResolve && !resolving && (
           <button
             type="button"

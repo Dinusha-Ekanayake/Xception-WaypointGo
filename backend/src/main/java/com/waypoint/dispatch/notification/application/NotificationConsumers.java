@@ -4,6 +4,7 @@ import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryArrived;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryCompleted;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.VehicleAtDepot;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryFailed;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliverySkipped;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryStarted;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.EtaChanged;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.RoadDisruptionReported;
@@ -815,6 +816,40 @@ final class NotificationConsumers {
           .fact("depotCode", e.depotCode()).fact("outletId", e.outletId())
           .to(ScopeKind.DEPOT, e.depotCode(), "issue", e.issueId())
           .to(ScopeKind.OUTLET, e.outletId(), "issue", e.issueId());
+    }
+  }
+
+  /**
+   * R-EXE-31, R-NOT-20: the dispatcher took a stop off a trip on the road. The
+   * store hears what happens to its delivery and why; the vehicle's driver hears
+   * the stop is gone, so the route on the phone is not trusted from memory.
+   */
+  @Component
+  static class OnDeliverySkipped extends NotificationConsumer<DeliverySkipped> {
+    OnDeliverySkipped(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-delivery-skipped";
+    }
+
+    @Override
+    public Class<DeliverySkipped> eventType() {
+      return DeliverySkipped.class;
+    }
+
+    @Override
+    Routed route(DeliverySkipped e) {
+      String headline =
+          "CANCEL".equals(e.then()) ? "Today's delivery is cancelled" : "Your delivery moves to the next day";
+      return new Routed()
+          .fact("headline", headline).fact("reason", e.reason()).fact("outletId", e.outletId())
+          .fact("vehicleId", e.vehicleId()).fact("depotCode", e.depotCode())
+          .on(e.serviceDate())
+          .to(ScopeKind.OUTLET, e.outletId(), "delivery", e.deliveryId())
+          .to(ScopeKind.VEHICLE, e.vehicleId(), "delivery", e.deliveryId());
     }
   }
 

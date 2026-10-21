@@ -201,6 +201,13 @@ final class OrderMessages {
         o.outletId(),
         o.depotCode(),
         o.reservation().map(Reservation::warehouseOrderRef),
-        reason);
+        reason,
+        false);
+  }
+
+  /** R-EXE-31: cancelled off a skipped trip, its goods back at the depot. */
+  static OrderCancelled returned(Order o, String reason) {
+    return new OrderCancelled(
+        o.orderId(), o.outletId(), o.depotCode(), o.reservation().map(Reservation::warehouseOrderRef), reason, true);
   }
 }

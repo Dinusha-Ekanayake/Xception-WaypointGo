@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-21 - feat: the dispatcher skips a store or ends a trip on the road (R-EXE-31)
+
+`dev` · @Oxshadha
+
+- `delivery:SkipStop` (next day or cancel, with a reason, under the stop's version) and `delivery:EndTrip` (every stop not yet done, next day). A stop is skipped from pending or arrived (`DeliveryRecord.skipByDispatcher`); the decision is kept once in `execution.stop_skips`. Authority is data: the dispatcher policy allows both, the driver policy (which allows `delivery:*`) denies both, and a new row policy lets a dispatcher of the depot write a stop only as skipped. `delivery.skipped` moves the same order: next operating day (`IN_TRANSIT -> DEFERRED`) or cancelled and returned (`IN_TRANSIT -> CANCELLED`, `order.cancelled` with `returnedToDepot`, no warehouse call). A redelivered skip is ignored by its service date (ORD-25). The store reads why in the trip's messages and by push, the driver by push only (routing version 15, R-NOT-20). Plan: [docs/issues/trip-skip/PLAN.md](../../issues/trip-skip/PLAN.md); edge cases EXE-47 to EXE-49, ORD-25, STK-15.
+- Dispatcher: Skip store on each open stop and End trip on the Live trip page, and the same in the trip's chat: Skip beside a report about a stop still open (reports now carry the stop they are about, `aboutOutletId`) and End trip in its header, opened in place since a dialog cannot sit over the chat drawer. A skipped stop reads "Off the trip". Stores and the driver see only the outcome.
+- Driver: the Available switch asks before it reports the vehicle in the workshop or available (EXE-50); an accidental tap told the dispatcher a vehicle was out. A flow fix under role-ui-scope.md, in the sign-out sheet's look; the new strings need native review in si and ta.
+- Plan for suggested decisions in the chat, with the strict review folded in: [docs/issues/decision-suggestions/PLAN.md](../../issues/decision-suggestions/PLAN.md). Open: its three questions for @jv-ransika.
+
+---
+
 ## 2026-10-21 - feat: live refresh phase 1, every screen on the change stream
 
 `dev` · @Oxshadha

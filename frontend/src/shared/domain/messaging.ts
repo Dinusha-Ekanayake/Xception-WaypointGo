@@ -78,6 +78,8 @@ export type MessageView = {
   transcript?: TranscriptView | null;
   /** The issue a report was made from (R-MSG-05): resolving the report resolves it (R-MSG-07). Absent from an older server. */
   issueId?: Uuid | null;
+  /** The stop a report is about, so the dispatcher can act on it beside the report (R-EXE-31). Absent from an older server. */
+  aboutOutletId?: string | null;
 };
 
 /** Newest first; nextCursor reads older messages. */

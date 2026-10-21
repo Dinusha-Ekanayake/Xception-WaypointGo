@@ -30,8 +30,17 @@ public final class ExecutionCommands {
   public static final String REVOKE_FUEL_PASS = "vehicle:RevokeFuelPass";
   /** FF-06b: the driver reads the Fuel Pass QR of the vehicle they drive today or tomorrow. */
   public static final String READ_FUEL_PASS = "delivery:ReadFuelPass";
+  /** R-EXE-31: the dispatcher takes one stop off a trip on the road: next day or cancel, with a reason. */
+  public static final String SKIP_STOP = "delivery:SkipStop";
+  /** R-EXE-31: the dispatcher ends a trip on the road; every stop not yet done goes to the next day. */
+  public static final String END_TRIP = "delivery:EndTrip";
 
   public record StartStop(UUID deliveryId) {}
+
+  /** @param then {@code NEXT_DAY} or {@code CANCEL}; sent with the stop's rowVersion as expectedVersion */
+  public record SkipStop(UUID deliveryId, String then, String reason) {}
+
+  public record EndTrip(UUID tripId, String reason) {}
 
   public record ArriveAtDepot(String vehicleId) {}
 

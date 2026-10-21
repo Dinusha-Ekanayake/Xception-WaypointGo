@@ -90,6 +90,12 @@ public final class WarehouseConsumers {
     @Override
     public void on(EventEnvelope<OrderCancelled> envelope) {
       OrderCancelled e = envelope.payload();
+      if (e.returnedToDepot()) {
+        // R-EXE-31: the goods were shipped and came back on a skipped trip; depot
+        // staff put the stock right by hand. Nothing to ask the warehouse for.
+        metrics.increment("waypoint.warehouse.returned_to_depot", "depot", e.depotCode());
+        return;
+      }
       Optional<String> ref = e.warehouseOrderRef().or(() -> held(e.orderId()));
       ref.ifPresent(r -> request(e.orderId(), r, "cancelled", "order.cancelled: " + e.reason()));
       // A stock-unknown order may still have a lost attempt at the warehouse:

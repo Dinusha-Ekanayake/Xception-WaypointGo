@@ -41,8 +41,9 @@ class OrderStateMachineTest {
           Map.entry(DEFERRED, EnumSet.of(ALLOCATED, DEFERRED, UNSERVABLE, CANCELLED)),
           Map.entry(UNSERVABLE, EnumSet.of(ALLOCATED, DEFERRED, CANCELLED)),
           Map.entry(ALLOCATED, EnumSet.of(LOADING, DEFERRED, UNSERVABLE, CANCELLED)),
-          Map.entry(LOADING, EnumSet.of(IN_TRANSIT, DEFERRED)),
-          Map.entry(IN_TRANSIT, EnumSet.of(DELIVERED, PARTIALLY_DELIVERED, FAILED)),
+          // R-EXE-31: a stop the dispatcher skips sends its order to the next day or cancels it.
+          Map.entry(LOADING, EnumSet.of(IN_TRANSIT, DEFERRED, CANCELLED)),
+          Map.entry(IN_TRANSIT, EnumSet.of(DELIVERED, PARTIALLY_DELIVERED, FAILED, DEFERRED, CANCELLED)),
           Map.entry(DELIVERED, EnumSet.of(RECEIVED, UNCONFIRMED)),
           Map.entry(PARTIALLY_DELIVERED, EnumSet.of(RECEIVED, UNCONFIRMED)),
           Map.entry(FAILED, EnumSet.noneOf(OrderStatus.class)),
@@ -80,6 +81,16 @@ class OrderStateMachineTest {
       assertFalse(OrderStateMachine.CANCELLABLE.contains(status), status + " is past loading");
     }
     assertTrue(OrderStateMachine.CANCELLABLE.contains(ALLOCATED));
+  }
+
+  @Test
+  void aSkippedStopsOrderMovesOnButAStoreStillCannotCancelOnTheRoad() {
+    // R-EXE-31: the dispatcher's skip, by event. The store's own cancel stays refused (ORD-10).
+    assertEquals(APPLY, OrderStateMachine.onEvent(IN_TRANSIT, DEFERRED));
+    assertEquals(APPLY, OrderStateMachine.onEvent(IN_TRANSIT, CANCELLED));
+    assertFalse(OrderStateMachine.CANCELLABLE.contains(IN_TRANSIT));
+    // A trip.released redelivered after the skip does not put the order back on the road.
+    assertEquals(STALE, OrderStateMachine.onEvent(DEFERRED, IN_TRANSIT));
   }
 
   @Test

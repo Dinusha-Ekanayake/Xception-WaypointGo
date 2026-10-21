@@ -136,6 +136,43 @@ public final class ExecutionEvents {
     }
   }
 
+  /**
+   * R-EXE-31: the dispatcher took a stop off a trip on the road. Ordering moves
+   * the same order to the next operating day ({@code NEXT_DAY}) or cancels it
+   * with its goods back at the depot ({@code CANCEL}); the store and the driver
+   * are told. A plan revision's skip publishes nothing: the revision says it.
+   */
+  public record DeliverySkipped(
+      UUID deliveryId,
+      UUID orderId,
+      UUID tripId,
+      String outletId,
+      String depotCode,
+      String vehicleId,
+      LocalDate serviceDate,
+      String then,
+      String reason,
+      boolean wholeTrip,
+      Instant skippedAt)
+      implements DomainEvent {
+    public static final String TYPE = "delivery.skipped";
+
+    @Override
+    public String type() {
+      return TYPE;
+    }
+
+    @Override
+    public String aggregateType() {
+      return "delivery";
+    }
+
+    @Override
+    public String aggregateId() {
+      return deliveryId.toString();
+    }
+  }
+
   /** The expected arrival moved, so the store and dispatcher can be told (R-EXE-15). */
   public record EtaChanged(
       UUID deliveryId, UUID orderId, String outletId, Instant expectedArrival, int delayMinutes)
