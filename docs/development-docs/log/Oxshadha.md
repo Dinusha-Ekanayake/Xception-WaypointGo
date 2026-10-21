@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-22 - feat: demo trucks record their own stops
+
+`dev` · @Oxshadha
+
+- Item 15 of @jv-ransika's plan ([plan](../../issues/demo-stops/PLAN.md)): a simulated truck records each stop's arrival and delivery (every unit, "demo vehicle") through the real commands as its driver; the store still confirms receipt, and no proof is taken. The demo driver account's truck is left to a person. The control room says "Stops recorded: 3 of 8". R-DEMO-04 rewritten, DEMO-14.
+
+---
+
 ## 2026-10-21 - feat: products read by the warehouse's name
 
 `dev` · @Oxshadha

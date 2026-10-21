@@ -1117,6 +1117,76 @@ class ExecutionIntegrationTest {
     read(dispatcher, "/api/outlets/contacts?ids=" + many, 422);
   }
 
+  // ---- demo trucks record their stops (docs/issues/demo-stops/PLAN.md, R-DEMO-04) ----
+
+  @Autowired com.waypoint.dispatch.platform.messaging.CommandBus bus;
+  @Autowired com.waypoint.dispatch.demo.application.SimulationJob simulationJob;
+  @Autowired com.waypoint.dispatch.demo.application.DemoSettingsQuery demoSettings;
+  @Autowired com.waypoint.dispatch.identity.contract.IdentityQuery identity;
+
+  @Test
+  void aSimulatedTruckArrivesAndDeliversEachStopOnceAndNeverRecordsTheReceipt() throws Exception {
+    at("05:00");
+    String adminEmail = "xa-" + UUID.randomUUID().toString().substring(0, 8) + "@execution.test";
+    var admin = com.waypoint.dispatch.shared.domain.Actor.user(accounts.createAccount(adminEmail, "Admin", PASSWORD, "admin"));
+    // The demo admin holds every depot (demo-accounts); this one holds the trip's.
+    accounts.grantDepot(adminEmail, depot);
+    if (!demoSettings.view().enabled()) {
+      bus.dispatch(admin, demo("Enable", demoSettings.view().rowVersion(), Map.of("reason", "Simulated stops")));
+    }
+    try {
+      bus.dispatch(admin, demo("StartSimulation", null,
+          Map.of("reason", "Simulated stops", "vehicleId", vehicleId, "serviceDate", day.toString())));
+      UUID simulation = (UUID) database.asSystem(ModuleRole.DEMO, () -> database.queryOne(
+          "SELECT id FROM demo.simulations WHERE vehicle_id = ? AND service_date = ? AND status = 'running'",
+          vehicleId, java.sql.Date.valueOf(day))).get("id");
+      String status = "running";
+      for (int i = 0; i < 400 && "running".equals(status); i++) {
+        simulationJob.run(Instant.now());
+        status = (String) database.asSystem(ModuleRole.DEMO, () -> database.queryOne(
+            "SELECT status FROM demo.simulations WHERE id = ?", simulation)).get("status");
+      }
+      Map<String, Object> done = database.asSystem(ModuleRole.DEMO, () -> database.queryOne(
+          "SELECT status, failure, stops_recorded, jsonb_array_length(stops) AS stops FROM demo.simulations WHERE id = ?",
+          simulation));
+      assertEquals("finished", done.get("status"), done.toString());
+      assertEquals(3, ((Number) done.get("stops_recorded")).intValue(), done.toString());
+      JsonNode stops = runSheet(driver).get("stops");
+      for (JsonNode stop : stops) {
+        assertEquals("DELIVERED", stop.get("outcome").asText(), stop.toString());
+        assertTrue(stop.hasNonNull("arrivedAt"), "the arrival was recorded first: " + stop);
+      }
+      drain();
+      assertFalse(orderStatus(orderA).contains("RECEIV"), "the store still confirms the receipt by hand: " + orderStatus(orderA));
+
+      // The same ticks again: every command is answered by its receipt, nothing is recorded twice.
+      long versions = stops.get(0).get("rowVersion").asLong();
+      database.asSystem(ModuleRole.DEMO, () -> database.update(
+          "UPDATE demo.simulations SET status = 'running', tick = 0 WHERE id = ?", simulation));
+      for (int i = 0; i < 400; i++) simulationJob.run(Instant.now());
+      assertEquals(versions, runSheet(driver).get("stops").get(0).get("rowVersion").asLong());
+    } finally {
+      bus.dispatch(admin, demo("Disable", demoSettings.view().rowVersion(), Map.of("reason", "End simulated stops")));
+    }
+  }
+
+  @Test
+  void theDemoDriverAccountIsKnownSoItsTruckIsLeftToAPerson() {
+    if (database.asSystem(ModuleRole.IAM, () -> database.queryOne(
+        "SELECT 1 FROM iam.users WHERE email = 'driver@waypoint.local'")) == null) {
+      accounts.createAccount("driver@waypoint.local", "Demo driver", PASSWORD, "driver");
+    }
+    UUID demoDriver = (UUID) database.asSystem(ModuleRole.IAM, () -> database.queryOne(
+        "SELECT user_id FROM iam.users WHERE email = 'driver@waypoint.local'")).get("user_id");
+    assertEquals(Optional.of(demoDriver), database.asSystem(ModuleRole.IAM, () -> identity.demoAccount("driver")));
+    assertEquals(Optional.empty(), database.asSystem(ModuleRole.IAM, () -> identity.demoAccount("nobody")));
+  }
+
+  private com.waypoint.dispatch.platform.messaging.Command demo(String verb, Long version, Map<String, Object> payload) {
+    return new com.waypoint.dispatch.platform.messaging.Command(
+        UUID.randomUUID(), "demo:" + verb, version, mapper.valueToTree(payload), Instant.now());
+  }
+
   // ---- product names (docs/issues/product-names/PLAN.md) ----
 
   @Test

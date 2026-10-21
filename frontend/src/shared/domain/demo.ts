@@ -45,4 +45,8 @@ export type DemoSimulationView = {
   status: "running" | "paused" | "stopped" | "finished" | "failed";
   failure: string | null;
   started_at: string;
+  /** R-DEMO-04: deliveries it recorded; absent from an older server. */
+  stops_recorded?: number;
+  /** The stops it records; null for a simulation started before it recorded stops. */
+  stops_total?: number | null;
 };

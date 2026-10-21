@@ -27,8 +27,7 @@ public final class RouteWalker {
     for (int leg = 1; leg < waypoints.size(); leg++) {
       Waypoint from = waypoints.get(leg - 1);
       Waypoint to = waypoints.get(leg);
-      int points = Math.max(MIN_POINTS_PER_LEG,
-          Math.min(MAX_POINTS_PER_LEG, (int) Math.ceil(metres(from, to) / METRES_PER_POINT)));
+      int points = legPoints(from, to);
       for (int i = 1; i <= points; i++) {
         double t = (double) i / points;
         path.add(new Waypoint(from.latitude() + (to.latitude() - from.latitude()) * t,
@@ -37,6 +36,28 @@ public final class RouteWalker {
       for (int i = 0; i < DWELL_POINTS; i++) path.add(to);
     }
     return List.copyOf(path);
+  }
+
+  /** The ticks a vehicle pauses at one stop: it records arrival at the first, the delivery at the last. */
+  public record StopTicks(int arrive, int done) {}
+
+  /**
+   * For each stop after the first waypoint (the depot), the tick of its first
+   * and last pause point on {@link #path}, in the waypoints' order.
+   */
+  public static List<StopTicks> stops(List<Waypoint> waypoints) {
+    List<StopTicks> out = new ArrayList<>();
+    int index = 0;
+    for (int leg = 1; leg < waypoints.size(); leg++) {
+      index += legPoints(waypoints.get(leg - 1), waypoints.get(leg));
+      out.add(new StopTicks(index + 1, index + DWELL_POINTS));
+      index += DWELL_POINTS;
+    }
+    return List.copyOf(out);
+  }
+
+  private static int legPoints(Waypoint from, Waypoint to) {
+    return Math.max(MIN_POINTS_PER_LEG, Math.min(MAX_POINTS_PER_LEG, (int) Math.ceil(metres(from, to) / METRES_PER_POINT)));
   }
 
   /** Degrees clockwise from north from one point to the next, or null when they coincide. */

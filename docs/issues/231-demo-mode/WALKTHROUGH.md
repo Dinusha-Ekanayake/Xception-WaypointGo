@@ -49,7 +49,7 @@ Migrations: `20261005T0100_demo_runtime.sql` (settings, runs, role, catalogue, p
 2. Every 2 seconds `SimulationJob` sends `delivery:RecordPositions` as that driver, with command id `hash(simulation, tick)`. Execution validates and stores the point.
 3. The dispatcher live map, the store Track map and the driver map all read the stored points.
 4. If a point is refused, the simulation stops as `failed` with the reason shown on screen (DEMO-04).
-5. The simulator never records arrivals, deliveries, proof or receipt (R-DEMO-04). People do.
+5. The simulator records each stop's arrival and delivery through the real commands, and never proof or receipt (R-DEMO-04, changed 2026-10-21 in docs/issues/demo-stops/PLAN.md). People confirm the receipt.
 
 **Turn off.** `demo:Disable` zeroes the offset and stops every simulation in the same transaction (DEMO-05). The banner disappears on the next refresh.
 

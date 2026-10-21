@@ -37,4 +37,22 @@ class RouteWalkerTest {
     double south = RouteWalker.heading(DEPOT, new Waypoint(6.9, 79.8862));
     assertEquals(180.0, south, 0.1);
   }
+
+  @Test
+  void eachStopIsArrivedAtItsFirstPauseAndDeliveredAtItsLast() {
+    Waypoint second = new Waypoint(6.9000, 79.8700);
+    List<Waypoint> waypoints = List.of(DEPOT, STORE, second);
+    List<Waypoint> path = RouteWalker.path(waypoints);
+    List<RouteWalker.StopTicks> stops = RouteWalker.stops(waypoints);
+    assertEquals(2, stops.size());
+    for (int i = 0; i < stops.size(); i++) {
+      Waypoint at = waypoints.get(i + 1);
+      RouteWalker.StopTicks t = stops.get(i);
+      assertEquals(RouteWalker.DWELL_POINTS - 1, t.done() - t.arrive());
+      for (int tick = t.arrive(); tick <= t.done(); tick++) assertEquals(at, path.get(tick), "paused at the stop");
+      assertTrue(!path.get(t.done() + 1 < path.size() ? t.done() + 1 : t.done()).equals(at) || t.done() == path.size() - 1,
+          "it leaves after the last pause");
+    }
+    assertEquals(path.size() - 1, stops.get(1).done(), "the last stop's delivery is the last tick");
+  }
 }

@@ -91,6 +91,13 @@ public class IdentityDataQuery implements IdentityQuery {
                 .findFirst());
   }
 
+  @Override
+  public Optional<UUID> demoAccount(String role) {
+    return read(() -> database.query(
+            "SELECT user_id FROM iam.users WHERE email = ?", role + "@waypoint.local")
+        .stream().map(r -> (UUID) r.get("user_id")).findFirst());
+  }
+
   /**
    * Active accounts only: a disabled account has no session to read a
    * notification with. A vehicle's recipients are whoever is assigned to it

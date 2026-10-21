@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.demo.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.waypoint.dispatch.demo.domain.RouteWalker;
 import com.waypoint.dispatch.demo.domain.RouteWalker.Waypoint;
 import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.RunSheetStopView;
@@ -119,21 +120,38 @@ public class SimulationHandlers {
       if (open.isEmpty()) return "no released trip";
       Optional<UUID> driver = identity.driverOn(vehicle.vehicleId(), date);
       if (driver.isEmpty()) return "no driver assigned";
+      // Owner decision 2026-10-21: the demo driver account's truck is driven by a person.
+      if (driver.equals(identity.demoAccount("driver"))) return "a person drives it";
       List<Waypoint> waypoints = new ArrayList<>();
       reference.depot(vehicle.depotCode(), version).flatMap(d -> d.location()).map(SimulationHandlers::waypoint)
           .ifPresent(waypoints::add);
+      boolean fromDepot = !waypoints.isEmpty();
+      // The delivery at each waypoint after the first, in driving order.
+      List<UUID> atStop = new ArrayList<>();
       for (RunSheetStopView stop : open) {
-        reference.outlet(stop.outletId(), version).flatMap(o -> o.location()).map(SimulationHandlers::waypoint)
-            .ifPresent(waypoints::add);
+        Optional<Waypoint> at = reference.outlet(stop.outletId(), version).flatMap(o -> o.location())
+            .map(SimulationHandlers::waypoint);
+        if (at.isEmpty()) continue;
+        waypoints.add(at.get());
+        atStop.add(stop.deliveryId());
       }
       if (waypoints.size() < 2) return "stops have no location";
+      // R-DEMO-04: the ticks it records arrival and delivery at each stop it drives to.
+      List<Map<String, Object>> stops = new ArrayList<>();
+      List<RouteWalker.StopTicks> ticks = RouteWalker.stops(waypoints);
+      // With no depot location the first stop is where it starts: arrived and delivered at once.
+      List<UUID> legs = fromDepot ? atStop : atStop.subList(1, atStop.size());
+      if (!fromDepot) stops.add(Map.of("deliveryId", atStop.get(0).toString(), "arrive", 0, "done", 0));
+      for (int i = 0; i < ticks.size(); i++) {
+        stops.add(Map.of("deliveryId", legs.get(i).toString(), "arrive", ticks.get(i).arrive(), "done", ticks.get(i).done()));
+      }
       boolean active = db.queryOne("SELECT 1 FROM demo.simulations WHERE vehicle_id=? AND service_date=? AND status IN ('running','paused')",
           vehicle.vehicleId(), date) != null;
       if (active) return "already simulated";
-      db.update("INSERT INTO demo.simulations(id,vehicle_id,service_date,trip_id,driver_user_id,waypoints,status,reason,started_by)"
-              + " VALUES (?,?,?,?,?,?::jsonb,'running',?,?)",
+      db.update("INSERT INTO demo.simulations(id,vehicle_id,service_date,trip_id,driver_user_id,waypoints,stops,status,reason,started_by)"
+              + " VALUES (?,?,?,?,?,?::jsonb,?::jsonb,'running',?,?)",
           UuidV7.generate(clock.now(), random), vehicle.vehicleId(), date, open.get(0).tripId(), driver.get(),
-          json.valueToTree(waypoints).toString(), reason, actor.userId());
+          json.valueToTree(waypoints).toString(), json.valueToTree(stops).toString(), reason, actor.userId());
       started.add(vehicle.vehicleId());
       return null;
     }

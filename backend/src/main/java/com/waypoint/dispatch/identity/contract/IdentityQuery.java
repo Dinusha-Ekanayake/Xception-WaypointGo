@@ -32,6 +32,13 @@ public interface IdentityQuery {
   Optional<UUID> driverOn(String vehicleId, LocalDate date);
 
   /**
+   * The seeded demo account of a role ({@code <role>@waypoint.local}, from
+   * {@code demo-accounts}), so demo mode knows whom a person signs in as. Empty
+   * where it was never created.
+   */
+  Optional<UUID> demoAccount(String role);
+
+  /**
    * When each person's app last reached the server, from their live sessions'
    * activity (real time, written at most once a minute). A person with no live
    * session is absent. Says whether a phone is connected, never where it is.

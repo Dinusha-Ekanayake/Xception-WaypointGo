@@ -55,7 +55,7 @@ export default function SimulationsPanel({ run, busy }: { run: (label: string, a
             <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-go-ink">
               <span className="w-20 font-medium">{s.vehicle_id}</span>
               <Badge tone={TONE[s.status]}>{s.status}</Badge>
-              <span className="tabular-nums text-go-secondary">point {s.tick} · {s.waypoints - 1} stops · started {clock(s.started_at)}</span>
+              <span className="tabular-nums text-go-secondary">point {s.tick} · {s.stops_total == null ? `${s.waypoints - 1} stops` : `Stops recorded: ${s.stops_recorded ?? 0} of ${s.stops_total}`} · started {clock(s.started_at)}</span>
               {s.failure && <span className="text-[#a3261a]">{s.failure}</span>}
               {s.status === "running" && <button type="button" className={secondary} disabled={busy} onClick={() => act(`Pause ${s.vehicle_id}`, (r) => controlSimulations(r, "pause", s.id))}>Pause</button>}
               {s.status === "paused" && <button type="button" className={secondary} disabled={busy} onClick={() => act(`Resume ${s.vehicle_id}`, (r) => controlSimulations(r, "resume", s.id))}>Resume</button>}
