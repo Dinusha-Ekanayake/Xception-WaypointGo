@@ -59,6 +59,7 @@ Status: **decided** on issue #126 (2026-10-03). The shared labels and formatters
 | **cannot be served** | No vehicle of the depot could ever carry it | `UNSERVABLE` | unservable, rejected, impossible | |
 | **moved to** | The delivery date rolled past a non-operating day | `dateRolled`, `deliveryDate` | postponed, shifted | "Moved to Mon 5 Oct: Sunday is not an operating day" |
 | **redelivery** | A new order for the same goods after nothing arrived | `redeliveryOf`, `redelivery.requested` (A-24) | resend, re-delivery | |
+| **lock** | A dispatcher's promise that an order goes out in this plan, on any truck that fits; it never pins the vehicle or the trip. A regenerate that cannot place a locked order is refused and names why | `plan:Lock`, `AllocationView.locked`, `mustPlace` (R-PLN-36) | lock to this vehicle, pin | "Must go out in this plan, any truck". A placement by hand is what keeps a vehicle and trip |
 | **not delivered** | The delivery failed, with a reason | `DeliveryOutcome.FAILED`, `delivery.failed` | failed, undelivered | Screen label; the outcome keeps its name |
 | **replanned** | The stop was taken off this run sheet by a plan change | `DeliveryOutcome.SKIPPED` | skipped | |
 | **proof** | The photo or signature recorded at delivery | `proofCaptured` | POD, evidence (on screen) | "Proof owed" when missing |

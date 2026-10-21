@@ -219,7 +219,8 @@ public record PlanningRun(
     Map<UUID, UUID> by = new HashMap<>(deferredBy);
     by.remove(order.orderId());
     Map<UUID, Mark> hand = new HashMap<>(marks);
-    hand.put(order.orderId(), new Mark(Source.OVERRIDE, actor, false));
+    // A lock holds while the order is in the plan, on whichever trip (R-PLN-35): a move keeps it.
+    hand.put(order.orderId(), new Mark(Source.OVERRIDE, actor, lockedNow(order.orderId())));
     return successor(nextPlanId, nextVersion, next, changed, by, hand, reasons.keySet(), registry, context);
   }
 
@@ -736,7 +737,7 @@ public record PlanningRun(
                   }
                   if (added.contains(d.orderId())) {
                     by.remove(d.orderId());
-                    hand.put(d.orderId(), new Mark(Source.OVERRIDE, actor, false));
+                    hand.put(d.orderId(), new Mark(Source.OVERRIDE, actor, lockedNow(d.orderId())));
                     return served(d.orderId(), "override: added to the trip by dispatcher: " + reason);
                   }
                   return d;
@@ -876,10 +877,17 @@ public record PlanningRun(
         kept(nextMarks, refreshed), 1);
   }
 
+  /** Whether the order is locked in this version: a lock outlives a move between trips (R-PLN-35). */
+  private boolean lockedNow(UUID orderId) {
+    Mark mark = marks.get(orderId);
+    return mark != null && mark.locked();
+  }
+
   /**
    * The marks that still describe their order. A hand that placed an order means
    * nothing once it is deferred, and one that deferred it means nothing once it
-   * is placed, so those fall away; a lock holds only a served order.
+   * is placed, so those fall away; a lock holds while the order is served, on any
+   * trip, and falls away only when it is unlocked or leaves the plan (R-PLN-35).
    */
   private static Map<UUID, Mark> kept(Map<UUID, Mark> candidate, List<OrderDecision> decisions) {
     Map<UUID, Mark> out = new HashMap<>();

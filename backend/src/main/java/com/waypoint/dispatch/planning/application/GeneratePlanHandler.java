@@ -157,7 +157,7 @@ public class GeneratePlanHandler implements CommandHandler {
   /** What a job needs from the database, read in one short transaction. */
   public record JobInput(Built built, Stamps stamps, Optional<RunRow> open, KeptDecisions kept) {
     Problem problem() {
-      return kept.isEmpty() ? built.problem() : built.problem().keeping(kept.pins(), kept.held());
+      return kept.isEmpty() ? built.problem() : built.problem().keeping(kept.pins(), kept.held(), kept.mustPlace());
     }
   }
 

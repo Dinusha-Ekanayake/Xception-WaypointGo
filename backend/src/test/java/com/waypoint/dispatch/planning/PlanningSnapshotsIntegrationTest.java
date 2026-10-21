@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.planning;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -77,7 +78,26 @@ class PlanningSnapshotsIntegrationTest extends PlanningIntegrationSupport {
     assertEquals("MANUAL_DEFER", allocation(after, b).get("source").asText());
     assertFalse(allocation(after, b).get("decidedBy").isNull(), "still says who");
     assertTrue(allocation(after, a).get("locked").asBoolean());
-    assertEquals(vehicleBefore, vehicleOf(after, a), "the locked order stayed where it was");
+    // Nothing about the trucks changed, so the locked order lands where it was; a lock
+    // itself no longer pins the truck (R-PLN-36, owner decision 2026-10-21).
+    assertEquals(vehicleBefore, vehicleOf(after, a), "with nothing changed, the same place");
+  }
+
+  @Test
+  void aLockedOrderWhoseTruckBrokeDownGoesOutOnAnotherAndStaysLocked() throws Exception {
+    UUID a = demand("ambient");
+    UUID planId = UUID.fromString(generate(dispatcher, 200).get("planId").asText());
+    send(dispatcher, envelope("plan:Lock", 1L, "{\"planId\":\"" + planId + "\",\"orderId\":\"" + a + "\"}"), 200);
+    String broken = vehicleOf(draft(), a);
+    send(dispatcher, envelope("vehicle:SetDayStatus", null, "{\"vehicleId\":\"" + broken + "\",\"status\":\"in_workshop\","
+        + "\"serviceDate\":\"" + serviceDate + "\",\"reason\":\"broke down\"}"), 200);
+
+    regenerate(true);
+
+    JsonNode after = draft();
+    assertEquals("SERVED", allocation(after, a).get("decision").asText(), "a lock means it must go out");
+    assertNotEquals(broken, vehicleOf(after, a), "on a truck that is there");
+    assertTrue(allocation(after, a).get("locked").asBoolean(), "and it stays locked, nothing to unlock");
   }
 
   @Test

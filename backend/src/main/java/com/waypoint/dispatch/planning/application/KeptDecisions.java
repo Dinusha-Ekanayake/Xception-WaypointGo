@@ -24,20 +24,28 @@ import java.util.stream.Collectors;
 
 /**
  * What a dispatcher decided that a new draft keeps: the orders they placed or
- * locked, which go back where they were, and the orders they kept deferred,
- * which are not offered a place. Read from the draft being replaced or from a
- * saved plan being returned to.
+ * swapped by hand, which go back where they were; the orders they locked, which
+ * must go out on any vehicle that fits (owner decision 2026-10-21: a lock is
+ * "must go out", not "same truck"); and the orders they kept deferred, which are
+ * not offered a place. Read from the draft being replaced or from a saved plan
+ * being returned to.
  *
- * @param marks the hand to put back on each kept order
+ * @param marks the hand to put back on each kept order, a lock included
  * @param heldDecisions the earlier explanation of each order kept deferred
+ * @param mustPlace the locked orders
  */
 record KeptDecisions(
-    Map<UUID, Pin> pins, Set<UUID> held, Map<UUID, Mark> marks, Map<UUID, OrderDecision> heldDecisions) {
+    Map<UUID, Pin> pins, Set<UUID> held, Map<UUID, Mark> marks, Map<UUID, OrderDecision> heldDecisions,
+    Set<UUID> mustPlace) {
 
-  static final KeptDecisions NONE = new KeptDecisions(Map.of(), Set.of(), Map.of(), Map.of());
+  static final KeptDecisions NONE = new KeptDecisions(Map.of(), Set.of(), Map.of(), Map.of(), Set.of());
+
+  KeptDecisions(Map<UUID, Pin> pins, Set<UUID> held, Map<UUID, Mark> marks, Map<UUID, OrderDecision> heldDecisions) {
+    this(pins, held, marks, heldDecisions, Set.of());
+  }
 
   boolean isEmpty() {
-    return pins.isEmpty() && held.isEmpty();
+    return pins.isEmpty() && held.isEmpty() && mustPlace.isEmpty();
   }
 
   /** From a stored draft: every order a dispatcher placed, swapped in or locked, and every one kept deferred. */
@@ -47,13 +55,18 @@ record KeptDecisions(
     Set<UUID> held = new HashSet<>();
     Map<UUID, Mark> marks = new HashMap<>();
     Map<UUID, OrderDecision> heldDecisions = new HashMap<>();
+    Set<UUID> mustPlace = new HashSet<>();
     for (AllocationRow a : allocations) {
       if (a.decidedBy().isEmpty()) {
         continue;
       }
       Source source = Source.valueOf(a.source().toUpperCase(Locale.ROOT));
       Mark mark = new Mark(source, a.decidedBy().get(), a.locked());
-      if (a.decision() == AllocationDecision.SERVED && a.tripId().isPresent()) {
+      if (a.decision() == AllocationDecision.SERVED && a.locked()) {
+        // A lock: out in this plan, on whichever vehicle fits (R-PLN-36).
+        mustPlace.add(a.orderId());
+        marks.put(a.orderId(), mark);
+      } else if (a.decision() == AllocationDecision.SERVED && a.tripId().isPresent()) {
         TripRow trip = tripById.get(a.tripId().get());
         pins.put(a.orderId(), new Pin(trip.vehicleId(), trip.tripNumber()));
         marks.put(a.orderId(), mark);
@@ -67,7 +80,7 @@ record KeptDecisions(
                 a.reason(), a.checks()));
       }
     }
-    return new KeptDecisions(pins, held, marks, heldDecisions);
+    return new KeptDecisions(pins, held, marks, heldDecisions, mustPlace);
   }
 
   /**
@@ -113,6 +126,7 @@ record KeptDecisions(
         Map.copyOf(pins.entrySet().stream().filter(e -> demand.contains(e.getKey())).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
         held.stream().filter(demand::contains).collect(Collectors.toSet()),
         Map.copyOf(marks.entrySet().stream().filter(e -> demand.contains(e.getKey())).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
-        Map.copyOf(heldDecisions.entrySet().stream().filter(e -> demand.contains(e.getKey())).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
+        Map.copyOf(heldDecisions.entrySet().stream().filter(e -> demand.contains(e.getKey())).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
+        mustPlace.stream().filter(demand::contains).collect(Collectors.toSet()));
   }
 }

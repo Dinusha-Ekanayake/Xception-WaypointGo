@@ -260,7 +260,7 @@ public class PlanDataQuery implements PlanQuery {
         .toList();
     var changed = new com.waypoint.dispatch.planning.domain.AllocationEngine.Problem(problem.depotCode(),
         problem.serviceDate(), problem.orders(), fleet, problem.travel(), problem.rules(), problem.policy(),
-        problem.pins(), problem.held());
+        problem.pins(), problem.held(), problem.mustPlace());
     var allocate = engine.getObject();
     var before = allocate.allocate(problem);
     var after = allocate.allocate(changed);

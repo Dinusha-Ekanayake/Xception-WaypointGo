@@ -81,7 +81,7 @@ export default function PlanTools({
             align="right"
             disabled={!online || busy || !draft || viewing !== null}
             items={[
-              { id: "keep", label: "Keep my decisions", hint: "Placed, locked and kept orders stay; the rest is planned again" },
+              { id: "keep", label: "Keep my decisions", hint: "Orders placed by hand stay where you put them, locked orders go out on any truck that fits, kept orders stay deferred; the rest is planned again" },
               { id: "scratch", label: "Start over", hint: "The engine decides every order again; the draft is saved first" },
             ]}
             onSelect={(id) => onRegenerate(id === "keep")}

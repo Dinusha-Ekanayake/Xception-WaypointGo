@@ -106,6 +106,7 @@ test("an order placed by hand can be locked, and a regenerate can keep the decis
   await decision.getByRole("button", { name: "Place on VEH044 trip 1" }).click();
 
   await expect(decision.getByText("Placed on VEH044 Trip 1 by hand")).toBeVisible();
+  await expect(decision.getByText("Must go out in this plan, any truck")).toBeVisible();
   await decision.getByRole("switch", { name: "Lock" }).click();
   expect(desk.commands[1]).toMatchObject({ kind: "plan:Lock", expectedVersion: 1, payload: { planId: "plan-v2", orderId: "order-3" } });
 

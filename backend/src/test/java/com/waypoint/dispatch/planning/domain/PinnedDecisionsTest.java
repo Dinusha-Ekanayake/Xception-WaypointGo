@@ -86,6 +86,56 @@ class PinnedDecisionsTest {
   }
 
   @Test
+  void aLockedOrderGoesOutOnAnotherTruckWhenItsOwnIsNotThere() {
+    // Owner decision 2026-10-21: a lock is "must go out", not "same truck". T1 broke down.
+    FleetVehicle broken = vehicle("T1", false, false, "5000", "30", false);
+    Problem p = problem(List.of(a, b), List.of(broken, t2)).keeping(Map.of(), Set.of(), Set.of(a.orderId()));
+
+    AllocationResult result = engine().allocate(p);
+
+    OrderDecision locked = result.decisionFor(a.orderId()).orElseThrow();
+    assertEquals(AllocationDecision.SERVED, locked.decision());
+    assertEquals(Optional.of("T2"), locked.vehicleId(), "on the truck that is there");
+  }
+
+  @Test
+  void aLockedOrderThatFitsOnNoTruckRefusesTheRunNamingItsRules() {
+    PlanOrder chilled = order().chilled().build();
+    Problem p = problem(List.of(a, chilled), List.of(t1, t2)).keeping(Map.of(), Set.of(), Set.of(chilled.orderId()));
+
+    DomainException refused = assertThrows(DomainException.class, () -> engine().allocate(p));
+
+    assertEquals(ErrorCode.CONSTRAINT_VIOLATED, refused.code());
+    assertTrue(refused.rules().contains("R-PLN-02"), refused.rules().toString());
+    assertTrue(refused.getMessage().contains(chilled.orderRef()) && refused.getMessage().contains("locked"), refused.getMessage());
+  }
+
+  @Test
+  void aLockedOrderComesBeforeTheOrdersTheEngineDecidesAlone() {
+    // One small truck, room for one order a trip: the locked one is placed first, on trip 1.
+    FleetVehicle small = vehicle("S1", false, false, "60", "1", true);
+    PlanOrder heavyA = order().weight("50").build();
+    PlanOrder heavyB = order().weight("50").build();
+    Problem p = problem(List.of(heavyA, heavyB), List.of(small)).keeping(Map.of(), Set.of(), Set.of(heavyB.orderId()));
+
+    AllocationResult result = engine().allocate(p);
+
+    OrderDecision locked = result.decisionFor(heavyB.orderId()).orElseThrow();
+    assertEquals(AllocationDecision.SERVED, locked.decision());
+    assertEquals(Optional.of(1), locked.tripNumber(), "placed before the engine's own choices");
+  }
+
+  @Test
+  void theSecondPassIsSkippedWhenAnOrderIsLockedSoItIsNeverDroppedOrDeferred() {
+    Problem p = problem(List.of(a, b), List.of(t1, t2)).keeping(Map.of(), Set.of(), Set.of(a.orderId()));
+
+    AllocationResult result = new ImprovingEngine(engine(), REGISTRY).allocate(p);
+
+    assertTrue(result.improvement().isEmpty());
+    assertEquals(AllocationDecision.SERVED, result.decisionFor(a.orderId()).orElseThrow().decision());
+  }
+
+  @Test
   void anOrderKeptDeferredIsNotOfferedAPlaceEvenWhenThereIsRoom() {
     Problem p = problem(List.of(a, b), List.of(t1, t2)).keeping(Map.of(), Set.of(b.orderId()));
 

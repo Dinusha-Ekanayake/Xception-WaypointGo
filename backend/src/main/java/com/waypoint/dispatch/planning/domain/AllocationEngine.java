@@ -24,10 +24,13 @@ public interface AllocationEngine {
    *
    * @param fleet every vehicle of the depot, available or not: the unservable
    *     screen asks whether any vehicle could ever carry an order (R-PLN-22)
-   * @param pins orders a dispatcher placed or locked, which a regenerate puts
-   *     back where they were before it places anything else (R-PLN-36)
+   * @param pins orders a dispatcher placed or swapped by hand, which a regenerate
+   *     puts back where they were before it places anything else (R-PLN-36)
    * @param held orders a dispatcher decided stay deferred; they are not
    *     offered a place
+   * @param mustPlace orders a dispatcher locked: they must go out in this plan,
+   *     on any vehicle that passes every rule, placed right after the pins; one
+   *     that fits nowhere refuses the run (R-PLN-35, R-PLN-36)
    */
   record Problem(
       String depotCode,
@@ -38,7 +41,8 @@ public interface AllocationEngine {
       RuleSet rules,
       PriorityPolicy policy,
       Map<UUID, Pin> pins,
-      Set<UUID> held) {
+      Set<UUID> held,
+      Set<UUID> mustPlace) {
 
     public Problem {
       orders = List.copyOf(orders);
@@ -46,6 +50,20 @@ public interface AllocationEngine {
       travel = Map.copyOf(travel);
       pins = Map.copyOf(pins);
       held = Set.copyOf(held);
+      mustPlace = Set.copyOf(mustPlace);
+    }
+
+    public Problem(
+        String depotCode,
+        LocalDate serviceDate,
+        List<PlanOrder> orders,
+        List<FleetVehicle> fleet,
+        Map<String, DistrictTravel> travel,
+        RuleSet rules,
+        PriorityPolicy policy,
+        Map<UUID, Pin> pins,
+        Set<UUID> held) {
+      this(depotCode, serviceDate, orders, fleet, travel, rules, policy, pins, held, Set.of());
     }
 
     /** A problem with nothing pinned and nothing held: the engine decides everything. */
@@ -57,16 +75,22 @@ public interface AllocationEngine {
         Map<String, DistrictTravel> travel,
         RuleSet rules,
         PriorityPolicy policy) {
-      this(depotCode, serviceDate, orders, fleet, travel, rules, policy, Map.of(), Set.of());
+      this(depotCode, serviceDate, orders, fleet, travel, rules, policy, Map.of(), Set.of(), Set.of());
     }
 
+    /** Any decision of a dispatcher's: the later stages then leave the plan as placed, so none moves or drops it. */
     public boolean hasDecisions() {
-      return !pins.isEmpty() || !held.isEmpty();
+      return !pins.isEmpty() || !held.isEmpty() || !mustPlace.isEmpty();
     }
 
     /** The same problem with a dispatcher's decisions to keep. */
     public Problem keeping(Map<UUID, Pin> nextPins, Set<UUID> nextHeld) {
-      return new Problem(depotCode, serviceDate, orders, fleet, travel, rules, policy, nextPins, nextHeld);
+      return keeping(nextPins, nextHeld, Set.of());
+    }
+
+    /** The same problem with a dispatcher's decisions to keep, and the locked orders that must go out. */
+    public Problem keeping(Map<UUID, Pin> nextPins, Set<UUID> nextHeld, Set<UUID> nextMustPlace) {
+      return new Problem(depotCode, serviceDate, orders, fleet, travel, rules, policy, nextPins, nextHeld, nextMustPlace);
     }
 
     public PlanContext context() {

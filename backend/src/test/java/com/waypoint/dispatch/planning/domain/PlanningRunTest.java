@@ -429,6 +429,16 @@ class PlanningRunTest {
   }
 
   @Test
+  void aLockOutlivesAMoveToAnotherTripAndFallsAwayOnlyWhenTheOrderLeavesThePlan() {
+    // R-PLN-35 (owner decision 2026-10-21): a lock is "must go out", not "same truck".
+    PlanningRun locked = draft().lock(UUID.randomUUID(), 2, b.orderId(), true, DISPATCHER, REGISTRY, CONTEXT);
+    PlanningRun moved = locked.override(UUID.randomUUID(), 3, b, t2, 1, "closer to the outlet", DISPATCHER, REGISTRY, CONTEXT);
+    assertTrue(moved.markOf(b.orderId()).orElseThrow().locked(), "moved by hand, still locked");
+    PlanningRun deferred = moved.defer(UUID.randomUUID(), 4, b.orderId(), "outlet closed today", DISPATCHER, REGISTRY, CONTEXT);
+    assertTrue(deferred.markOf(b.orderId()).map(m -> !m.locked()).orElse(true), "out of the plan, the lock is gone");
+  }
+
+  @Test
   void aLockOnAHandPlacementKeepsWhoPlacedIt() {
     UUID placer = UUID.randomUUID();
     PlanningRun placed = draft().override(UUID.randomUUID(), 2, c, r1, 1, "reefer freed up", placer, REGISTRY, CONTEXT);

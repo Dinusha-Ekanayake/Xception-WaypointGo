@@ -123,8 +123,8 @@ export function tripChecks(plan: PlanView, tripId: string): ConstraintResultView
 /**
  * Depart, each stop with its window and its share of the load, and back at the
  * depot. Each row draws its own piece of the line, so the dots sit on it
- * whatever a row's height. A stop can be locked to this vehicle: a regenerate
- * keeps a locked order where it is (R-PLN-34).
+ * whatever a row's height. A stop can be locked: it must go out in this plan,
+ * on any truck that fits; a lock never pins the vehicle (R-PLN-36).
  */
 function Timeline({
   plan,
@@ -248,8 +248,8 @@ function Row({
             <button
               type="button"
               aria-pressed={lock.held}
-              aria-label={lock.held ? `Unlock ${lock.name}` : `Lock ${lock.name} to this vehicle`}
-              title={lock.held ? "Locked: a regenerate keeps it here" : "Lock to this vehicle"}
+              aria-label={lock.held ? `Unlock ${lock.name}` : `Lock ${lock.name}: must go out in this plan`}
+              title={lock.held ? "Locked: must go out in this plan, on any truck that fits" : "Lock: must go out in this plan, any truck"}
               onClick={lock.onToggle}
               className={`relative flex size-6 items-center justify-center rounded-full before:absolute before:-inset-2 ${lock.held ? "bg-go-ink" : "bg-go-surface opacity-60 hover:opacity-100"}`}
             >
@@ -259,7 +259,7 @@ function Row({
             </button>
           ) : (
             lock.held && (
-              <span title="Locked: a regenerate keeps it here" className="flex size-6 items-center justify-center rounded-full bg-go-surface">
+              <span title="Locked: must go out in this plan, on any truck that fits" className="flex size-6 items-center justify-center rounded-full bg-go-surface">
                 <Icon name="lock" label="Locked" />
               </span>
             )

@@ -108,7 +108,7 @@ export default function DecisionPanel({
             <p className="font-medium">{`Placed on ${row.placedOn ?? "a trip"} by hand`}</p>
             <Switch
               label="Lock"
-              hint="stays here when you regenerate"
+              hint="Must go out in this plan, any truck"
               checked={allocation.locked}
               disabled={!editable || actions.busy}
               onChange={(next) => void actions.lock(allocation.orderId, next)}

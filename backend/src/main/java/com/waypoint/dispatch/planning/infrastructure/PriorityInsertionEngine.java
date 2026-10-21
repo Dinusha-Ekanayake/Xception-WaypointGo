@@ -82,6 +82,9 @@ public final class PriorityInsertionEngine implements AllocationEngine {
         continue;
       }
       Optional<OrderDecision> unservable = screen(o, problem, ctx);
+      if (unservable.isPresent() && problem.mustPlace().contains(o.orderId())) {
+        throw lockRefused(o, unservable.get());
+      }
       if (unservable.isPresent()) {
         decisions.add(unservable.get());
       } else {
@@ -105,6 +108,18 @@ public final class PriorityInsertionEngine implements AllocationEngine {
       pin(days, o, problem.pins().get(o.orderId()), ctx);
       placed.add(o);
     }
+    // A locked order must go out in this plan, on any vehicle that passes every rule:
+    // placed before everything the engine decides alone, or the run is refused (R-PLN-36).
+    List<PlanOrder> locked = problem.policy().rank(
+        servable.stream().filter(o -> problem.mustPlace().contains(o.orderId())).toList(), ctx);
+    servable.removeAll(locked);
+    for (PlanOrder o : locked) {
+      Optional<OrderDecision> deferral = insertion.insertOrDefer(days, o, ctx);
+      if (deferral.isPresent()) {
+        throw lockRefused(o, deferral.get());
+      }
+      placed.add(o);
+    }
     for (PlanOrder o : problem.policy().rank(servable, ctx)) {
       if (nanoTime.getAsLong() > deadline) {
         partial = true;
@@ -125,6 +140,24 @@ public final class PriorityInsertionEngine implements AllocationEngine {
     }
     decisions.sort(Comparator.comparing(OrderDecision::orderId));
     return new AllocationResult(List.copyOf(days.values()), decisions, partial, NAME);
+  }
+
+  /**
+   * R-PLN-36: a locked order that fits on no vehicle refuses the whole run, naming
+   * the order and the rules that failed; nothing changes. The dispatcher unlocks
+   * it or changes something first.
+   */
+  private static DomainException lockRefused(PlanOrder o, OrderDecision decided) {
+    List<String> rules = new ArrayList<>();
+    decided.bindingRule().ifPresent(rules::add);
+    decided.checks().stream().filter(r -> !r.passed()).map(ConstraintResult::ruleId)
+        .filter(r -> !rules.contains(r)).forEach(rules::add);
+    if (rules.isEmpty()) rules.add("R-PLN-36");
+    return new DomainException(
+        ErrorCode.CONSTRAINT_VIOLATED,
+        o.orderRef() + " is locked to go out in this plan but fits on no vehicle: " + decided.reason()
+            + ". Unlock it, or change the plan first.",
+        rules);
   }
 
   /** Puts a kept decision back, judged by the whole registry like any other placement. */
