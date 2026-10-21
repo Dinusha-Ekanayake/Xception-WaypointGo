@@ -208,38 +208,46 @@ export default function HomeNoVehicle({
                       <span className={cx("text-[12px] font-light leading-[15px]", ink)}>{t("Vehicle")}</span>
                       <span className={cx("text-[28px] font-semibold leading-[35px] tracking-tight", ink)}>{vehicle.vehicleId}</span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={onProblem}
-                      className={cx(
-                        "flex h-9 shrink-0 items-center justify-center rounded-full px-4 text-[13px] font-medium active:scale-[0.98]",
-                        isNight ? "bg-[#3A3A3A] text-white" : "bg-[#B7F2ED] text-black"
-                      )}
-                    >
-                      {t("Report problem")}
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={vehicleStatus !== "at_workshop" && vehicleStatus !== "fault"}
-                      aria-label={t("Vehicle OK")}
-                      // Asks first: an accidental tap must not tell the dispatcher the vehicle is out.
-                      onClick={() => setConfirmStatus((vehicleStatus === "at_workshop" || vehicleStatus === "fault" ? "available" : "fault") as ReportedVehicleStatus)}
-                      className="flex items-center gap-2"
-                    >
-                      <span
-                        aria-hidden
+                    {tripStatus === "in-progress" && (
+                      // On the trip a problem is a report, sent by sliding a row (Figma "Route: Next stop").
+                      <button
+                        type="button"
+                        onClick={onProblem}
                         className={cx(
-                          "flex h-7 w-12 items-center rounded-full p-0.5 transition-colors",
-                          vehicleStatus === "at_workshop" || vehicleStatus === "fault" ? "justify-start bg-[#d5d5d5]" : "justify-end bg-[#22c55e]",
+                          "flex h-9 shrink-0 items-center justify-center rounded-full px-4 text-[13px] font-medium active:scale-[0.98]",
+                          isNight ? "bg-[#3A3A3A] text-white" : "bg-[#B7F2ED] text-black"
                         )}
                       >
-                        <span className="size-6 rounded-full bg-white shadow" />
-                      </span>
-                      <span className={cx("text-[15px] font-medium", ink)}>{t("Vehicle OK")}</span>
-                    </button>
+                        {t("Report problem")}
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    {tripStatus !== "in-progress" ? (
+                      // Before the trip (Figma "Driver: Home"): off takes the vehicle out of use for today,
+                      // so its trips move to other vehicles in a new plan (R-FLT-06). Asks first.
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={vehicleStatus !== "at_workshop" && vehicleStatus !== "fault"}
+                        aria-label={t("Available")}
+                        onClick={() => setConfirmStatus((vehicleStatus === "at_workshop" || vehicleStatus === "fault" ? "available" : "fault") as ReportedVehicleStatus)}
+                        className="flex items-center gap-2"
+                      >
+                        <span
+                          aria-hidden
+                          className={cx(
+                            "flex h-7 w-12 items-center rounded-full p-0.5 transition-colors",
+                            vehicleStatus === "at_workshop" || vehicleStatus === "fault" ? "justify-start bg-[#d5d5d5]" : "justify-end bg-[#22c55e]",
+                          )}
+                        >
+                          <span className="size-6 rounded-full bg-white shadow" />
+                        </span>
+                        <span className={cx("text-[15px] font-medium", ink)}>{t("Available")}</span>
+                      </button>
+                    ) : (
+                      <span />
+                    )}
                     <button
                       type="button"
                       onClick={() => setFuelQr(true)}

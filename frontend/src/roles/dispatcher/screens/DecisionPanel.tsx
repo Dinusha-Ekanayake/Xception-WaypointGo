@@ -9,6 +9,7 @@ import { daysBetween, lastServedText, type DecisionRow } from "../data/planViews
 import { useNextDelivery } from "../data/usePlanReads.ts";
 import { explainDeferral } from "../data/explain.ts";
 import { useFriendlyText } from "@shared/api/useFriendlyText";
+import { useFitToWindow } from "@shared/ui/useFitToWindow";
 import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import type { FitView } from "@shared/domain/types";
@@ -85,9 +86,11 @@ export default function DecisionPanel({
   const swapOn = (place: PlacementView) =>
     !place.feasible && place.tripId && swappable.some((trip) => trip.tripId === place.tripId) ? place.tripId : null;
   const firstFit = fits[0] ?? null;
+  const panel = useFitToWindow<HTMLElement>();
 
   return (
-    <section aria-label="Decision" className="flex w-full flex-col rounded-[24px] bg-go-card shadow-go-card lg:max-h-[calc(100dvh-240px)] lg:max-w-[380px]">
+    // Ends on screen wherever the page puts it, so its actions at the foot stay in view.
+    <section ref={panel.ref} style={panel.maxHeight ? { maxHeight: panel.maxHeight } : undefined} aria-label="Decision" className="flex w-full flex-col rounded-[24px] bg-go-card shadow-go-card lg:max-w-[380px]">
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-5 pb-3">
         <div>
           <h2 className="text-[19px] font-medium text-go-ink">{orderRefText(order)}</h2>

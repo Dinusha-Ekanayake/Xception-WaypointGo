@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-22 - fix: the driver's vehicle status follows the Figma, and resend is dropped
+
+`dev` · @Oxshadha
+
+- As in Figma "Driver: Home": before the trip the "Available" switch takes the vehicle out of use for today (asks first) and puts it back (R-FLT-06); once the trip has started it gives way to Report problem, whose slides adjust to a stop or the road, and a vehicle problem there is only the report. The Plan screen's decision panel now ends on screen with its actions in view.
+- Item 11 (resend only the missing units) is dropped by @jv-ransika on 2026-10-22: no resend; after damaged goods the store manager places another order.
+
+---
+
 ## 2026-10-22 - feat: the permission editor shows who a change affects before it is saved
 
 `dev` · @Oxshadha

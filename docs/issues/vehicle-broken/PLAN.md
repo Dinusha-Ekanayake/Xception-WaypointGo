@@ -24,7 +24,7 @@ Owner: @Oxshadha. Item 5 of @jv-ransika's plan of 2026-10-21. The folder takes i
 | Driver policy allows `vehicle:SetDayStatus` | `migrations/20261022T1000_reference_vehicle_broken.sql` |
 | The dispatcher told at once, in plain words | notification routing version 19, `NotificationConsumers.OnVehicleStatusChanged` |
 | Why a draft exists | `PlanView.revisionReason`; `roles/dispatcher/screens/PlanVehicleLost.tsx` |
-| The driver's switch | `roles/driver/screens/HomeNoVehicle.tsx`, `VehicleStatusConfirmSheet.tsx`, `useDriver.reportStatus` (through the offline queue) |
+| The driver, as in Figma "Driver: Home" and "Route: Next stop": before the trip the "Available" switch (off asks first, then marks the vehicle out of use for today; on puts it back). Once the trip has started the switch gives way to Report problem, whose slides adjust to where the driver is (at a stop: Store closed, Cannot unload here, Goods damaged as well; on the road: Road blocked, Vehicle problem); a vehicle problem there is only the report | `roles/driver/screens/HomeNoVehicle.tsx`, `VehicleStatusConfirmSheet.tsx`, `useDriver.reportStatus` (through the offline queue), `Sheets.tsx` |
 
 A vehicle already on the road is the trip-problems work (End trip), not this.
 
