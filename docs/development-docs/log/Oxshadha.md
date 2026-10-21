@@ -8,7 +8,7 @@
 
 `dev` · @Oxshadha
 
-- Before Jev may turn a voice note or an "other" report into a situation, it has to be measured. A worker's written report whose type was picked is the labelled set: Jev reads the masked excerpt alone and its guess is kept beside the type's situation in `ml.jev_shadow` (`source = report`), with its own prompt version on the AI health screen (R-ML-33, ML-50, [plan](../../issues/decision-suggestions/PLAN.md) PR 5). Off unless `JEV_ENABLED`; switching it on in production waits on @jv-ransika's decision 3.
+- Before Jev may turn a voice note or an "other" report into a situation, it has to be measured. A worker's written report whose type was picked is the labelled set: Jev reads the masked excerpt alone and its guess is kept beside the type's situation in `ml.jev_shadow` (`source = report`), with its own prompt version on the AI health screen (R-ML-33, ML-50, [plan](../../issues/decision-suggestions/PLAN.md) PR 5). Off unless `JEV_ENABLED`; @jv-ransika agreed to run it in shadow in production, which is `JEV_ENABLED=true` and `OPENROUTER_API_KEY` in the server's `.env`.
 
 ---
 

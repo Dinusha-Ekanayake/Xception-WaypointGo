@@ -124,7 +124,7 @@ services:
       AI_DAILY_CALLS: ${AI_DAILY_CALLS:-300}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      # Jev in shadow (roadmap AI-J1): guesses issue types, nobody sees it. Off unless true.
+      # Jev in shadow (roadmap AI-J1): guesses issue types and report situations, nobody sees it. Off unless true.
       JEV_ENABLED: ${JEV_ENABLED:-false}
       JEV_MODEL: ${JEV_MODEL:-typesafe/jev-1.13}
       # The speech service (R-MSG-10): http://speech:8090 with the "speech" profile; blank turns it off.

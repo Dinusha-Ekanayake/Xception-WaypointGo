@@ -21,8 +21,8 @@ import org.springframework.validation.annotation.Validated;
  * @param model the pinned model; blank takes the provider's default below
  * @param dailyCalls the most calls a day, across everyone: the spend cap in calls
  * @param timeout one call
- * @param jevEnabled Jev in shadow (roadmap AI-J1): it guesses each new issue's type from its
- *     text and the guess is recorded beside the real type; nobody sees it. Needs OPENROUTER_API_KEY
+ * @param jevEnabled Jev in shadow (roadmap AI-J1, R-ML-33): it guesses each new issue's type, and
+ *     each typed trip-chat report's situation, from its text and the guess is recorded beside the real type; nobody sees it. Needs OPENROUTER_API_KEY
  * @param jevModel pinned, never the latest alias: thresholds hold only for the version they were tuned on
  */
 @Validated
