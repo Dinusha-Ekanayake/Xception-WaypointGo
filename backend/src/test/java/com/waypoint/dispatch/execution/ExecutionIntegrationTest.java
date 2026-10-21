@@ -1117,6 +1117,51 @@ class ExecutionIntegrationTest {
     read(dispatcher, "/api/outlets/contacts?ids=" + many, 422);
   }
 
+  // ---- a vehicle broken down (docs/issues/vehicle-broken/PLAN.md, R-FLT-06) ----
+
+  @Test
+  void theDriverMarksTheirOwnVehicleBrokenAndOkTodayAndTheDispatcherIsToldEachTime() throws Exception {
+    at("06:00");
+    statusSince = Instant.now();
+    String broken = "{\"vehicleId\":\"" + vehicleId + "\",\"serviceDate\":\"" + day + "\",\"status\":\"unavailable\"}";
+    // Not another driver's vehicle, not another day, nothing but broken or OK.
+    send(otherDriver, "vehicle:SetDayStatus", null, broken, 403);
+    send(driver, "vehicle:SetDayStatus", null,
+        "{\"vehicleId\":\"" + vehicleId + "\",\"serviceDate\":\"" + day.plusDays(1) + "\",\"status\":\"unavailable\"}", 403);
+    send(driver, "vehicle:SetDayStatus", null,
+        "{\"vehicleId\":\"" + vehicleId + "\",\"serviceDate\":\"" + day + "\",\"status\":\"in_workshop\"}", 422);
+
+    send(driver, "vehicle:SetDayStatus", null, broken, 200);
+    send(driver, "vehicle:SetDayStatus", null, broken, 200);
+    assertEquals("unavailable", database.asModule(ModuleRole.REF, null, () -> database.queryOne(
+        "SELECT status FROM ref.vehicle_day_status WHERE vehicle_id = ? AND service_date = ?",
+        vehicleId, java.sql.Date.valueOf(day))).get("status"));
+    assertEquals(1, statusEvents(), "a repeat of the same status announces nothing twice");
+    drain();
+    assertTrue(dispatcherTitles().contains(vehicleId + " out of use"), dispatcherTitles().toString());
+
+    send(driver, "vehicle:SetDayStatus", null, broken.replace("unavailable", "available"), 200);
+    assertEquals(2, statusEvents());
+    drain();
+    assertTrue(dispatcherTitles().contains(vehicleId + " back in use"), dispatcherTitles().toString());
+  }
+
+  private Instant statusSince;
+
+  /** Outbox rows are stamped on real time, so counted from the test's own start. */
+  private long statusEvents() {
+    return ((Number) database.asSystemSeparately(ModuleRole.INTEGRATION, () -> database.queryOne(
+        "SELECT count(*) AS n FROM integration.outbox_events WHERE event_type = 'vehicle.status_changed'"
+            + " AND aggregate_id = ? AND occurred_at >= ?", vehicleId, java.sql.Timestamp.from(statusSince))).get("n"))
+        .longValue();
+  }
+
+  private List<String> dispatcherTitles() throws Exception {
+    List<String> titles = new java.util.ArrayList<>();
+    json(read(dispatcher, "/api/notifications?limit=50", 200)).path("items").forEach(n -> titles.add(n.path("title").asText()));
+    return titles;
+  }
+
   // ---- demo trucks record their stops (docs/issues/demo-stops/PLAN.md, R-DEMO-04) ----
 
   @Autowired com.waypoint.dispatch.platform.messaging.CommandBus bus;

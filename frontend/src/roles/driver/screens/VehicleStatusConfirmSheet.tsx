@@ -5,8 +5,8 @@ import type { ReportedVehicleStatus } from "@shared/domain/types";
 import { cx } from "@shared/ui";
 import { useT } from "../i18n.tsx";
 
-// The "Available" switch on Home reports the vehicle to the dispatcher, who
-// stops planning it while it is in the workshop. One tap by accident made that
+// The "Vehicle OK" switch on Home marks the vehicle broken or OK for today
+// (R-FLT-06): Planning moves its trips and the dispatcher is told. One tap by accident made that
 // event, so the switch asks first. The sheet is the sign-out sheet's look
 // (Figma "Driver: Home"), with the same scrim, card and two buttons.
 
@@ -62,11 +62,11 @@ export default function VehicleStatusConfirmSheet({
             </span>
           </div>
           <h3 className={cx("mt-0.5 text-[24px] leading-[30px] font-medium tracking-tight", isNight ? "text-white" : "text-black")}>
-            {toWorkshop ? t("Mark the vehicle in the workshop?") : t("Mark the vehicle available?")}
+            {toWorkshop ? t("Mark the vehicle broken?") : t("Mark the vehicle OK again?")}
           </h3>
           <p className={cx("text-[15px] leading-[21px] font-normal", isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]")}>
             {toWorkshop
-              ? t("The dispatcher sees it at once and stops planning trips on it.")
+              ? t("The dispatcher is told at once, and its trips today move to other vehicles in a new plan.")
               : t("The dispatcher sees it at once and can plan trips on it again.")}
           </p>
         </div>
@@ -79,7 +79,7 @@ export default function VehicleStatusConfirmSheet({
               isNight ? "bg-[#00BF6A] text-black" : "bg-[#031B08] text-white",
             )}
           >
-            {toWorkshop ? t("Yes, in the workshop") : t("Yes, available")}
+            {toWorkshop ? t("Yes, it is broken") : t("Yes, it is OK")}
           </button>
           <button
             type="button"

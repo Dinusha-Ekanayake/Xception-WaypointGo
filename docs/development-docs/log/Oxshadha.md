@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-22 - feat: the driver marks the vehicle broken or OK, and the plan follows
+
+`dev` · @Oxshadha
+
+- Item 5 of @jv-ransika's plan ([plan](../../issues/vehicle-broken/PLAN.md)). Found that `vehicle.status_changed` was never published, so Planning's revision draft and the dispatcher's alert for a lost vehicle never ran; `vehicle:SetDayStatus` now publishes it once per change. A driver may mark only today's own vehicle broken or OK (R-FLT-06, FLT-06, FLT-07; replaces decision B18, driver policy version added); the driver's switch is now "Vehicle OK" and sends it through the offline queue (owner-approved flow change to the driver UI). The dispatcher is told at once (routing version 19) and the Plan screen says why the new draft exists (`PlanView.revisionReason`).
+
+---
+
 ## 2026-10-22 - feat: demo trucks record their own stops
 
 `dev` · @Oxshadha

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import PlanVehicleLost from "./PlanVehicleLost.tsx";
 import { PlanCommandKind, type GenerationJobView, type OrderView } from "@shared/domain/types";
 import { Notice, PrimaryButton, SecondaryButton, useToast } from "@shared/ui";
 import { clock, clockOn, dayLabel } from "@shared/wording";
@@ -252,6 +253,7 @@ export default function DepotPlan({
 
   return (
     <section aria-label="Plan" className="flex w-full flex-col gap-4">
+      {draft && <PlanVehicleLost plan={plan ?? null} />}
       <div className="flex w-full flex-wrap items-center gap-3">
         <p className="min-w-[200px] flex-1 text-[13px] text-go-secondary">{toolsLine}</p>
         {plan && <SecondaryButton onClick={() => setExplaining(true)}>Explain this plan</SecondaryButton>}

@@ -198,3 +198,18 @@ export function improvementNote(improvement: ImprovementView | null): { title: s
       `. An order is never dropped for a lower priority one.${early}`,
   };
 }
+
+/**
+ * R-FLT-06: a draft Planning made because a vehicle went out of use after
+ * publication ("VEH012 is unavailable: broken down, reported by the driver"),
+ * in the dispatcher's words; null for any other revision.
+ */
+export function vehicleLostNote(reason: string | null | undefined): { title: string; detail: string } | null {
+  const lost = /^(\S+) is (unavailable|in_workshop)(?:: (.+))?$/.exec(reason ?? "");
+  if (!lost) return null;
+  const [, vehicleId, status, why] = lost;
+  return {
+    title: `${vehicleId} ${status === "in_workshop" ? "in the workshop" : "out of use"}: a new plan draft is ready`,
+    detail: `${why ? `${why.charAt(0).toUpperCase()}${why.slice(1)}. ` : ""}Its trips are on other vehicles or deferred in this draft. Check it, then send the update; drivers and loaders keep the published plan until you do.`,
+  };
+}

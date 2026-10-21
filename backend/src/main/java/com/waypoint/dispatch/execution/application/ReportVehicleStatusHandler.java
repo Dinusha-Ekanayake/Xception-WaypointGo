@@ -25,7 +25,9 @@ import org.springframework.stereotype.Component;
  *
  * <p>A report, not a change. Nothing in reference data moves: a dispatcher who
  * reads the report applies {@code vehicle:SetDayStatus}, so Reference stays a
- * module that consumes nothing (decision B18). A report of {@code fault} is
+ * module that consumes nothing (decision B18). The driver's own broken or OK is
+ * now {@code vehicle:SetDayStatus} itself (R-FLT-06); this report stays for the
+ * statuses that only inform. A report of {@code fault} is
  * also announced, because that one cannot wait to be read.
  */
 @Component

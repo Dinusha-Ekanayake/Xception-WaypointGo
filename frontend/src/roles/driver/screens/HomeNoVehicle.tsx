@@ -224,9 +224,9 @@ export default function HomeNoVehicle({
                       type="button"
                       role="switch"
                       aria-checked={vehicleStatus !== "at_workshop" && vehicleStatus !== "fault"}
-                      aria-label={t("Available")}
+                      aria-label={t("Vehicle OK")}
                       // Asks first: an accidental tap must not tell the dispatcher the vehicle is out.
-                      onClick={() => setConfirmStatus((vehicleStatus === "at_workshop" || vehicleStatus === "fault" ? "available" : "at_workshop") as ReportedVehicleStatus)}
+                      onClick={() => setConfirmStatus((vehicleStatus === "at_workshop" || vehicleStatus === "fault" ? "available" : "fault") as ReportedVehicleStatus)}
                       className="flex items-center gap-2"
                     >
                       <span
@@ -238,7 +238,7 @@ export default function HomeNoVehicle({
                       >
                         <span className="size-6 rounded-full bg-white shadow" />
                       </span>
-                      <span className={cx("text-[15px] font-medium", ink)}>{t("Available")}</span>
+                      <span className={cx("text-[15px] font-medium", ink)}>{t("Vehicle OK")}</span>
                     </button>
                     <button
                       type="button"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { VehicleCommandKind } from "@shared/domain/referencedata";
 import { newCommand } from "@shared/api/commands";
 import { ApiError } from "@shared/api/problem";
 import { useOnline } from "@shared/api/useResource";
@@ -476,7 +477,11 @@ export function useDriver(userId: string, depot: string | null = null) {
   const reportStatus = async (status: ReportedVehicleStatus) => {
     if (!run.vehicle) return;
     setError(null);
-    const outcome = await act(ExecutionCommandKind.reportVehicleStatus, { vehicleId: run.vehicle.vehicleId, status, note: null });
+    // R-FLT-06: broken or OK marks the vehicle for today in Reference, so Planning moves its trips and the
+    // dispatcher is told; through the queue, so it lands even with no signal at the depot.
+    const outcome = await act(VehicleCommandKind.setDayStatus, {
+      vehicleId: run.vehicle.vehicleId, serviceDate: operatingDate(now), status: status === "available" ? "available" : "unavailable",
+    });
     if (!outcome.ok) return setError(words(outcome));
     setVehicleStatus(status);
     setNotice(outcome.queued ? t("Vehicle status saved on this phone.") : t("Vehicle status sent to dispatch."));

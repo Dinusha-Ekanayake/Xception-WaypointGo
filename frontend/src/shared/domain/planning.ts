@@ -94,6 +94,8 @@ export type PlanView = {
   improvement: ImprovementView | null;
   /** Planning v2: the cost stage against the rules plan, or why it did not run; absent on older runs. */
   cost?: CostView | null;
+  /** Why a revision was made, such as "VEH012 is unavailable: broken down"; null on a first plan, absent from an older server. */
+  revisionReason?: string | null;
 };
 
 /**

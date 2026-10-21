@@ -116,7 +116,8 @@ public final class PlanViews {
       long rowVersion,
       String engine,
       Optional<ImprovementView> improvement,
-      Optional<CostView> cost) {
+      Optional<CostView> cost,
+      Optional<String> revisionReason) {
 
     public PlanView {
       trips = List.copyOf(trips);

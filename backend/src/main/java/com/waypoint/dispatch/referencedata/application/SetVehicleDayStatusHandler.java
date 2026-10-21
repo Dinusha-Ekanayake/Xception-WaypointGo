@@ -8,6 +8,11 @@ import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.Command;
 import com.waypoint.dispatch.platform.messaging.CommandHandler;
+import com.waypoint.dispatch.platform.messaging.EventPublisher;
+import com.waypoint.dispatch.identity.contract.IdentityQuery;
+import com.waypoint.dispatch.referencedata.contract.ReferenceEvents.VehicleStatusChanged;
+import com.waypoint.dispatch.shared.util.Clock;
+import java.util.Optional;
 import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.shared.domain.Actor;
@@ -28,6 +33,12 @@ import org.springframework.stereotype.Component;
  *
  * <p>Reached only through the command bus, so the change, its receipt and its
  * audit row commit together and a retry from a depot with bad signal applies once.
+ *
+ * <p>R-FLT-06: a change is announced ({@code vehicle.status_changed}), so Planning
+ * drafts a revision for a vehicle lost after publication and the dispatcher is
+ * told. A driver may mark only the vehicle they drive today, broken
+ * ({@code unavailable}) or OK ({@code available}); a dispatcher or an
+ * administrator any vehicle, any operating day.
  */
 @Component
 public class SetVehicleDayStatusHandler implements CommandHandler {
@@ -37,13 +48,20 @@ public class SetVehicleDayStatusHandler implements CommandHandler {
   private final ReferenceQuery reference;
   private final AuditLog audit;
   private final Metrics metrics;
+  private final EventPublisher events;
+  private final IdentityQuery identity;
+  private final Clock clock;
 
   public SetVehicleDayStatusHandler(
-      Database database, ReferenceQuery reference, AuditLog audit, Metrics metrics) {
+      Database database, ReferenceQuery reference, AuditLog audit, Metrics metrics, EventPublisher events,
+      IdentityQuery identity, Clock clock) {
     this.database = database;
     this.reference = reference;
     this.audit = audit;
     this.metrics = metrics;
+    this.events = events;
+    this.identity = identity;
+    this.clock = clock;
   }
 
   @Override
@@ -85,8 +103,21 @@ public class SetVehicleDayStatusHandler implements CommandHandler {
           ErrorCode.VALIDATION_FAILED,
           "Unknown vehicle status " + status + "; expected one of " + STATUSES);
     }
-    if (reference.vehicle(vehicleId, null).isEmpty()) {
-      throw new DomainException(ErrorCode.NOT_FOUND, "Unknown vehicle " + vehicleId);
+    var vehicle = reference.vehicle(vehicleId, null)
+        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Unknown vehicle " + vehicleId));
+    var roles = identity.scopeOf(actor.userId()).roles();
+    if (!roles.contains("dispatcher") && !roles.contains("admin")) {
+      // R-FLT-06: the driver's own vehicle, today, broken or OK; nothing else.
+      LocalDate today = clock.now().atZone(Clock.OPERATING_ZONE).toLocalDate();
+      if (!date.equals(today) || !identity.driverVehicleOn(actor.userId(), today).equals(Optional.of(vehicleId))) {
+        throw new DomainException(
+            ErrorCode.FORBIDDEN, "A driver marks only the vehicle they drive today", List.of("R-FLT-06"));
+      }
+      if (!status.equals("unavailable") && !status.equals("available")) {
+        throw new DomainException(
+            ErrorCode.VALIDATION_FAILED, "A driver marks the vehicle broken or OK", List.of("R-FLT-06"));
+      }
+      if (reason == null && status.equals("unavailable")) reason = "broken down, reported by the driver";
     }
     // Setting a status for a day the network does not operate is a mistake, not
     // a fact: nothing runs that day to be affected by it.
@@ -135,6 +166,11 @@ public class SetVehicleDayStatusHandler implements CommandHandler {
             "wpt:ref:vehicle:" + vehicleId,
             status + (reason == null ? "" : ": " + reason)));
     metrics.increment("waypoint.vehicle.status_changed", "status", status);
+    // Announced only when it changed: a repeat of the same status replans nothing twice.
+    if (!status.equals(before.get("status"))) {
+      events.publish(actor, new VehicleStatusChanged(vehicleId, date, status, Optional.ofNullable(reason)),
+          vehicle.depotCode());
+    }
 
     return Map.of("vehicleId", vehicleId, "serviceDate", date.toString(), "status", status);
   }

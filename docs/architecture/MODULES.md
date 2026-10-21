@@ -361,7 +361,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `attention.reminded` | Dispatcher | yes | A critical item nobody acted on, capped by the watch (issue #268) |
 | `vehicle.fault_reported`, `road.disruption_reported` | Dispatcher | yes | The dispatcher decides the vehicle's status |
 | `receipt.disputed` | Dispatcher | yes | The store disagrees with what arrived |
-| `vehicle.status_changed` | Dispatcher | no | Fleet availability changed. Reference does not publish it yet |
+| `vehicle.status_changed` | Dispatcher | yes | Fleet availability changed: a driver's broken or OK, or a dispatcher's day status (R-FLT-06) |
 | `message.posted` | The depot's dispatcher, for every message; the loaders, the driver, or the outlets the message is for (R-NOT-14) | yes | Someone wrote on a trip's thread (issue #136) |
 
 A driver is pushed only trip-level events (R-NOT-08), and whoever caused an event is not told about it (R-NOT-07).

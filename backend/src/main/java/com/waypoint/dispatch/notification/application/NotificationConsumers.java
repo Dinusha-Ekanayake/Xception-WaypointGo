@@ -1254,7 +1254,7 @@ final class NotificationConsumers {
     }
   }
 
-  /** Fleet availability changed. Reference does not publish this yet; the consumer is ready for it. */
+  /** Fleet availability changed (R-FLT-06): out of use, in the workshop, or back in use, in plain words. */
   @Component
   static class OnVehicleStatusChanged extends NotificationConsumer<VehicleStatusChanged> {
     private final Scopes scopes;
@@ -1280,6 +1280,14 @@ final class NotificationConsumers {
           .on(e.serviceDate())
           .fact("vehicleId", e.vehicleId()).fact("status", e.status() == null ? null : e.status().replace('_', ' '))
           .fact("serviceDate", e.serviceDate()).fact("reason", e.reason())
+          .fact("statusLabel", switch (String.valueOf(e.status())) {
+            case "available" -> "back in use";
+            case "in_workshop" -> "in the workshop";
+            default -> "out of use";
+          })
+          .fact("next", "available".equals(e.status())
+              ? "It can be planned again."
+              : "If it had trips that day, a new plan draft is waiting on the Plan screen.")
           .to(ScopeKind.DEPOT, scopes.depotOfVehicle(e.vehicleId()), "vehicle", e.vehicleId());
     }
   }

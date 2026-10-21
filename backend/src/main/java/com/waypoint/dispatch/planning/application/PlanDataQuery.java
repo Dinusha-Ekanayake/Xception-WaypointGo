@@ -915,7 +915,8 @@ public class PlanDataQuery implements PlanQuery {
                 i.chilledVolumeGainedM3(), i.stoppedBy().name(), i.chilledCandidates(), i.chilledSearched())),
         run.cost()
             .map(c -> new CostView(c.trigger().name(), c.improved(), c.rulesVehicles(), c.rulesTrips(), c.rulesLitres(),
-                c.vehicles(), c.trips(), c.litres(), c.iterations(), c.stoppedBy().name())));
+                c.vehicles(), c.trips(), c.litres(), c.iterations(), c.stoppedBy().name())),
+        run.revisionReason());
   }
 
   /** Called inside a read, like {@link #assemble}. */

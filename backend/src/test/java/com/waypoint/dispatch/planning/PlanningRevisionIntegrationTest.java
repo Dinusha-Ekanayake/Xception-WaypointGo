@@ -186,6 +186,8 @@ class PlanningRevisionIntegrationTest extends PlanningIntegrationSupport {
         "FLT-01: nothing left on the lost vehicle");
     assertNotEquals(lost, tripById(revision, tripId).get("vehicleId").asText(), "the trip moved whole and kept its id");
     assertEquals("PUBLISHED", plan(original).get("status").asText(), "only a dispatcher publishes it");
+    // The Plan screen says why the draft is there (R-FLT-06).
+    assertTrue(view.path("revisionReason").asText().contains(lost), view.path("revisionReason").toString());
   }
 
   @Test

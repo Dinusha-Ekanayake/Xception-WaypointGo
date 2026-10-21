@@ -223,3 +223,11 @@ test("planning v2: the cost stage is said as the optimised plan against the rule
   assert.equal(costNote(null), null);
   assert.equal(costNote(undefined), null, "a run from before planning v2 has no cost stage");
 });
+
+test("a draft made for a vehicle out of use is told in the dispatcher's words (R-FLT-06)", async () => {
+  const { vehicleLostNote } = await import("../src/roles/dispatcher/data/plan.ts");
+  assert.deepEqual(vehicleLostNote("VEH012 is in_workshop: brakes")?.title, "VEH012 in the workshop: a new plan draft is ready");
+  assert.match(vehicleLostNote("VEH012 is unavailable")!.detail, /^Its trips are on other vehicles/);
+  assert.equal(vehicleLostNote("store asked for a later slot"), null);
+  assert.equal(vehicleLostNote(null), null);
+});
