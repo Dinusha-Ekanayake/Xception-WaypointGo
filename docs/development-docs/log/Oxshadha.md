@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-21 - feat: the driver's phone watches its vehicle
+
+`dev` · @Oxshadha
+
+- Live refresh phase 3, first half ([plan](../../issues/live-refresh/PLAN.md)). The driver's scope is a vehicle on a day, which the depot stream refused, so the phone polled its run sheet every 2 s. Changes now name the vehicles their payload names, and `changes.vehicle=` with `changes.date=` opens a watch only for the driver of that vehicle that day (`app.actor_drives`; anyone else is 403 and audited). The phone reads the run sheet on a signal and polls every 60 s while the watch is up, about 30 times fewer requests per phone; without it, every 2 s as before.
+- Still open in phase 3: a version on each signal, so a screen already holding it skips the read.
+
+---
+
 ## 2026-10-21 - feat: one live connection per browser tab
 
 `dev` · @Oxshadha

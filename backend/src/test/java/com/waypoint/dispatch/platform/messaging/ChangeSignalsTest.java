@@ -53,6 +53,22 @@ class ChangeSignalsTest {
   }
 
   @Test
+  void aDriverHearsTheTopicOfAChangeThatNamesTheirVehicleAndNothingElse() {
+    // Live refresh phase 3: a vehicle watch, for the driver's phone.
+    List<String> driver = new ArrayList<>();
+    signals.listen(Set.of(), Set.of(), Set.of("VEH043"), listener(driver));
+
+    signals.committed("delivery.skipped", "KDY", Set.of("OUT0101"), Set.of("VEH043"));
+    signals.committed("plan.revised", "KDY", Set.of(), Set.of("VEH001", "VEH043"));
+    signals.committed("issue.raised", "KDY", Set.of(), Set.of());
+    signals.committed("delivery.started", "KDY", Set.of(), Set.of("VEH099"));
+    signals.flushNow();
+
+    assertEquals(List.of("delivery@null", "plan@null"), driver.stream().sorted().toList(),
+        "its vehicle's changes, topic only, never another vehicle's or the depot's");
+  }
+
+  @Test
   void aStoreHearsTheTopicOfAChangeThatNamesItsOutletAndNothingElse() {
     List<String> store = new ArrayList<>();
     List<String> otherStore = new ArrayList<>();

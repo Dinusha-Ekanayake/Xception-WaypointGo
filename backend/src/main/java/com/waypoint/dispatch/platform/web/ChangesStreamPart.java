@@ -37,6 +37,21 @@ public class ChangesStreamPart implements LiveStreamPart {
   public Runnable open(HttpServletRequest request, String prefix, Sink sink) {
     Set<String> depots = LiveStreamPart.values(request, prefix + "depot");
     Set<String> outlets = LiveStreamPart.values(request, prefix + "outlet");
+    String vehicle = request.getParameter(prefix + "vehicle");
+    if (vehicle != null) {
+      // A driver watches the vehicle they drive on a day (live refresh, phase 3).
+      if (!depots.isEmpty() || !outlets.isEmpty()) {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, "Watch a vehicle alone, not with depots or outlets");
+      }
+      java.time.LocalDate day;
+      try {
+        day = java.time.LocalDate.parse(String.valueOf(request.getParameter(prefix + "date")));
+      } catch (java.time.format.DateTimeParseException e) {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, "date is a day, such as 2026-10-21");
+      }
+      Actor driver = authorizer.require(request, "delivery:Read", "wpt:execution:vehicle:" + vehicle);
+      return watchers.openVehicle(driver, "delivery:Read", vehicle, day, listener(sink));
+    }
     if (depots.isEmpty() == outlets.isEmpty() || depots.size() + outlets.size() > MAX_PLACES) {
       throw new DomainException(
           ErrorCode.VALIDATION_FAILED, "Name between 1 and " + MAX_PLACES + " depots, or outlets, to watch");
@@ -48,7 +63,14 @@ public class ChangesStreamPart implements LiveStreamPart {
     for (String outlet : outlets) {
       actor = authorizer.require(request, "receipt:Read", "wpt:receipt:outlet:" + outlet);
     }
-    ChangeSignals.Listener listener =
+    ChangeSignals.Listener listener = listener(sink);
+    return depots.isEmpty()
+        ? watchers.openOutlets(actor, "receipt:Read", outlets, listener)
+        : watchers.open(actor, "plan:Read", depots, listener);
+  }
+
+  private static ChangeSignals.Listener listener(Sink sink) {
+    return
         new ChangeSignals.Listener() {
           @Override
           public void changed(String topic, String depot) throws Exception {
@@ -60,8 +82,5 @@ public class ChangesStreamPart implements LiveStreamPart {
             sink.send("ping", "");
           }
         };
-    return depots.isEmpty()
-        ? watchers.openOutlets(actor, "receipt:Read", outlets, listener)
-        : watchers.open(actor, "plan:Read", depots, listener);
   }
 }

@@ -279,6 +279,18 @@ class StopSkipIntegrationTest {
   }
 
   @Test
+  void theDriverWatchesTheirOwnVehicleForChangesAndNobodyElseCan() throws Exception {
+    // Live refresh phase 3: a skip reaches the driver's phone as a signal, not only by push and poll.
+    MvcResult own = http.perform(get("/api/live/stream?parts=changes&changes.vehicle=" + vehicleId + "&changes.date=" + day)
+        .cookie(session(driver))).andReturn();
+    assertEquals(200, own.getResponse().getStatus(), own.getResponse().getContentAsString());
+    assertTrue(own.getRequest().isAsyncStarted());
+    read(storeOne, "/api/changes/stream?vehicle=" + vehicleId + "&date=" + day, 403);
+    read(dispatcher, "/api/changes/stream?vehicle=" + vehicleId + "&date=" + day, 403);
+    read(driver, "/api/changes/stream?vehicle=" + vehicleId + "&date=" + day.plusDays(30), 403);
+  }
+
+  @Test
   void aDriverRecordsNoClosedStoreOrBlockedStopAsNotDelivered() throws Exception {
     // R-EXE-32: these are reported, not failed, even before any report.
     for (String reason : List.of("outlet_closed", "access_blocked")) {

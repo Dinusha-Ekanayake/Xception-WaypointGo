@@ -47,11 +47,22 @@ export function outletWatch(outletId: string): string {
   return `outlet:${outletId}`;
 }
 
-/** The stream's query: `depot=` for a depot, `outlet=` for an outlet watched with {@link outletWatch}. */
+/** A driver watches the vehicle they drive on a day (live refresh, phase 3); watched alone. */
+export function vehicleWatch(vehicleId: string, date: string): string {
+  return `vehicle:${vehicleId}@${date}`;
+}
+
+/** The stream's query: `depot=`, `outlet=` for {@link outletWatch}, `vehicle=` and `date=` for {@link vehicleWatch}. */
 export function streamQuery(key: string): string {
   return key
     .split(",")
-    .map((place) => (place.startsWith("outlet:") ? `outlet=${encodeURIComponent(place.slice(7))}` : `depot=${encodeURIComponent(place)}`))
+    .map((place) => {
+      if (place.startsWith("vehicle:")) {
+        const [vehicle, date] = place.slice(8).split("@");
+        return `vehicle=${encodeURIComponent(vehicle ?? "")}&date=${encodeURIComponent(date ?? "")}`;
+      }
+      return place.startsWith("outlet:") ? `outlet=${encodeURIComponent(place.slice(7))}` : `depot=${encodeURIComponent(place)}`;
+    })
     .join("&");
 }
 

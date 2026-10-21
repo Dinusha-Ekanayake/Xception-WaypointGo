@@ -26,6 +26,10 @@ import org.springframework.stereotype.Component;
  * payload names one of them ({@code outletId} or {@code outletIds}), and only
  * the topic, never the depot or the other outlets the event named.
  *
+ * <p>A driver watches a vehicle (live refresh, phase 3): it hears the topic of a
+ * change whose payload names that vehicle anywhere ({@code vehicleId}, a plan's
+ * trips included), and nothing else.
+ *
  * <p>Changes are coalesced for half a second and sent once; a heartbeat every
  * {@value #HEARTBEAT_SECONDS} seconds keeps proxies that close idle connections
  * (Cloudflare at 100 s) from dropping the stream, and lets a screen notice a
@@ -44,9 +48,13 @@ public class ChangeSignals implements DisposableBean {
     void heartbeat() throws Exception;
   }
 
-  private record Watcher(Set<String> depots, Set<String> outlets, Listener listener) {}
+  private record Watcher(Set<String> depots, Set<String> outlets, Set<String> vehicles, Listener listener) {}
 
-  record Change(String topic, String depot, Set<String> outlets) {}
+  record Change(String topic, String depot, Set<String> outlets, Set<String> vehicles) {
+    Change(String topic, String depot, Set<String> outlets) {
+      this(topic, depot, outlets, Set.of());
+    }
+  }
 
   private final Set<Watcher> watchers = ConcurrentHashMap.newKeySet();
   private final Set<Change> pending = new HashSet<>();
@@ -71,7 +79,12 @@ public class ChangeSignals implements DisposableBean {
 
   /** Starts watching these depots and outlets. @return what stops watching */
   public Runnable listen(Set<String> depots, Set<String> outlets, Listener listener) {
-    Watcher watcher = new Watcher(Set.copyOf(depots), Set.copyOf(outlets), listener);
+    return listen(depots, outlets, Set.of(), listener);
+  }
+
+  /** Starts watching these depots, outlets and vehicles. @return what stops watching */
+  public Runnable listen(Set<String> depots, Set<String> outlets, Set<String> vehicles, Listener listener) {
+    Watcher watcher = new Watcher(Set.copyOf(depots), Set.copyOf(outlets), Set.copyOf(vehicles), listener);
     watchers.add(watcher);
     return () -> watchers.remove(watcher);
   }
@@ -83,9 +96,14 @@ public class ChangeSignals implements DisposableBean {
 
   /** An event of this type committed, naming this depot (or null) and these outlets. */
   public void committed(String eventType, String depot, Set<String> outlets) {
+    committed(eventType, depot, outlets, Set.of());
+  }
+
+  /** An event of this type committed, naming this depot (or null), these outlets and these vehicles. */
+  public void committed(String eventType, String depot, Set<String> outlets, Set<String> vehicles) {
     if (watchers.isEmpty()) return;
     synchronized (pending) {
-      pending.add(new Change(topicOf(eventType), depot, Set.copyOf(outlets)));
+      pending.add(new Change(topicOf(eventType), depot, Set.copyOf(outlets), Set.copyOf(vehicles)));
       if (flushScheduled) return;
       flushScheduled = true;
     }
@@ -110,6 +128,17 @@ public class ChangeSignals implements DisposableBean {
    * one of its outlets, or names neither a depot nor an outlet.
    */
   static Change heard(Set<String> depots, Set<String> outlets, Change change) {
+    return heard(depots, outlets, Set.of(), change);
+  }
+
+  /** As above, and a vehicle watcher hears the topic alone when the change names one of its vehicles. */
+  static Change heard(Set<String> depots, Set<String> outlets, Set<String> vehicles, Change change) {
+    if (!vehicles.isEmpty() && depots.isEmpty() && outlets.isEmpty()) {
+      for (String vehicle : change.vehicles()) {
+        if (vehicles.contains(vehicle)) return new Change(change.topic(), null, Set.of());
+      }
+      return null;
+    }
     if (change.depot() == null ? !depots.isEmpty() : depots.contains(change.depot())) {
       return new Change(change.topic(), change.depot(), Set.of());
     }
@@ -131,7 +160,7 @@ public class ChangeSignals implements DisposableBean {
       // Changes that differ only in their outlets reach a watcher once.
       Set<Change> told = new LinkedHashSet<>();
       for (Change change : changed) {
-        Change heard = heard(watcher.depots(), watcher.outlets(), change);
+        Change heard = heard(watcher.depots(), watcher.outlets(), watcher.vehicles(), change);
         if (heard != null) told.add(new Change(heard.topic(), heard.depot(), Set.of()));
       }
       for (Change change : told) {

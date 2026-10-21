@@ -9,6 +9,7 @@ import type { DriverGateway, RunData } from "./gateway.ts";
 import { DeliveryKind, acknowledged, hasRun, isStopAck, keepRunDay, keptRunDay, lookAhead, operatingDate, project, todaysSheet, type NextRun, type Stop } from "./run.ts";
 import { businessNow } from "@shared/wording";
 import { useClockOffset } from "@shared/demo/useDemo";
+import { LIVE_FALLBACK_MS, listenForChanges, vehicleWatch } from "../../../shared/api/changes.ts";
 
 // The driver's day: read from the server when it answers, from the phone when it
 // does not, and shown with the writes still waiting applied on top.
@@ -65,6 +66,9 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
   const [date, setDate] = useState(() => keptRunDay(accountId, today));
   useEffect(() => setDate(keptRunDay(accountId, today)), [accountId, today]);
   const [data, setData] = useState<RunData | null>(null);
+  /** The vehicle's watch is up: the 2 s poll steps back to a safety net. */
+  const watching = useRef(false);
+  const watchedAt = useRef(0);
   const [keptAt, setKeptAt] = useState<Date | null>(null);
   const [syncedAt, setSyncedAt] = useState<Date | null>(null);
   const [expired, setExpired] = useState(false);
@@ -168,6 +172,10 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
     const again = (force: boolean) => {
       if (document.visibilityState !== "visible" || !navigator.onLine || reading.current) return;
       if (!force && Date.now() - last < 3_000) return;
+      // With the vehicle's watch up (live refresh, phase 3) the poll is only a safety net.
+      // A watch that dropped moments ago is reconnecting, not down: no 2 s poll for a blip.
+      const watched = watching.current || Date.now() - watchedAt.current < 5_000;
+      if (force && watched && Date.now() - last < LIVE_FALLBACK_MS) return;
       last = Date.now();
       refresh();
     };
@@ -204,6 +212,24 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
   }, [online, accountId, readDevice]);
 
   const sheet = data ? todaysSheet(data.sheets) : null;
+
+  // Live refresh, phase 3: the phone watches its vehicle for the day, and reads the
+  // run sheet again when a change names it (a skip, a revised plan, a release).
+  const watchedVehicle = sheet?.vehicleId ?? null;
+  useEffect(() => {
+    if (!watchedVehicle || !online) {
+      watching.current = false;
+      return;
+    }
+    return listenForChanges(
+      [vehicleWatch(watchedVehicle, date)],
+      () => refresh(),
+      (live) => {
+        watching.current = live;
+        if (live) watchedAt.current = Date.now();
+      },
+    );
+  }, [watchedVehicle, date, online, refresh]);
   const stops = useMemo(
     () => (sheet ? project(sheet, entries.map((entry) => ({ command: entry.payload as Command, needsReview: entry.needsReview === true }))) : []),
     [sheet, entries],

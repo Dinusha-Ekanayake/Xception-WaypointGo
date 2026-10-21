@@ -92,7 +92,8 @@ public class OutboxEventPublisher implements EventPublisher {
     String named = depotOf(event);
     String depot = named != null ? named : depotHint;
     Set<String> outlets = outletsOf(event);
-    database.afterCommit(() -> changes.committed(event.type(), depot, outlets));
+    Set<String> vehicles = vehiclesOf(event);
+    database.afterCommit(() -> changes.committed(event.type(), depot, outlets, vehicles));
     metrics.increment("waypoint.event.published", "type", event.type());
   }
 
@@ -120,6 +121,19 @@ public class OutboxEventPublisher implements EventPublisher {
   }
 
   /** The outlets an event's payload names, in {@code outletId} or {@code outletIds}, for a store's open screens. */
+  /** Every vehicle the payload names, at any depth: a stop's vehicle, a plan's trips (live refresh, phase 3). */
+  private Set<String> vehiclesOf(DomainEvent event) {
+    try {
+      Set<String> vehicles = new LinkedHashSet<>();
+      mapper.valueToTree(event).findValues("vehicleId").forEach(node -> {
+        if (node.isTextual()) vehicles.add(node.asText());
+      });
+      return vehicles;
+    } catch (IllegalArgumentException e) {
+      return Set.of();
+    }
+  }
+
   private Set<String> outletsOf(DomainEvent event) {
     try {
       JsonNode tree = mapper.valueToTree(event);

@@ -67,4 +67,26 @@ public class ChangeWatchers {
     }
     return signals.listen(Set.of(), outlets, listener);
   }
+
+  /**
+   * A driver's watch on the vehicle they drive on a day (live refresh, phase 3),
+   * checked against the driver scope; refused and audited when outside it.
+   *
+   * @return what stops watching
+   */
+  public Runnable openVehicle(
+      Actor actor, String action, String vehicleId, java.time.LocalDate day, ChangeSignals.Listener listener) {
+    Map<String, Object> row =
+        database.readAs(
+            ModuleRole.EXECUTION,
+            actor.userId(),
+            () -> database.queryOne(
+                "SELECT app.actor_is_system() OR app.actor_drives(?, ?) AS ok", vehicleId, java.sql.Date.valueOf(day)));
+    if (row == null || !Boolean.TRUE.equals(row.get("ok"))) {
+      audit.recordStandalone(
+          AuditEntry.denied(actor.userId(), actor.deviceId(), action, "wpt:execution:vehicle:" + vehicleId, "outside the actor's scope"));
+      throw new DomainException(ErrorCode.FORBIDDEN, "Vehicle " + vehicleId + " is not yours on " + day);
+    }
+    return signals.listen(Set.of(), Set.of(), Set.of(vehicleId), listener);
+  }
 }
