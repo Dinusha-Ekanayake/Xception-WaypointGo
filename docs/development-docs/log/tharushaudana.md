@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-21 - feat(ml): serve the final Datathon models
+
+`feat/final-datathon-models` · @tharushaudana · [#5](https://github.com/jv-ransika/yi-yi/issues/5)
+
+The model service now serves the team's final submission: `datathon-task1-parallel@2026.10.1` (Monte-Carlo simulator and LightGBM in one file, with its no-road copy) and `datathon-task2a@2026.10.1` (bottom-up order regression), in place of the two-pipeline blend. The service rebuilds the model's reference context from the tables the backend sends, keeping the trained vocabulary. The forecast now needs each depot's outlets, so `ForecastJob` sends them (EDGE-CASES ML-38). The image is Python 3.12, without XGBoost and CatBoost. Detail in the [walkthrough](../../issues/005-final-models/WALKTHROUGH.md).
+Verified: `ml-server` pytest (28), the Task 2A submission reproduced exactly, `ModuleBoundaryTest`, `IntelligenceDomainTest`.
+Open: `IntelligenceIntegrationTest` was skipped here (no database); the leakage figures are the earlier pipeline's until rerun; register and activate 2026.10.1 on preview.
+
+---
+
 ## 2026-10-05 - fix(orders): one Current set, and all of it goes into the plan
 
 `fix/current-one-list-plan-next-run` · @tharushaudana

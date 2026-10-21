@@ -2,38 +2,37 @@
   "models": [
     {
       "kind": "delivery_risk",
-      "name": "datathon-task1-blend",
-      "version": "2026.1.1",
+      "name": "datathon-task1-parallel",
+      "version": "2026.10.1",
       "trainedFrom": "2024-01-01",
       "trainedTo": "2026-02-14",
       "metrics": {
-        "late_logloss_same_season": 0.1516,
-        "late_logloss_last6w": 0.1290,
-        "late_auc_same_season": 0.9788,
-        "service_mae_min_same_season": 3.5643,
-        "service_mae_min_last6w": 3.7276,
-        "fallback_late_logloss_same_season": 0.2385,
-        "fallback_late_logloss_last6w": 0.1664
+        "late_logloss_last6w": 0.1315,
+        "late_auc_last6w": 0.9755,
+        "service_mae_min_last6w": 3.718,
+        "late_logloss_cv": 0.1475,
+        "service_mae_min_cv": 3.9935,
+        "fallback_late_logloss_last6w": 0.166,
+        "fallback_service_mae_min_last6w": 3.733
       },
       "artifacts": {
-        "task1_A.joblib": "3598976054a249ff9d98fda2d46733d171a1bd2ce6f50799e245adbe034bed1c",
-        "task1_B.joblib": "bf610b77d198bc78e460969d60a81ac84044fe2e48d14fa7b6baa8f2e8741f20",
-        "task1_B_no_road_conditions.joblib": "2b963285012fbbcc8934230d8a0d2fa1415aadfc167dead2a5111e7b74b2b226",
-        "task1_blend.json": "6bbe014112ee297ba5fba7874a015e3f4d15c7b8b18b6cca18c2a294f99f7875"
+        "task1_parallel_model.joblib": "21ed0be1500b0fe62e8b9843019f3b8a8733f57348549beb3acb75c4341010cb"
       }
     },
     {
       "kind": "demand_forecast",
       "name": "datathon-task2a",
-      "version": "2026.1.1",
+      "version": "2026.10.1",
       "trainedFrom": "2024-01-01",
-      "trainedTo": "2026-02-14",
+      "trainedTo": "2026-03-28",
       "metrics": {
-        "total_wape": 0.0415,
-        "chilled_wape": 0.0439
+        "total_wape": 0.0318,
+        "chilled_wape": 0.0197,
+        "total_wape_latest6w": 0.0299,
+        "chilled_wape_latest6w": 0.0265
       },
       "artifacts": {
-        "task2a.joblib": "fbf8b058c120707b663f99a6159230f073018c53ca07c087fed3a4d26fefdb4d"
+        "task2a_model.joblib": "ab3fa7557f8d6be2c77835f18981845c990f3232cada2b3694552d70adaddc07"
       }
     }
   ]

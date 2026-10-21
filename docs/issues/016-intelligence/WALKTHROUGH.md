@@ -14,8 +14,8 @@ The work is backend only. The only frontend change is the types-only mirror `fro
 
 A FastAPI service that serves the trained Datathon models and nothing else: it never trains and never reads the database. See its [README](../../../ml-server/README.md).
 
-- **`datathon/src/`** is the Datathon package, vendored unchanged. The pickled models name their classes `src.<module>`, so the package keeps that name.
-- **`models/`** holds the five model files, in Git LFS. **`manifest.json`** gives each model's version, training range, validation metrics and the SHA-256 of every file. `app/registry.py` refuses to start if any file differs.
+- **`datathon/src/`** is the Datathon package, vendored unchanged. The pickled models name their classes `src.<module>`, so the package keeps that name. Since yi-yi #5 the final models are served instead, from top-level modules in `datathon/`; see [005-final-models](../005-final-models/WALKTHROUGH.md).
+- **`models/`** holds the five model files, in Git LFS (two since #5). **`manifest.json`** gives each model's version, training range, validation metrics and the SHA-256 of every file. `app/registry.py` refuses to start if any file differs.
 - **`app/scoring.py`** turns a request into the two frames the Datathon code reads, `task1_test_inputs` and `route_legs_test`, plus the general tables:
   - It routes a date that has no road-conditions row to the no-road-conditions model.
   - It adds missing festival columns, so a calendar extended past the supplied one still forecasts.
@@ -116,13 +116,13 @@ A FastAPI service that serves the trained Datathon models and nothing else: it n
 3. As an administrator, register and activate both models. The names and versions are in `ml-server/manifest.json`:
 
    ```json
-   {"kind":"ml:RegisterModel","payload":{"name":"datathon-task1-blend","version":"2026.1.1","kind":"delivery_risk"}, ...}
-   {"kind":"ml:ActivateModel","expectedVersion":1,"payload":{"name":"datathon-task1-blend","version":"2026.1.1"}, ...}
+   {"kind":"ml:RegisterModel","payload":{"name":"datathon-task1-parallel","version":"2026.10.1","kind":"delivery_risk"}, ...}
+   {"kind":"ml:ActivateModel","expectedVersion":1,"payload":{"name":"datathon-task1-parallel","version":"2026.10.1"}, ...}
    ```
 
-4. Publish a plan. Within 30 s, `GET /api/ml/plans/{planId}/predictions` shows every stop with `datathon-task1-blend@2026.1.1`, and the plan reads `plannedWithoutPredictor: false`. Dates after 2026-06-28 show `roadConditions: fallback`.
+4. Publish a plan. Within 30 s, `GET /api/ml/plans/{planId}/predictions` shows every stop with `datathon-task1-parallel@2026.10.1`, and the plan reads `plannedWithoutPredictor: false`. Dates after 2026-06-28 show `roadConditions: fallback`.
 5. Stop the `ml` container and publish again. The predictions are `deterministic` and degraded, with the reason, and the plan reads `plannedWithoutPredictor: true`.
-   Retiring is final: a retired version can never be activated again. Version `2026.1` was retired on preview on 2026-10-03, so the same model files are served as `2026.1.1`; a later re-release needs another version in `ml-server/manifest.json`.
+   Retiring is final: a retired version can never be activated again. Version `2026.1` was retired on preview on 2026-10-03, so the same model files were served as `2026.1.1`; the final models are `2026.10.1` (#5), and a later re-release needs another version in `ml-server/manifest.json`.
 
    To see a newly activated demand model at once rather than at the next owed run (up to six hours after a fallback run, P-29), run the job by hand: `docker compose run --rm --no-deps backend java -jar /app/backend.jar forecast-run` (the image starts the jar itself, so a command goes after it; on the VPS add `-f compose.yaml -f deploy/vps/compose.vps.yaml` as in `deploy.sh`, and run it as `deploy`). It takes the scheduled job's lease and run record.
 

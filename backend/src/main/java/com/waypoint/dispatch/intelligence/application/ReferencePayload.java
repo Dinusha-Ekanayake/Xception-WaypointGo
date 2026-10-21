@@ -80,6 +80,14 @@ class ReferencePayload {
     return out;
   }
 
+  /** Every outlet of these depots: the demand model schedules each outlet's orders. */
+  List<Map<String, Object>> outlets(List<String> depotCodes, UUID versionId) {
+    return depotCodes.stream()
+        .flatMap(d -> reference.outletsOfDepot(d, versionId).stream())
+        .map(ReferencePayload::outlet)
+        .toList();
+  }
+
   List<Map<String, Object>> calendar(LocalDate from, LocalDate to) {
     return reference.calendarDays(from, to).stream().map(ReferencePayload::day).toList();
   }

@@ -14,12 +14,13 @@ ROOT = Path(__file__).resolve().parents[1]
 MODELS_DIR = Path(os.environ.get('ML_MODELS_DIR', ROOT / 'models'))
 MANIFEST = Path(os.environ.get('ML_MANIFEST', ROOT / 'manifest.json'))
 
-# The pickled models name their classes as `src.<module>`, so the vendored
-# Datathon package keeps its name and its parent goes on the import path.
+# The pickled models name their classes as top-level modules (`parallel_model`,
+# `mc_task1`, `task2a_demand`), so the vendored folder goes on the import path.
 sys.path.insert(0, str(ROOT / 'datathon'))
-os.environ.setdefault('MODELS_DIR', str(MODELS_DIR))
 
 import joblib  # noqa: E402
+
+import inference  # noqa: E402 (vendored)
 
 
 class ManifestMismatch(RuntimeError):
@@ -34,7 +35,7 @@ class ModelInfo:
     trained_from: str
     trained_to: str
     metrics: dict = field(default_factory=dict)
-    # 'datathon' for the vendored blend; 'planning' for a model retrained on our own deliveries (MF-05).
+    # 'datathon' for the vendored Datathon models; 'planning' for a model retrained on our own deliveries (MF-05).
     pipeline: str = 'datathon'
     artifacts: tuple = ()
 
@@ -71,10 +72,8 @@ def verify(manifest_path: Path = MANIFEST, models_dir: Path = MODELS_DIR) -> dic
 @dataclass
 class Loaded:
     info: dict
-    task1_a: object = None
-    task1_b: object = None
-    task1_fallback: object = None
-    blend: dict | None = None
+    # The Task 1 ParallelModel: primary and the copy trained without road conditions.
+    task1: object = None
     task2a: object = None
     # A late-risk model retrained on our own deliveries, when the manifest names one (MF-05).
     planning: dict | None = None
@@ -87,10 +86,7 @@ def load(manifest_path: Path = MANIFEST, models_dir: Path = MODELS_DIR) -> Loade
     if risk is not None and risk.pipeline == 'planning':
         loaded.planning = joblib.load(models_dir / risk.artifacts[0])
     elif risk is not None:
-        loaded.task1_a = joblib.load(models_dir / 'task1_A.joblib')
-        loaded.task1_b = joblib.load(models_dir / 'task1_B.joblib')
-        loaded.task1_fallback = joblib.load(models_dir / 'task1_B_no_road_conditions.joblib')
-        loaded.blend = json.loads((models_dir / 'task1_blend.json').read_text(encoding='utf-8'))
+        loaded.task1 = joblib.load(models_dir / inference.TASK1)
     if 'demand_forecast' in info:
-        loaded.task2a = joblib.load(models_dir / 'task2a.joblib')
+        loaded.task2a = joblib.load(models_dir / inference.TASK2A)
     return loaded

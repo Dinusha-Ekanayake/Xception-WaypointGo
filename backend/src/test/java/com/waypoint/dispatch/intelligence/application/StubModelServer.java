@@ -31,6 +31,7 @@ final class StubModelServer {
   volatile String roadConditions = "used";
   final AtomicInteger riskCalls = new AtomicInteger();
   final AtomicReference<JsonNode> lastRiskRequest = new AtomicReference<>();
+  final AtomicReference<JsonNode> lastForecastRequest = new AtomicReference<>();
 
   private final ObjectMapper json = new ObjectMapper();
   private final HttpServer server;
@@ -90,8 +91,14 @@ final class StubModelServer {
 
   private void forecast(HttpExchange ex) throws IOException {
     JsonNode req = json.readTree(ex.getRequestBody());
+    lastForecastRequest.set(req);
     if (failing) {
       send(ex, 500, "{}");
+      return;
+    }
+    // As the model service: the demand model schedules each outlet's orders, so it refuses a request without them.
+    if (req.path("outlets").isEmpty()) {
+      send(ex, 422, "{\"detail\":\"outlets is required\"}");
       return;
     }
     ObjectNode body = json.createObjectNode()

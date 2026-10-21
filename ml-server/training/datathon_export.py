@@ -10,19 +10,29 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+
+def _minutes(hhmm: pd.Series) -> pd.Series:
+    t = hhmm.str.split(':', expand=True).astype(float)
+    return t[0] * 60 + t[1]
 
 
 def routes(data_dir: str):
-    os.environ['DATA_DIR'] = data_dir
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'datathon'))
-    from src import data
-    t = data.load_task1()
-    d = t['dtr'][t['dtr'].route_id.notna()].copy()
+    train = Path(data_dir) / 'Training Data'
+    d = pd.read_csv(train / 'deliveries_train.csv')
+    d = d[d.route_id.notna()].copy()
     d['seq_in_route'] = d.seq_in_route.astype(int)
-    m = t['ltr'].merge(d, left_on=['route_id', 'seq'], right_on=['route_id', 'seq_in_route'], suffixes=('', '_o'))
-    m = data.construct_labels(m)
+    legs = pd.read_csv(train / 'route_legs_train.csv')
+    m = legs.merge(d, left_on=['route_id', 'seq'], right_on=['route_id', 'seq_in_route'], suffixes=('', '_o'))
+    arrival, wo = _minutes(m.arrival_time), _minutes(m.window_open_time)
+    m['service_min'] = _minutes(m.leave_outlet_time) - np.maximum(arrival, wo)
+    m['late'] = (arrival > _minutes(m.window_close_time)).astype(float)
+    # A stop without actual times has no label; the comparison above would call it on time.
+    m.loc[arrival.isna(), 'late'] = np.nan
     for route_id, g in m.sort_values(['route_id', 'seq']).groupby('route_id', sort=False):
         first = g.iloc[0]
         stops, labels = [], []

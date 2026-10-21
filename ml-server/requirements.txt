@@ -1,15 +1,9 @@
-# The Datathon models were trained with these exact versions (Python 3.11).
+# The final Datathon models reproduce their submissions with these exact versions (Python 3.12).
 # A different version of a model library may unpickle differently, so they are pinned.
 pandas==3.0.6
 numpy==2.4.6
 scikit-learn==1.9.1
 lightgbm==4.7.0
-# On Linux plain xgboost also installs NVIDIA's GPU library (nvidia-nccl-cu12, a 352 MB
-# download) that a CPU-only service never loads; xgboost-cpu is the same release and
-# module without it. It has no macOS wheel, so elsewhere the plain package stays.
-xgboost==3.2.0; sys_platform != "linux"
-xgboost-cpu==3.2.0; sys_platform == "linux"
-catboost==1.2.10
 statsmodels==0.15.0
 joblib==1.6.0
 # Serving

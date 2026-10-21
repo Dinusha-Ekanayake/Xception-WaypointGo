@@ -175,7 +175,10 @@ public class ForecastJob implements ScheduledJob {
     Map<Key, WeekVolume> model = new LinkedHashMap<>();
     String label = PredictionViews.DETERMINISTIC;
     Optional<String> reason = decision.reason();
-    if (decision.useModel()) {
+    Optional<UUID> versionId = reference.currentVersionId();
+    if (decision.useModel() && versionId.isEmpty()) {
+      reason = Optional.of("no reference version is loaded, so the model has no outlets to forecast");
+    } else if (decision.useModel()) {
       List<Map<String, Object>> weeks = new ArrayList<>();
       for (String d : depots) {
         for (String b : brands) {
@@ -187,6 +190,7 @@ public class ForecastJob implements ScheduledJob {
       }
       Map<String, Object> body = new LinkedHashMap<>();
       body.put("calendar", payload.calendar(ReferencePayload.CALENDAR_FROM, end));
+      body.put("outlets", payload.outlets(depots, versionId.get()));
       body.put("weeks", weeks);
       Answer<ForecastAnswer> answer = adapter.demandForecast(body);
       if (answer.value().isPresent()) {

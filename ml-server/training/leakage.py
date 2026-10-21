@@ -123,18 +123,22 @@ def check(with_road: pd.DataFrame, no_road: pd.DataFrame, features: list[str], *
 
 
 def datathon_frames(data_dir: str):
-    """The Task 1 training legs built twice, with and without road conditions, by the Datathon feature code."""
-    os.environ['DATA_DIR'] = data_dir
+    """The Task 1 training stops built twice, with and without road conditions, by the served feature code."""
+    import copy
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'datathon'))
-    from src import data, features_a
-    g = data.load_general()
-    t = data.load_task1()
+    import mc_task1
+    import parallel_model
+    root = data_dir.rstrip('/\\') + '/'
+    ctx = mc_task1.Context(root)
+    no_rc = copy.copy(ctx)
+    no_rc.rc = ctx.rc.iloc[0:0]  # every stop then reads the neutral disruption index, as on a day without the feed
+    orders = pd.read_csv(root + 'Training Data/deliveries_train.csv')
+    legs = pd.read_csv(root + 'Training Data/route_legs_train.csv')
     frames = []
-    for no_road in (False, True):
-        f = features_a.build([('train', t['ltr'])], [t['dtr']], g, no_road_conditions=no_road)
-        cats = features_a.categories(f)
-        frames.append(features_a.set_categories(f, cats))
-    return frames[0], frames[1], features_a.NUM + features_a.CAT
+    for c in (ctx, no_rc):
+        x = parallel_model.prepare(orders, legs, c)
+        frames.append(x.assign(slack_close=x.plan_slack))
+    return frames[0], frames[1], parallel_model.feature_sets(True)['static']
 
 
 def main(argv=None) -> int:
