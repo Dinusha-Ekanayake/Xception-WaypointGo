@@ -63,6 +63,15 @@ public class NotificationDataQuery implements NotificationQuery {
         com.waypoint.dispatch.platform.db.ModuleRole.NOTIFICATION, () -> notifications.driverReads(messageIds));
   }
 
+  @Override
+  public java.util.Map<UUID, Optional<java.time.Instant>> driverReadsOfSkips(java.util.Collection<UUID> deliveryIds) {
+    if (deliveryIds.isEmpty()) {
+      return java.util.Map.of();
+    }
+    return database.asSystem(
+        com.waypoint.dispatch.platform.db.ModuleRole.NOTIFICATION, () -> notifications.driverReadsOfSkips(deliveryIds));
+  }
+
   // ---- web: as the authenticated actor -------------------------------------
 
   public Page<NotificationView> inbox(Actor actor, Optional<UUID> owner, Optional<String> cursor, Integer limit) {

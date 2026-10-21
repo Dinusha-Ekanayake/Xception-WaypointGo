@@ -193,7 +193,15 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       let skipped = 0;
       desk.sheets = desk.sheets.map((sheet) => ({
         ...sheet,
-        stops: sheet.stops.map((st) => (hit(st) ? (skipped++, { ...st, outcome: "SKIPPED" as const, rowVersion: st.rowVersion + 1 }) : st)),
+        stops: sheet.stops.map((st) =>
+          hit(st)
+            ? (skipped++, {
+                ...st, outcome: "SKIPPED" as const, rowVersion: st.rowVersion + 1,
+                // The driver's phone has not read the push yet.
+                skip: { then: (payload.then ?? "NEXT_DAY") as "NEXT_DAY" | "CANCEL", reason: String(payload.reason), wholeTrip: command.kind === "delivery:EndTrip", at: new Date().toISOString(), seenByDriver: false, seenByDriverAt: null },
+              })
+            : st,
+        ),
       }));
       return command.kind === "delivery:SkipStop" ? { deliveryId: payload.deliveryId, outcome: "SKIPPED" } : { tripId: payload.tripId, skipped };
     }

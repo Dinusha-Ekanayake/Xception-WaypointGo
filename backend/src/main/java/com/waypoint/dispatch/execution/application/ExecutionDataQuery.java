@@ -4,7 +4,9 @@ import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryRecordView;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DriverView;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.ProofView;
+import com.waypoint.dispatch.execution.contract.ExecutionViews.RunSheetStopView;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.RunSheetView;
+import com.waypoint.dispatch.notification.contract.NotificationQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.StopActualView;
 import com.waypoint.dispatch.execution.infrastructure.JdbcDeliveryRepository;
 import com.waypoint.dispatch.execution.infrastructure.JdbcExecutionReads;
@@ -53,6 +55,7 @@ public class ExecutionDataQuery implements ExecutionQuery {
   private final Metrics metrics;
 
   private final com.waypoint.dispatch.execution.infrastructure.JdbcPositions positions;
+  private final NotificationQuery notifications;
 
   public ExecutionDataQuery(
       Database database,
@@ -63,8 +66,10 @@ public class ExecutionDataQuery implements ExecutionQuery {
       IdentityQuery identity,
       PersonQuery people,
       Metrics metrics,
-      com.waypoint.dispatch.execution.infrastructure.JdbcPositions positions) {
+      com.waypoint.dispatch.execution.infrastructure.JdbcPositions positions,
+      NotificationQuery notifications) {
     this.positions = positions;
+    this.notifications = notifications;
     this.database = database;
     this.reads = reads;
     this.deliveries = deliveries;
@@ -107,7 +112,27 @@ public class ExecutionDataQuery implements ExecutionQuery {
   /** Every vehicle on the road from one depot, for the dispatcher's live view. */
   public List<RunSheetView> runSheetsOfDepot(Actor actor, String depotCode, LocalDate serviceDate) {
     require(actor, "wpt:execution:depot:" + depotCode, () -> reads.depotInScope(depotCode));
-    return read(actor.userId(), () -> ExecutionViewMapper.sheets(reads.stopsOfDepot(depotCode, serviceDate)));
+    List<RunSheetView> sheets = read(actor.userId(), () -> ExecutionViewMapper.sheets(reads.stopsOfDepot(depotCode, serviceDate)));
+    return withDriverSeen(sheets);
+  }
+
+  /**
+   * R-EXE-31: beside each skipped stop, whether the driver's phone has read the
+   * push that it is gone. The dispatcher's read only: the driver knows already.
+   */
+  private List<RunSheetView> withDriverSeen(List<RunSheetView> sheets) {
+    List<UUID> skipped = sheets.stream().flatMap(s -> s.stops().stream())
+        .filter(stop -> stop.skip().isPresent()).map(RunSheetStopView::deliveryId).toList();
+    if (skipped.isEmpty()) {
+      return sheets;
+    }
+    Map<UUID, Optional<Instant>> seen = notifications.driverReadsOfSkips(skipped);
+    return sheets.stream()
+        .map(sheet -> new RunSheetView(sheet.vehicleId(), sheet.serviceDate(), sheet.stops().stream()
+            .map(stop -> stop.skip().map(skip -> stop.withSkip(skip.seen(Optional.ofNullable(seen.get(stop.deliveryId())))))
+                .orElse(stop))
+            .toList()))
+        .toList();
   }
 
   /** What is coming to, or has reached, one outlet on a day. */

@@ -32,6 +32,9 @@ import { useDriver } from "./useDriver.ts";
 import { DriverLang, useT } from "./i18n.tsx";
 import { translate, type Translate } from "./data/strings.ts";
 
+/** Notifications that change the driver's route: a revised plan, or a stop the dispatcher skipped. */
+const ROUTE_CHANGED = new Set(["plan.revised", "delivery.skipped"]);
+
 /**
  * The driver's phone (issues #21 and #117, Figma "12 · Driver · Mobile"). What
  * each screen does is in useDriver; this file chooses which one is drawn. The
@@ -76,7 +79,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
     const fresh = inbox.items.filter((n) => n.readAt === null && !heard.current!.has(n.notificationId));
     ids.forEach((id) => heard.current!.add(id));
     if (!driving || fresh.length === 0) return;
-    const urgent = fresh.some((n) => n.eventType === "plan.revised");
+    const urgent = fresh.some((n) => ROUTE_CHANGED.has(n.eventType));
     if (mayChime(lastChime.current, Date.now(), urgent)) {
       lastChime.current = Date.now();
       chime(urgent ? "plan" : "message");
@@ -125,16 +128,23 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
     if (view.failed) setFormFor(view.deliveryId);
   }, [view]);
 
-  // A run sheet revised while the driver is out says so once (Figma "Run sheet changed").
+  // A run sheet revised while the driver is out says so once (Figma "Run sheet changed"), and so
+  // does a stop the dispatcher took off (R-EXE-31): the run sheet is read again at once, since the
+  // driver watches no change stream and would otherwise drive to a skipped store until the next poll.
+  const refreshRun = useRef(run.refresh);
+  refreshRun.current = run.refresh;
   useEffect(() => {
     const ids = inbox.items.map((item) => item.notificationId);
     if (seen.current === null) {
       if (!inbox.loading) seen.current = new Set(ids);
       return;
     }
-    const fresh = inbox.items.find((item) => !seen.current!.has(item.notificationId) && item.readAt === null && item.eventType === "plan.revised");
+    const fresh = inbox.items.find((item) => !seen.current!.has(item.notificationId) && item.readAt === null && ROUTE_CHANGED.has(item.eventType));
     ids.forEach((id) => seen.current!.add(id));
-    if (fresh) setRevised(fresh);
+    if (fresh) {
+      setRevised(fresh);
+      refreshRun.current();
+    }
   }, [inbox.items, inbox.loading]);
 
   // Space opens driving mode; only its slider closes it.

@@ -180,8 +180,15 @@ function stopStatus(s: RunSheetStopView, run: Run, next: RunSheetStopView | null
   if (s.outcome === "DELIVERED") return { label: (s.lateMinutes ?? 0) > 0 ? `Delivered · ${s.lateMinutes} min late` : "Delivered", dot: "bg-go-teal", text: "text-go-teal", done: true };
   if (s.outcome === "PARTIAL") return { label: "Partly delivered", dot: "bg-[#c08a3e]", text: "text-go-warning-text", done: true };
   if (s.outcome === "FAILED") return { label: "Not delivered", dot: "bg-go-danger", text: "text-go-danger-strong", done: true };
-  // A plan revision or the dispatcher's Skip store or End trip (R-EXE-31): either way off this trip.
-  if (s.outcome === "SKIPPED") return { label: "Off the trip", dot: "bg-go-divider", text: "text-go-secondary", done: true };
+  // A plan revision, or the dispatcher's Skip store or End trip (R-EXE-31), with whether the driver has
+  // read the push: a driver with no signal may still be driving there, so the dispatcher phones.
+  if (s.outcome === "SKIPPED") {
+    if (!s.skip) return { label: "Off the trip", dot: "bg-go-divider", text: "text-go-secondary", done: true };
+    const what = s.skip.then === "CANCEL" ? "cancelled" : "next day";
+    if (s.skip.seenByDriver === false) return { label: `Off the trip · ${what} · not seen by the driver yet`, dot: "bg-[#c08a3e]", text: "text-go-warning-text", done: true };
+    const seen = s.skip.seenByDriverAt ? ` · seen by the driver ${clockOn(s.skip.seenByDriverAt)}` : "";
+    return { label: `Off the trip · ${what}${seen}`, dot: "bg-go-divider", text: "text-go-secondary", done: true };
+  }
   if (s.outcome === "ARRIVED") return { label: "At the stop", dot: "bg-go-info", text: "text-go-info", done: false };
   if (next?.deliveryId === s.deliveryId && (run.status === "at-risk" || run.status === "late")) return { label: "At risk", dot: "bg-[#c08a3e]", text: "text-go-warning-text", done: false };
   return { label: "Planned", dot: "bg-go-divider", text: "text-go-ink", done: false };

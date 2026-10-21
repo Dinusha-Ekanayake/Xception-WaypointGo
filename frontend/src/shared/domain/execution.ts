@@ -49,6 +49,18 @@ export type RunSheetStopView = {
   /** Roadmap MF-06: about four stops in five take between these minutes; null with too little history. */
   expectedServiceLow?: number | string | null;
   expectedServiceHigh?: number | string | null;
+  /** R-EXE-31: the dispatcher took the stop off the trip. Absent from an older server or a plan revision's skip. */
+  skip?: StopSkipView | null;
+};
+
+/** Mirror of ExecutionViews.StopSkipView. `seenByDriver` is the dispatcher's only: null when unknown. */
+export type StopSkipView = {
+  then: "NEXT_DAY" | "CANCEL";
+  reason: string;
+  wholeTrip: boolean;
+  at: IsoInstant;
+  seenByDriver: boolean | null;
+  seenByDriverAt: IsoInstant | null;
 };
 
 export type RunSheetView = {

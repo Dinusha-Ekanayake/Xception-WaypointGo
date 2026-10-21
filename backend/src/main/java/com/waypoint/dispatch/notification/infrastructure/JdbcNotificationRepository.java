@@ -200,6 +200,25 @@ public class JdbcNotificationRepository {
     return out;
   }
 
+  /** The driver's read of each stop's skip push, by the stop the push named. */
+  public Map<UUID, Optional<Instant>> driverReadsOfSkips(java.util.Collection<UUID> deliveryIds) {
+    Map<UUID, Optional<Instant>> out = new java.util.HashMap<>();
+    database
+        .query(
+            """
+            SELECT subject_id, min(read_at) AS read_at, bool_and(read_at IS NULL) AS unread
+              FROM notification.notifications
+             WHERE event_type = 'delivery.skipped' AND target_key LIKE 'vehicle:%'
+               AND subject_type = 'delivery' AND subject_id = ANY (?::text[])
+             GROUP BY subject_id
+            """,
+            (Object) ids(List.copyOf(deliveryIds)))
+        .forEach(r -> out.put(
+            UUID.fromString((String) r.get("subject_id")),
+            Boolean.TRUE.equals(r.get("unread")) ? Optional.empty() : Optional.of(instant(r.get("read_at")))));
+    return out;
+  }
+
   public long unreadCount(UUID recipient) {
     return ((Number)
             database

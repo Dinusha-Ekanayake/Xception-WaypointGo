@@ -69,7 +69,9 @@ public final class ExecutionViews {
       Optional<java.math.BigDecimal> expectedServiceMinutes,
       /** Roadmap MF-06: about four stops in five take between these minutes; empty with too little history. */
       Optional<java.math.BigDecimal> expectedServiceLow,
-      Optional<java.math.BigDecimal> expectedServiceHigh) {
+      Optional<java.math.BigDecimal> expectedServiceHigh,
+      /** R-EXE-31: the dispatcher took this stop off the trip: what then, why, and whether the driver has seen it. */
+      Optional<StopSkipView> skip) {
 
     public RunSheetStopView(
         UUID deliveryId, UUID tripId, int sequence, UUID orderId, String outletId, int itemCount, boolean mallOutlet,
@@ -81,13 +83,38 @@ public final class ExecutionViews {
       this(deliveryId, tripId, sequence, orderId, outletId, itemCount, mallOutlet, plannedArrival, windowOpen,
           windowClose, expectedArrival, startedAt, arrivedAt, completedAt, waitMinutes, lateMinutes, outcome,
           deliveredUnits, proofCaptured, rowVersion, lines, storeAnswerWaived, Optional.empty(), Optional.empty(),
-          Optional.empty());
+          Optional.empty(), Optional.empty());
+    }
+
+    public RunSheetStopView withSkip(StopSkipView seen) {
+      return new RunSheetStopView(deliveryId, tripId, sequence, orderId, outletId, itemCount, mallOutlet, plannedArrival,
+          windowOpen, windowClose, expectedArrival, startedAt, arrivedAt, completedAt, waitMinutes, lateMinutes, outcome,
+          deliveredUnits, proofCaptured, rowVersion, lines, storeAnswerWaived, expectedServiceMinutes, expectedServiceLow,
+          expectedServiceHigh, Optional.of(seen));
     }
 
     public RunSheetStopView {
       lines = List.copyOf(lines);
       expectedServiceLow = expectedServiceLow == null ? Optional.empty() : expectedServiceLow;
       expectedServiceHigh = expectedServiceHigh == null ? Optional.empty() : expectedServiceHigh;
+      skip = skip == null ? Optional.empty() : skip;
+    }
+  }
+
+  /**
+   * R-EXE-31: the dispatcher's skip of a stop. {@code seenByDriver} is for the
+   * dispatcher only: whether the driver's phone has read the push that the stop
+   * is gone, empty when unknown. A driver with no signal may still be driving
+   * there; the dispatcher phones.
+   *
+   * @param then {@code NEXT_DAY} or {@code CANCEL}
+   */
+  public record StopSkipView(
+      String then, String reason, boolean wholeTrip, Instant at, Optional<Boolean> seenByDriver,
+      Optional<Instant> seenByDriverAt) {
+
+    public StopSkipView seen(Optional<Optional<Instant>> read) {
+      return new StopSkipView(then, reason, wholeTrip, at, read.map(Optional::isPresent), read.flatMap(r -> r));
     }
   }
 

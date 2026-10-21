@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-21 - feat: a skipped stop reaches the driver at once, and the dispatcher sees whether it did
+
+`dev` · @Oxshadha
+
+- The driver's phone watches no change stream, so it heard a skip only on its next run-sheet poll and could drive to a skipped store. A new `delivery.skipped` push now reads the run sheet again at once and shows "Run sheet changed", as a revised plan does (a flow fix under role-ui-scope.md).
+- The run sheet carries each dispatcher skip (`StopSkipView`: then, reason, whole trip, when), and the dispatcher's depot read adds whether the driver's phone has read the push (`NotificationQuery.driverReadsOfSkips`, as R-MSG-14 does for messages). The Live trip page says "Off the trip · next day · not seen by the driver yet" in amber until it is read, so the dispatcher phones a driver with no signal (EXE-51).
+- @jv-ransika approved [docs/issues/decision-suggestions/PLAN.md](../../issues/decision-suggestions/PLAN.md) (relayed by @Oxshadha, 2026-10-21): rule priors first, counts in words once a situation has 20 cases, Jev in shadow for voice and free text.
+- Open: GitHub Actions has started no job since 2026-10-09 ("recent account payments have failed or your spending limit needs to be increased" on @jv-ransika's account), so no push has been checked by CI; checks run locally until billing is fixed.
+
+---
+
 ## 2026-10-21 - feat: the dispatcher skips a store or ends a trip on the road (R-EXE-31)
 
 `dev` · @Oxshadha

@@ -216,6 +216,15 @@ class StopSkipIntegrationTest {
         "Today's delivery moves to the next delivery day and goes first. Reason: Store closed, nobody answers"),
         "the store reads why on the trip's thread");
 
+    // The dispatcher sees the driver has not read the push yet, then that they have.
+    JsonNode skip = skippedStop(stopOne).get("skip");
+    assertEquals("NEXT_DAY", skip.get("then").asText());
+    assertEquals("Store closed, nobody answers", skip.get("reason").asText());
+    assertEquals(false, skip.get("seenByDriver").asBoolean(), "not seen by the driver yet");
+    String push = json(read(driver, "/api/notifications", 200)).get("items").get(0).get("notificationId").asText();
+    command(driver, "notification:MarkRead", null, "{\"notificationIds\":[\"" + push + "\"]}", 200);
+    assertTrue(skippedStop(stopOne).get("skip").get("seenByDriver").asBoolean(), "seen once the driver read it");
+
     // The phone that had not heard yet: its delivery is refused, never applied over the skip.
     String refused = command(driver, "delivery:Record", version + 1,
         "{\"deliveryId\":\"" + stopOne + "\",\"outcome\":\"DELIVERED\"}", 409);
@@ -288,6 +297,15 @@ class StopSkipIntegrationTest {
 
   private String endTrip(String reason) {
     return "{\"tripId\":\"" + tripId + "\",\"reason\":\"" + reason + "\"}";
+  }
+
+  private JsonNode skippedStop(UUID deliveryId) throws Exception {
+    for (JsonNode sheet : json(read(dispatcher, "/api/execution/run-sheets?depot=" + depot + "&date=" + day, 200))) {
+      for (JsonNode stop : sheet.get("stops")) {
+        if (stop.get("deliveryId").asText().equals(deliveryId.toString())) return stop;
+      }
+    }
+    throw new AssertionError("no stop " + deliveryId);
   }
 
   private boolean threadSays(String who, String body) throws Exception {

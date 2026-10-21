@@ -34,7 +34,8 @@ test("the dispatcher skips a store and cancels its order, with a reason", async 
   const sent = desk.commands.find((c) => c.kind === "delivery:SkipStop");
   expect(sent?.payload).toEqual({ deliveryId: "d-VEH030-2", then: "CANCEL", reason: "Store refused the delivery" });
   expect(sent?.expectedVersion).toBe(1);
-  await expect(row).toContainText("Off the trip");
+  // A driver with no signal may still drive there: the dispatcher sees it is not seen yet, and phones.
+  await expect(row).toContainText("Off the trip · cancelled · not seen by the driver yet");
   await expect(row.getByRole("button", { name: "Skip store" })).toHaveCount(0);
 });
 
@@ -49,7 +50,7 @@ test("ending the trip says how many stops go to the next day and sends one comma
 
   await expect(sheet).toBeHidden();
   expect(desk.commands.filter((c) => c.kind === "delivery:EndTrip").map((c) => c.payload)).toEqual([{ tripId: "t-VEH030", reason: "Vehicle broke down" }]);
-  await expect(page.getByRole("row", { name: /OUT012/ })).toContainText("Off the trip");
+  await expect(page.getByRole("row", { name: /OUT012/ })).toContainText("Off the trip · next day · not seen by the driver yet");
   await expect(page.getByRole("button", { name: "End trip" })).toHaveCount(0);
 });
 
