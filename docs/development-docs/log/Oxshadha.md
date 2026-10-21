@@ -9,6 +9,7 @@
 `dev` · @Oxshadha
 
 - Decision suggestions part 4, first half ([plan](../../issues/decision-suggestions/PLAN.md)). The store's trip messages offer ready replies chosen by code from its delivery: found closed, "We are open now" or "Deliver on the next day"; cannot unload, "Space is clear now"; at the door or on the way, a word to its driver; skipped or failed, an answer to the dispatcher. In the store's language, logged like the dispatcher's (R-MSG-13). The store's delivery read now says when the driver reported a problem (`DeliveryRecordView.reportedProblem`).
+- The dispatcher's word to several stores followed: "Tell each store waiting its time" in the trip's chat sends one message per store, each with its own expected time, after a preview; a failure leaves the rest to send again.
 - Also: the trip board colours only the trips that need attention (late red, at risk amber, offline light), with "1 of 2 stops" in words.
 
 ---

@@ -11,6 +11,7 @@ import { dayLabel } from "@shared/wording";
 import { useDispatcherInbox, type OpenThread } from "./inbox.tsx";
 import { EndTripButton, SkipStopButton, skippable } from "./screens/LiveTripSkip.tsx";
 import ReportSuggestions from "./screens/ReportSuggestions.tsx";
+import TellEachStore from "./screens/TellEachStore.tsx";
 
 // A trip's thread in a sheet on the right (issue #136), over whichever screen
 // opened it: a warning sign on the timeline, the trip page, a notification.
@@ -131,6 +132,7 @@ function ThreadSheetPanel({
         {head && openStops.length > 0 && (
           <div className="flex flex-col gap-2">
             <EndTripButton tripId={head.subjectId} open={openStops} online={online} inline />
+            {date && <TellEachStore threadId={open.threadId} stops={tripStops} serviceDate={date} online={online} />}
           </div>
         )}
         {!online && (

@@ -141,3 +141,23 @@ export function storeReplies(delivery: DeliveryRecordView | null, tr: (english: 
   }
   return out;
 }
+
+/**
+ * The dispatcher's word to every store still waiting on the trip (decision
+ * suggestions, part 4): one message per store, each with its own expected time,
+ * never one line for all. The stops not reached yet, in trip order; a store
+ * whose time is not known gets none.
+ */
+export function eachStoreMessages(state: Pick<TripState, "stops" | "serviceDate">): Array<{ outletId: string; body: string }> {
+  return [...state.stops]
+    .filter((s) => s.outcome === "PENDING")
+    .sort((a, b) => a.sequence - b.sequence)
+    .map((s) => {
+      const late = delayOf(s, state.serviceDate);
+      const at = clock(s.expectedArrival ?? `${state.serviceDate}T${s.plannedArrival.slice(0, 5)}:00+05:30`);
+      return {
+        outletId: s.outletId,
+        body: late >= DELAY_WORTH_SAYING ? `Running ${late} min late. Now expected at ${at}.` : `On the way. Expected at ${at}.`,
+      };
+    });
+}

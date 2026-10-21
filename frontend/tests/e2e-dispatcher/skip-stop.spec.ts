@@ -133,3 +133,29 @@ test("once learned, a chip says how often dispatchers chose it here", async ({ p
   await expect(chips).toContainText("Suggested from what dispatchers chose here");
   await expect(chips.getByRole("button").first()).toHaveText("Call the store · chosen 21 of 30 times");
 });
+
+test("the dispatcher tells each store waiting its own time, one message per store (decision suggestions part 4)", async ({ page }) => {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const day = liveDay();
+  const veh020 = day.sheets!.find((s) => s.vehicleId === "VEH020")!;
+  const second = veh020.stops[1]!;
+  veh020.stops.push({ ...second, deliveryId: "d-VEH020-3", sequence: 3, outletId: "OUT064", expectedArrival: "2027-03-01T11:50:00Z" });
+  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063", "OUT064"], "dispatcher", [
+    said("r1", "2027-03-01T10:05:00Z", { kind: "report", reportType: "late", authorName: "Dilan R.", authorRole: "driver", audience: "dispatch", body: "Traffic at Peradeniya", aboutOutletId: "OUT063" }),
+  ]);
+  const desk = await serve(page, { ...day, threads: [thread] });
+  await page.goto("/#/live");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("region", { name: "Timeline" }).getByTestId("report-sign").first().click();
+
+  const chat = page.getByRole("dialog", { name: "Trip messages" });
+  await chat.getByRole("button", { name: "Tell each store waiting its time (2)" }).click();
+  const preview = chat.getByRole("group", { name: "Tell each store its time" });
+  await expect(preview).toContainText("OUT063");
+  await expect(preview).toContainText("OUT064");
+  await preview.getByRole("button", { name: "Send 2" }).click();
+  await expect.poll(() => desk.commands.filter((c) => c.kind === "message:Post").map((c) => c.payload.outletId)).toEqual(["OUT063", "OUT064"]);
+  const posts = desk.commands.filter((c) => c.kind === "message:Post");
+  expect(posts.every((c) => c.payload.to === "outlet")).toBe(true);
+  expect(posts[0]!.payload.body).not.toEqual(posts[1]!.payload.body);
+});

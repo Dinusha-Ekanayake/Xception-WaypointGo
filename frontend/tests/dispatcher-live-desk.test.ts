@@ -117,3 +117,17 @@ test("a stop the driver reported closed is a card to decide, first with the fail
   assert.equal(card.title, "OUT061 · store closed");
   assert.equal(card.chip.text, "Decide");
 });
+
+test("each store waiting gets its own time, in trip order; a store already served gets none", async () => {
+  const { eachStoreMessages } = await import("../src/shared/messaging/templates.ts");
+  const msgs = eachStoreMessages({
+    serviceDate: DATE,
+    stops: [
+      stop("VEH001", 2, { expectedArrival: at("11:40") }),
+      stop("VEH001", 1, { outcome: "DELIVERED" }),
+      stop("VEH001", 3, { expectedArrival: at("12:30") }),
+    ],
+  });
+  assert.deepEqual(msgs.map((m) => m.outletId), ["OUT062", "OUT063"]);
+  assert.notEqual(msgs[0]!.body, msgs[1]!.body);
+});
