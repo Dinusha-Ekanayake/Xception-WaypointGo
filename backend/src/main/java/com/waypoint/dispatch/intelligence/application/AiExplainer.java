@@ -38,6 +38,11 @@ public class AiExplainer {
   static final String INSTRUCTION = String.join(" ",
       "You explain a delivery plan to a dispatcher in plain, friendly English.",
       "Use only the facts given. Never add a number, a name, a vehicle, a store, a time or a reason that is not in them.",
+      "What the facts mean: carries is what the plan delivers. leftOff lists orders that are NOT in this plan:",
+      "they wait for a later delivery day, each because putting it on a trip would have broken the rule its label names",
+      "(a missed window, a time budget, too many trips, no refrigerated vehicle, no room); so nothing in the plan breaks",
+      "these rules. Say they were left off and why, never that a delivery will be late or a trip is over a limit.",
+      "cannotBeServed lists orders no vehicle can carry at all. Each item is its own fact: never join two items into one.",
       "No rule codes, no technical or programming words, no maths. Short sentences.",
       "Format as Markdown: one short opening paragraph, then at most five bullet points, using **bold** for what matters and *italic* for the planner's own reasons.",
       "Never use an em dash or an en dash. Under 130 words.");
@@ -125,7 +130,7 @@ public class AiExplainer {
     java.util.function.UnaryOperator<String> back =
         text -> com.waypoint.dispatch.intelligence.domain.PromptNames.restore(text, people.tokens());
     String cacheKey = key.length() > 200 ? key.substring(0, 200) : key;
-    Optional<String> had = database.asSystem(ModuleRole.ML, () -> calls.usedAnswer(cacheKey));
+    Optional<String> had = database.asSystem(ModuleRole.ML, () -> calls.usedAnswer(cacheKey, PromptFacts.version(INSTRUCTION)));
     if (had.isPresent()) {
       return new Worded("worded", had.map(back));
     }

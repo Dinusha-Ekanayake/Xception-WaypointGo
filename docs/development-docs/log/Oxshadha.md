@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-22 - fix: the plan explanation says left-off orders were left off
+
+`dev` · @Oxshadha
+
+- Checked on the live stack: the model's wording of a plan had every figure right but read the left-off orders as things the plan does ("six deliveries will miss their windows"), and joined two separate facts. The prompt now says what each fact means (R-ML-10); four askings in a row were right. A worded answer is reused only under the same prompt version, so a prompt change takes effect at once.
+
+---
+
 ## 2026-10-22 - fix: a vehicle lost between trips is replanned without its trip on the road
 
 `dev` · @Oxshadha

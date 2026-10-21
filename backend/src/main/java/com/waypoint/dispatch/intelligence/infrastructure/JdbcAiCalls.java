@@ -18,9 +18,11 @@ public class JdbcAiCalls {
   }
 
   /** An answer already used for this key: served again, never asked twice. */
-  public Optional<String> usedAnswer(String cacheKey) {
+  /** The last answer used for this key under this prompt: a changed prompt asks again (R-ML-27). */
+  public Optional<String> usedAnswer(String cacheKey, String promptVersion) {
     Map<String, Object> row = database.queryOne(
-        "SELECT answer FROM ml.ai_calls WHERE cache_key = ? AND outcome = 'used' ORDER BY asked_at DESC LIMIT 1", cacheKey);
+        "SELECT answer FROM ml.ai_calls WHERE cache_key = ? AND prompt_version = ? AND outcome = 'used'"
+            + " ORDER BY asked_at DESC LIMIT 1", cacheKey, promptVersion);
     return row == null ? Optional.empty() : Optional.ofNullable((String) row.get("answer"));
   }
 
