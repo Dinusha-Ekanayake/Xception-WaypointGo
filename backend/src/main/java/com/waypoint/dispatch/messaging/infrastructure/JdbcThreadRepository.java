@@ -135,12 +135,14 @@ public class JdbcThreadRepository {
 
   /** The trip a vehicle is on that day: the latest opened, for a report that names only the vehicle. */
   public Optional<Thread> tripOfVehicle(String vehicleId, LocalDate serviceDate) {
+    // A vehicle with two trips a day has both threads opened by the plan at once: the one on the road
+    // is the trip whose channel the driver opened last; only before any has started is it the newest.
     return Optional.ofNullable(
             database.queryOne(
                 """
                 SELECT * FROM messaging.threads
                  WHERE subject_type = 'trip' AND vehicle_id = ? AND service_date = ?
-                 ORDER BY opened_at DESC, thread_id DESC LIMIT 1
+                 ORDER BY channel_opened_at DESC NULLS LAST, opened_at DESC, thread_id DESC LIMIT 1
                 """,
                 vehicleId, serviceDate))
         .map(JdbcThreadRepository::thread);

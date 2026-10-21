@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryCompleted;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryFailed;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryStarted;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.VehicleFaultReported;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryOutcome;
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.identity.application.LoginHandler;
@@ -868,6 +869,28 @@ class MessagingIntegrationTest {
   }
 
   /** The driver's Start on the first stop, after loading released the trip. */
+  @Test
+  void aBreakdownIsSaidOnTheTripTheVanIsDrivingNotItsNextOne() throws Exception {
+    // A vehicle with two trips the same day: both threads open with the plan, and the later one has
+    // not started. The notice belongs to the trip on the road, whichever thread was opened last.
+    UUID next = UUID.randomUUID();
+    database.asSystemSeparately(ModuleRole.MESSAGING, () -> database.update(
+        "INSERT INTO messaging.threads (thread_id, subject_type, subject_id, depot_code, vehicle_id, service_date, outlet_ids, opened_at, updated_at)"
+            + " SELECT ?, 'trip', ?, depot_code, vehicle_id, service_date, outlet_ids, opened_at + interval '1 minute', updated_at"
+            + " FROM messaging.threads WHERE thread_id = ?",
+        next, UUID.randomUUID().toString(), threadId));
+    long threadsToday = ((Number) database.asSystemSeparately(ModuleRole.MESSAGING, () -> database.queryOne(
+        "SELECT count(*) AS n FROM messaging.threads WHERE vehicle_id = ? AND service_date = ?", vehicleId, java.sql.Date.valueOf(day))).get("n")).longValue();
+    assertEquals(2, threadsToday, "the vehicle has two trips today");
+    startTrip();
+    publish(ModuleRole.EXECUTION, new VehicleFaultReported(vehicleId, depot, day, "clutch gone", clock.now()));
+    drain();
+    assertTrue(bodies(dispatcher).contains(vehicleId + " is delayed: breakdown"), "on the trip that started");
+    long onNext = ((Number) database.asSystemSeparately(ModuleRole.MESSAGING, () -> database.queryOne(
+        "SELECT count(*) AS n FROM messaging.messages WHERE thread_id = ?", next)).get("n")).longValue();
+    assertEquals(0, onNext, "nothing on the trip that has not left");
+  }
+
   private void startTrip() {
     publish(ModuleRole.EXECUTION, new DeliveryStarted(UUID.randomUUID(), orders.get(OUTLET), tripId, OUTLET));
     drain();

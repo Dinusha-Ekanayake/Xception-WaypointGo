@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-23 - fix: a breakdown is said on the trip the van is driving, not its next one
+
+`dev` · @Oxshadha
+
+- Found while checking the trip outlook live: a vehicle with two trips a day has both threads opened by the plan at once, and a breakdown notice and fault report went to whichever sorted last, often the trip not yet left. They now go to the trip whose channel the driver opened last (EDGE-CASES MSG-28).
+
+---
+
 ## 2026-10-23 - feat: one decision outlook per trip, at the top of the trip's chat
 
 `dev` · @Oxshadha
