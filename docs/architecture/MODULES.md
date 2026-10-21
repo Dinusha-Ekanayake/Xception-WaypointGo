@@ -594,7 +594,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `PlanQuery.previewInterchange` | Loading | Planning |
 | `PredictionQuery` (plan scoring, degradable) | Planning | Intelligence |
 | `PlanQuery.joinsTrip` (room on a trip, advice) | Ordering | Planning |
-| `CatalogueQuery` | store UI, admin | Warehouse |
+| `CatalogueQuery` | store UI, admin; every role for product names (`names`, R-STK-15) | Warehouse |
 | `IssueQuery.issue`, `ExecutionQuery.deliveryRecord`, `deliveryForOrder` | Messaging | Issues, Execution |
 | audit row, written in the same transaction | all | platform |
 

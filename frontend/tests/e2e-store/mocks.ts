@@ -344,6 +344,7 @@ export async function mockStore(
     if (pathname === "/api/issues/by-subject") return json(url.searchParams.get("id") === ORIGINAL.orderId ? [REDELIVERED] : [SHORTFALL]);
     if (pathname === "/api/warehouse/catalogue/status") return json({ syncedAt: new Date().toISOString(), ageSeconds: 5, stale: false, productCount: 3, circuitState: "closed" });
     if (pathname === "/api/warehouse/catalogue") return json({ items: PRODUCTS, nextCursor: null });
+    if (pathname === "/api/warehouse/catalogue/names") return json({});
     if (pathname.startsWith("/api/reference/calendar/")) return json({ date: pathname.split("/").pop(), operating: true, nextOperatingDay: pathname.split("/").pop(), known: true, day: {} });
     if (pathname === "/api/orders/delivery-date") {
       const requested = url.searchParams.get("requestedDate");

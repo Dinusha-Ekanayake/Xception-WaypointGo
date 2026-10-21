@@ -1117,6 +1117,20 @@ class ExecutionIntegrationTest {
     read(dispatcher, "/api/outlets/contacts?ids=" + many, 422);
   }
 
+  // ---- product names (docs/issues/product-names/PLAN.md) ----
+
+  @Test
+  void theDriverReadsTheNamesOfTheProductsOnTheirStopsButNothingWithoutASession() throws Exception {
+    // The loader's and driver's policies gained warehouse:ReadCatalogue for names only.
+    assertTrue(json(read(driver, "/api/warehouse/catalogue/names?ids=P-1,P-2", 200)).isObject());
+    assertTrue(json(read(dispatcher, "/api/warehouse/catalogue/names?ids=P-1", 200)).isObject());
+    int unsigned = http.perform(get("/api/warehouse/catalogue/names?ids=P-1")).andReturn().getResponse().getStatus();
+    assertEquals(401, unsigned);
+    StringBuilder many = new StringBuilder("P-0");
+    for (int i = 1; i <= 200; i++) many.append(",P-").append(i);
+    read(driver, "/api/warehouse/catalogue/names?ids=" + many, 422);
+  }
+
   // ---- positions (issue #161) ----
 
   private JsonNode presenceOf(String vehicle) throws Exception {

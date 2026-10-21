@@ -77,6 +77,17 @@ public class WarehouseCatalogueQuery implements CatalogueQuery {
   }
 
   @Override
+  public java.util.Map<String, String> names(java.util.Collection<String> productIds) {
+    List<String> ids = productIds.stream().filter(id -> id != null && !id.isBlank()).distinct().toList();
+    if (ids.isEmpty()) return java.util.Map.of();
+    if (ids.size() > MAX_NAMES) {
+      throw new com.waypoint.dispatch.shared.error.DomainException(
+          com.waypoint.dispatch.shared.error.ErrorCode.VALIDATION_FAILED, "Ask for at most " + MAX_NAMES + " products");
+    }
+    return read(() -> catalogue.names(ids));
+  }
+
+  @Override
   public CatalogueStatusView status() {
     Optional<LastSync> last = read(catalogue::lastGood);
     Instant now = clock.now();

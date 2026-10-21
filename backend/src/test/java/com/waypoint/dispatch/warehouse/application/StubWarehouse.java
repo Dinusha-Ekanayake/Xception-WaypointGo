@@ -58,6 +58,7 @@ final class StubWarehouse implements AutoCloseable {
   private final Map<String, Order> orders = new ConcurrentHashMap<>();
   private final Map<String, Integer> available = new ConcurrentHashMap<>();
   private final List<String> products = new ArrayList<>();
+  private final java.util.Map<String, String> names = new java.util.HashMap<>();
   /** Unique per stub: the test database outlives a run, and real warehouse ids are never reused. */
   private final String prefix = "ORD" + Long.toString(System.nanoTime(), 36).toUpperCase() + "-";
   private final AtomicInteger sequence = new AtomicInteger();
@@ -83,6 +84,7 @@ final class StubWarehouse implements AutoCloseable {
     orders.clear();
     available.clear();
     products.clear();
+    names.clear();
     posts.set(0);
     calls.set(0);
     failWith = 0;
@@ -96,6 +98,12 @@ final class StubWarehouse implements AutoCloseable {
 
   void listProduct(String productId) {
     products.add(productId);
+  }
+
+  /** A product with the name the warehouse API now gives. */
+  void listProduct(String productId, String name) {
+    products.add(productId);
+    names.put(productId, name);
   }
 
   Order order(String id) {
@@ -242,6 +250,9 @@ final class StubWarehouse implements AutoCloseable {
           .put("temp_requirement", i % 2 == 0 ? "chilled" : "ambient")
           .put("unit_weight_kg", 6.6182).put("unit_volume_m3", 0.03355)
           .put("base_product_id", "BASE").put("basis", "cluster_center").put("verified_real_sku", false);
+      if (names.containsKey(products.get(i))) {
+        ((ObjectNode) data.get(data.size() - 1)).put("name", names.get(products.get(i))).put("category", "Meat & Fish");
+      }
     }
     response.put("page", page).put("limit", limit).put("total", products.size());
     send(x, 200, response);

@@ -20,6 +20,8 @@ public final class CatalogueViews {
    *     such a product "inferred" (CAT-06)
    * @param temperature {@code chilled} or {@code ambient}, from the warehouse's
    *     {@code temp_requirement} (decision D-M); empty if a row lacks it
+   * @param name the warehouse's name, for people to read; still a reconstruction,
+   *     so it is shown labelled inferred
    */
   public record ProductView(
       String productId,
@@ -28,7 +30,9 @@ public final class CatalogueViews {
       BigDecimal unitVolumeM3,
       Optional<String> temperature,
       boolean verifiedRealSku,
-      String basis) {}
+      String basis,
+      Optional<String> name,
+      Optional<String> category) {}
 
   /**
    * Shown as degraded when stale, never as current (CAT-01).

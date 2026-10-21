@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { productLabel } from "../../data/format.ts";
 import { IssueCommandKind, type OrderView, type RaiseIssue } from "@shared/domain/types";
 import { friendlyError } from "@shared/api/problem";
 import { Icon, Notice, cx } from "@shared/ui";
@@ -162,7 +163,7 @@ export default function ReportIssue({
             >
               {(order?.lines ?? []).map((l) => (
                 <option key={l.productId} value={l.productId}>
-                  {l.productId} · {unitsText(l.quantity)}
+                  {productLabel(l.productId)} · {unitsText(l.quantity)}
                 </option>
               ))}
             </select>

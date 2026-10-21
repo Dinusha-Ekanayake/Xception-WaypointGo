@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useProductNames } from "@shared/catalogue/useProductNames";
 import { useOnline, useResource } from "@shared/api/useResource";
 import { outletWatch } from "@shared/api/changes";
 import { IssueCommandKind, type DecisionView, type OrderView } from "@shared/domain/types";
@@ -100,6 +101,8 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
   const warehouse = useResource((s) => gateway.catalogueStatus(s), "catalogue", 60_000);
   // Today on the business clock, which demo mode can move.
   useClockOffset();
+  // The warehouse's names on every product label (docs/issues/product-names/PLAN.md).
+  useProductNames();
   const today = depotToday();
   const deliveries = useResource(
     outletId ? (s) => gateway.deliveries(outletId, today, s) : null,

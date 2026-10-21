@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useProductNames } from "@shared/catalogue/useProductNames";
 import { flushSync } from "react-dom";
 import type { NotificationView } from "@shared/domain/notification";
 import { ago } from "@shared/notifications/inbox";
@@ -42,6 +43,8 @@ const ROUTE_CHANGED = new Set(["plan.revised", "delivery.skipped"]);
  * proof, the problem report and the stop detail keep their working forms.
  */
 export default function Driver({ userId, displayName, scope }: { userId: string; displayName: string; scope: string[] }): React.JSX.Element {
+  // The warehouse's names on every product label (docs/issues/product-names/PLAN.md).
+  useProductNames();
   const d = useDriver(userId, scope[0] ?? null);
   const inbox = useInbox(userId);
   const shell = useShell();

@@ -48,15 +48,16 @@ public class JdbcCatalogueRepository {
     for (CatalogueEntry e : entries) {
       database.update(
           "INSERT INTO warehouse.products (product_id, brand, temperature, unit_weight_kg, unit_volume_m3,"
-              + " base_product_id, basis, verified_real_sku, catalogue_version, synced_at)"
-              + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+              + " base_product_id, basis, verified_real_sku, name, category, catalogue_version, synced_at)"
+              + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
               + " ON CONFLICT (product_id) DO UPDATE SET brand = EXCLUDED.brand,"
               + " temperature = EXCLUDED.temperature, unit_weight_kg = EXCLUDED.unit_weight_kg,"
               + " unit_volume_m3 = EXCLUDED.unit_volume_m3, base_product_id = EXCLUDED.base_product_id,"
               + " basis = EXCLUDED.basis, verified_real_sku = EXCLUDED.verified_real_sku,"
+              + " name = EXCLUDED.name, category = EXCLUDED.category,"
               + " catalogue_version = EXCLUDED.catalogue_version, synced_at = EXCLUDED.synced_at",
           e.productId(), e.brand(), e.temperature(), e.unitWeightKg(), e.unitVolumeM3(),
-          e.baseProductId(), e.basis(), e.verifiedRealSku(), version, Timestamp.from(at));
+          e.baseProductId(), e.basis(), e.verifiedRealSku(), e.name(), e.category(), version, Timestamp.from(at));
     }
   }
 
@@ -81,16 +82,19 @@ public class JdbcCatalogueRepository {
       String version, Optional<String> brand, Optional<String> search, Optional<String> after, int limit) {
     StringBuilder sql =
         new StringBuilder(
-            "SELECT product_id, brand, temperature, unit_weight_kg, unit_volume_m3, verified_real_sku, basis"
-                + " FROM warehouse.products WHERE catalogue_version = ?");
+            "SELECT product_id, brand, temperature, unit_weight_kg, unit_volume_m3, verified_real_sku, basis,"
+                + " name, category FROM warehouse.products WHERE catalogue_version = ?");
     List<Object> params = new ArrayList<>(List.of(version));
     brand.ifPresent(b -> {
       sql.append(" AND lower(brand) = lower(?)");
       params.add(b);
     });
     search.ifPresent(q -> {
-      sql.append(" AND product_id ILIKE ?");
-      params.add("%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%");
+      // A person searches by the name they read, or by the id on a note.
+      sql.append(" AND (product_id ILIKE ? OR name ILIKE ?)");
+      String like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+      params.add(like);
+      params.add(like);
     });
     after.ifPresent(a -> {
       sql.append(" AND product_id > ?");
@@ -104,8 +108,8 @@ public class JdbcCatalogueRepository {
   public Optional<ProductView> product(String productId) {
     Map<String, Object> row =
         database.queryOne(
-            "SELECT product_id, brand, temperature, unit_weight_kg, unit_volume_m3, verified_real_sku, basis"
-                + " FROM warehouse.products WHERE product_id = ?",
+            "SELECT product_id, brand, temperature, unit_weight_kg, unit_volume_m3, verified_real_sku, basis,"
+                + " name, category FROM warehouse.products WHERE product_id = ?",
             productId);
     return Optional.ofNullable(row).map(JdbcCatalogueRepository::view);
   }
@@ -118,6 +122,18 @@ public class JdbcCatalogueRepository {
         (BigDecimal) row.get("unit_volume_m3"),
         Optional.ofNullable((String) row.get("temperature")),
         Boolean.TRUE.equals(row.get("verified_real_sku")),
-        (String) row.get("basis"));
+        (String) row.get("basis"),
+        Optional.ofNullable((String) row.get("name")),
+        Optional.ofNullable((String) row.get("category")));
+  }
+
+  /** The names of these products, for the lines people read; a product without one is left out. */
+  public Map<String, String> names(List<String> productIds) {
+    Map<String, String> out = new java.util.LinkedHashMap<>();
+    database.query(
+            "SELECT product_id, name FROM warehouse.products WHERE product_id = ANY(?::text[]) AND name IS NOT NULL",
+            "{" + String.join(",", productIds) + "}")
+        .forEach(r -> out.put((String) r.get("product_id"), (String) r.get("name")));
+    return out;
   }
 }

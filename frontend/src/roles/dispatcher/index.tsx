@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useProductNames } from "@shared/catalogue/useProductNames";
 import { useOnline } from "@shared/api/useResource";
 import { ToastProvider, useScrollMemory } from "@shared/ui";
 import Sidebar, { CompactNav, useFolded, type Badges } from "./Sidebar.tsx";
@@ -65,6 +66,8 @@ export default function Dispatcher({
   // Overview and Vehicles are today's fleet, on the business clock: a moved demo
   // clock moves today, and the plan's day with it while it was still on today.
   useClockOffset();
+  // The warehouse's names on every product label (docs/issues/product-names/PLAN.md).
+  useProductNames();
   const today = depotToday();
   // When the run moves on (the cutoff passes, or a new day), the plan's day moves
   // with it, unless the dispatcher chose another day.

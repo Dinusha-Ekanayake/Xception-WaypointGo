@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useProductNames } from "@shared/catalogue/useProductNames";
 import { flushSync } from "react-dom";
 import { useOnline, useResource } from "@shared/api/useResource";
 import { registerResolver, useSync } from "@shared/offline";
@@ -61,6 +62,8 @@ function LoaderWorkspace({
   // The dock's day: the first from today with a trip still to load (issue #114),
   // today on the business clock, which demo mode can move.
   useClockOffset();
+  // The warehouse's names on every product label (docs/issues/product-names/PLAN.md).
+  useProductNames();
   const today = depotToday();
   const [date, setDate] = useState(today);
   const [openId, setOpenId] = useState<string | null>(null);

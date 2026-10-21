@@ -14,6 +14,8 @@ import java.util.List;
  *
  * @param temperature {@code chilled} or {@code ambient}; null if the warehouse sent neither
  * @param verifiedRealSku false on every reconstructed row; shown as "inferred" (CAT-06)
+ * @param name the warehouse's name for people to read; null when it gives none
+ * @param category the warehouse's category; null when it gives none
  */
 public record CatalogueEntry(
     String productId,
@@ -23,7 +25,9 @@ public record CatalogueEntry(
     BigDecimal unitVolumeM3,
     String baseProductId,
     String basis,
-    boolean verifiedRealSku) {
+    boolean verifiedRealSku,
+    String name,
+    String category) {
 
   /**
    * The catalogue's version: a hash of its content, so a sync that changed
@@ -40,7 +44,8 @@ public record CatalogueEntry(
                       e.unitWeightKg().stripTrailingZeros().toPlainString(),
                       e.unitVolumeM3().stripTrailingZeros().toPlainString(),
                       String.valueOf(e.baseProductId()), e.basis(),
-                      String.valueOf(e.verifiedRealSku()))
+                      String.valueOf(e.verifiedRealSku()), String.valueOf(e.name()),
+                      String.valueOf(e.category()))
                   .concat("\n")
                   .getBytes(StandardCharsets.UTF_8)));
       return "cat-" + HexFormat.of().formatHex(digest.digest()).substring(0, 16);

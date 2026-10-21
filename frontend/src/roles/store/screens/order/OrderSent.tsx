@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { productLabel } from "../../data/format.ts";
 import type { OutletView, PlacedOrder } from "@shared/domain/types";
 import { Icon, Notice } from "@shared/ui";
 import { changeDeadline, clock, dayLabel, depotToday, hhmm, movedReason, temperatureLabel } from "../../data/format.ts";
@@ -121,7 +122,7 @@ function ShortfallNotice({ order, onAccept }: { order: PlacedOrder; onAccept: (o
           .filter((l) => l.reserved < l.requested)
           .map((l) => (
             <li key={l.productId}>
-              {l.productId}: {t("{n} of {total}", { n: l.reserved, total: l.requested })}
+              {productLabel(l.productId)}: {t("{n} of {total}", { n: l.reserved, total: l.requested })}
             </li>
           ))}
       </ul>

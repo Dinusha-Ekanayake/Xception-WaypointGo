@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-21 - feat: products read by the warehouse's name
+
+`dev` · @Oxshadha
+
+- The warehouse API now names products; the catalogue sync keeps `name` and `category`, and every screen that lists a product shows the name, still "(inferred)" (R-STK-15, CAT-07, CAT-08, [plan](../../issues/product-names/PLAN.md)). One names read for all roles, kept on the device for offline labels; the loader's and driver's policies gain `warehouse:ReadCatalogue` (new default versions). The store searches by name. Not checked against the live warehouse yet: no API key locally, so built to its published shape.
+
+---
+
 ## 2026-10-21 - feat: each stop's store manager and phone on the trip, no Call button
 
 `dev` · @Oxshadha

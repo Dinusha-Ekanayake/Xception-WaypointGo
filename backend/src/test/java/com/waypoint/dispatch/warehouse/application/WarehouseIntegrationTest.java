@@ -369,6 +369,24 @@ class WarehouseIntegrationTest {
     assertTrue(catalogue.status().ageSeconds() >= 0);
   }
 
+  @Test
+  void theWarehousesNamesAreKeptSearchedAndReadForTheLinesPeopleSee() {
+    STUB.listProduct(product + "-N", "Prawns 500g x 13");
+    STUB.listProduct(product + "-U");
+    assertEquals("changed", catalogueSync.sync(Instant.now()));
+
+    var named = catalogue.product(product + "-N").orElseThrow();
+    assertEquals(Optional.of("Prawns 500g x 13"), named.name());
+    assertEquals(Optional.of("Meat & Fish"), named.category());
+    assertFalse(named.verifiedRealSku(), "a name does not make it a real SKU");
+    assertEquals(Optional.empty(), catalogue.product(product + "-U").orElseThrow().name());
+
+    assertEquals(java.util.Map.of(product + "-N", "Prawns 500g x 13"),
+        catalogue.names(List.of(product + "-N", product + "-U", "NOT-LISTED")), "an unnamed or unknown product is absent");
+    assertTrue(catalogue.catalogue(Optional.empty(), Optional.of("prawns 500"), Optional.empty(), 50).items().stream()
+        .anyMatch(p -> p.productId().equals(product + "-N")), "searched by the name a person reads");
+  }
+
   // ---- helpers ---------------------------------------------------------------
 
   private String lastRef;

@@ -3,7 +3,7 @@ import { deviceProjects } from "./tests/devices.ts";
 
 export default defineConfig({
   testDir: "./tests/e2e-loader",
-  testMatch: ["offline.spec.ts", "release.spec.ts", "language.spec.ts", "offline-pin.spec.ts", "wide.spec.ts", "held.spec.ts", "notifications.spec.ts", "devices.spec.ts", "messages.spec.ts", "issue-photo.spec.ts", "voice.spec.ts", "arrival.spec.ts", "stream.spec.ts", "found.spec.ts", "live-tab.spec.ts"],
+  testMatch: ["offline.spec.ts", "release.spec.ts", "language.spec.ts", "offline-pin.spec.ts", "wide.spec.ts", "held.spec.ts", "notifications.spec.ts", "devices.spec.ts", "messages.spec.ts", "issue-photo.spec.ts", "voice.spec.ts", "arrival.spec.ts", "stream.spec.ts", "found.spec.ts", "live-tab.spec.ts", "product-names.spec.ts"],
   timeout: 30_000,
   // Two in CI, where each suite has a runner to itself.
   workers: process.env.CI ? 2 : 1,

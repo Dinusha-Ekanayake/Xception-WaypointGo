@@ -54,9 +54,11 @@ export type Match = { product: ProductView; listed: boolean };
 export function matches(query: string, temperature: Temperature, products: ProductView[], rows: readonly string[], limit = 6): Match[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  const rank = (m: Match) => (m.listed ? 2 : m.product.productId.toLowerCase().startsWith(q) ? 0 : 1);
+  // By the warehouse's name a person reads, or by the id on a note (docs/issues/product-names/PLAN.md).
+  const text = (p: ProductView) => `${p.name ?? ""} ${p.productId}`.toLowerCase();
+  const rank = (m: Match) => (m.listed ? 2 : (m.product.name ?? m.product.productId).toLowerCase().startsWith(q) ? 0 : 1);
   return products
-    .filter((p) => (p.temperature ?? "ambient") === temperature && p.productId.toLowerCase().includes(q))
+    .filter((p) => (p.temperature ?? "ambient") === temperature && text(p).includes(q))
     .map((product) => ({ product, listed: rows.includes(product.productId) }))
     .sort((a, b) => rank(a) - rank(b))
     .slice(0, limit);

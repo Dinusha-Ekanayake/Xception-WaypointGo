@@ -1,5 +1,6 @@
 "use client";
 import { cx } from "@shared/ui";
+import { productNameOf } from "@shared/wording";
 import type { ReceiptAnswerView } from "@shared/domain/types";
 import type { RouteStop } from "../data/stopView.ts";
 import type { HandoverPhase } from "../data/handover.ts";
@@ -66,7 +67,7 @@ export default function DeliveryReportWaiting({
   const receivedUnits = lines.reduce((sum, line) => sum + (line.receivedQuantity ?? line.expectedQuantity), 0);
   // The catalogue is reconstructed from order totals: a product is never shown as a real SKU.
   const deliveredItems = lines.map((line) => ({
-    code: line.productId,
+    code: productNameOf(line.productId) ?? line.productId,
     category: t("Inferred product"),
     qty: line.receivedQuantity ?? line.expectedQuantity,
     expected: line.expectedQuantity,

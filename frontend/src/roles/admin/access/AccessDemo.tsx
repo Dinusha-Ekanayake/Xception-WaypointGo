@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useProductNames } from "@shared/catalogue/useProductNames";
 import { Icon, Popover, ShellActions, cx, type IconName } from "@shared/ui";
 import { CreateMemberModal, type NewMember } from "./AdminAccessFlows";
 import { Badge, Modal, card, field, primary, secondary } from "./components";
@@ -119,6 +120,8 @@ export function useFolded(): [boolean, (folded: boolean) => void] {
 }
 
 export default function AccessDemo({ userId, displayName = "Administrator" }: { userId?: string; displayName?: string }) {
+  // The warehouse's names on every product label (docs/issues/product-names/PLAN.md).
+  useProductNames();
   const [folded, setFolded] = useFolded();
   const rail = folded;
   const [state, setState] = useState<DemoState>(freshState);

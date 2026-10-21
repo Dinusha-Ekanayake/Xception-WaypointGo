@@ -254,9 +254,13 @@ class WarehouseDomainTest {
 
   @Test
   void theCatalogueVersionIsAContentHash() {
-    var a = new CatalogueEntry("P-1", "Fresh", "chilled", new BigDecimal("6.6182"), new BigDecimal("0.03355"), "B", "x", false);
-    var b = new CatalogueEntry("P-2", "Tech", "ambient", new BigDecimal("1.0"), new BigDecimal("0.01"), "C", "x", false);
+    var a = new CatalogueEntry("P-1", "Fresh", "chilled", new BigDecimal("6.6182"), new BigDecimal("0.03355"), "B", "x", false, "Prawns 500g x 13", "Meat & Fish");
+    var b = new CatalogueEntry("P-2", "Tech", "ambient", new BigDecimal("1.0"), new BigDecimal("0.01"), "C", "x", false, null, null);
     assertEquals(CatalogueEntry.version(List.of(a, b)), CatalogueEntry.version(List.of(b, a)));
     assertFalse(CatalogueEntry.version(List.of(a)).equals(CatalogueEntry.version(List.of(a, b))));
+    // A product the warehouse renames is a new version, so the next sync stores the new name.
+    var renamed = new CatalogueEntry("P-1", "Fresh", "chilled", new BigDecimal("6.6182"), new BigDecimal("0.03355"), "B", "x", false,
+        "Prawns 500g x 12", "Meat & Fish");
+    assertFalse(CatalogueEntry.version(List.of(a)).equals(CatalogueEntry.version(List.of(renamed))));
   }
 }

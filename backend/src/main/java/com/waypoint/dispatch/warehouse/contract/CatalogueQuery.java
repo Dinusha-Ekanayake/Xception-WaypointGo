@@ -13,5 +13,11 @@ public interface CatalogueQuery {
 
   Optional<ProductView> product(String productId);
 
+  /** At most this many ids in one {@link #names} read. */
+  int MAX_NAMES = 200;
+
+  /** The warehouse's names of these products; one it has not named is absent. */
+  java.util.Map<String, String> names(java.util.Collection<String> productIds);
+
   CatalogueStatusView status();
 }

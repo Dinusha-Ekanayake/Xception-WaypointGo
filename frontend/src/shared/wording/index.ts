@@ -3,5 +3,6 @@
 export * from "./time.ts";
 export * from "./now.ts";
 export * from "./terms.ts";
+export * from "./productNames.ts";
 export * from "./labels.ts";
 export * from "./rules.ts";

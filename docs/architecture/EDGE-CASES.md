@@ -79,6 +79,8 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | CAT-04 | Order references a product absent from the current catalogue | Line renders as unknown; the order stays deliverable | Query layer | Unknown-product counter | Unit |
 | CAT-05 | New order has no product lines | Normal, not an error. Lines exist only where the warehouse supplied them | Ordering domain | n/a | Unit |
 | CAT-06 | Candidate product shown to a store manager | Labelled as inferred. Never presented as a confirmed SKU | Client | n/a | Browser test |
+| CAT-07 | A product has no name from the warehouse, or the names read fails (offline, older server) | The label built from the id, as before; a failed read is asked again after a minute, and names already read stay on the device | `productLabel`, `useProductNames` | none | `tests/product-names.test.ts`, `e2e-loader/product-names.spec.ts` |
+| CAT-08 | A product's name holds a comma or a sentence-ending full stop | Removed in the label, since a store's note lists products as "Missing: A x1, B x2."; a decimal point stays ("Juice 1.5L") | `productLabel` | none | `tests/product-names.test.ts` |
 
 ## 4. Planning and capacity
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { productLabel } from "../../data/format.ts";
 import type { ProductView, Temperature } from "@shared/domain/types";
 import { Icon } from "@shared/ui";
 import { matches } from "../../data/lines.ts";
@@ -62,7 +63,7 @@ export default function ItemPicker({
           {found.map(({ product, listed }) => (
             <li key={product.productId} className="flex items-center gap-3 rounded-[12px] py-1 pr-1 pl-3 hover:bg-go-canvas">
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[15px] font-medium text-black">{product.productId}</span>
+                <span className="truncate text-[15px] font-medium text-black">{product.name ?? productLabel(product.productId)}</span>
                 <span className="text-[12px] text-go-muted">
                   {t(listed ? "In the list" : "Not ordered before")}
                   {!product.verifiedRealSku && (
@@ -74,7 +75,7 @@ export default function ItemPicker({
                 </span>
               </span>
               {!listed && (
-                <button type="button" aria-label={t("Add {item}", { item: product.productId })} onClick={() => add(product.productId)} className="min-h-12 shrink-0 px-3 text-[14px] font-medium text-go-teal">
+                <button type="button" aria-label={t("Add {item}", { item: product.name ?? product.productId })} onClick={() => add(product.productId)} className="min-h-12 shrink-0 px-3 text-[14px] font-medium text-go-teal">
                   {t("+ Add")}
                 </button>
               )}

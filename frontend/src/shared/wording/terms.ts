@@ -1,3 +1,5 @@
+import { productNameOf } from "./productNames.ts";
+
 // Counts in the glossary's words (docs/architecture/GLOSSARY.md, "Quantities").
 // The order quantity is units: the data has no case or package.
 
@@ -22,6 +24,10 @@ export const trips = (n: number): string => `${n} ${n === 1 ? "trip" : "trips"}`
  * that line reads as the mixed goods it stands for rather than as a code.
  */
 export function productLabel(productId: string): string {
+  // The warehouse's name when it gives one (docs/issues/product-names/PLAN.md), still a reconstruction.
+  // No comma or full stop: a store's note lists products as "Missing: A x1, B x2." (noteOf).
+  const named = productNameOf(productId);
+  if (named) return `${named.replace(/,|\.(?=\s|$)/g, " ").replace(/\s+/g, " ").trim()} (inferred)`;
   const seed = /^SEED-[A-Za-z]+-(ambient|chilled)$/.exec(productId);
   if (seed) return seed[1] === "chilled" ? "Chilled goods (mixed)" : "Dry goods (mixed)";
   const candidate = CANDIDATE.exec(productId);

@@ -1,5 +1,5 @@
 import type { OutletView } from "@shared/domain/types";
-import { clock, codeLabel, DOCK_TYPE, hhmm } from "../../../shared/wording/index.ts";
+import { clock, codeLabel, DOCK_TYPE, hhmm, productNameOf } from "../../../shared/wording/index.ts";
 import { isFinished, withDispatcher, lateMinutes, summarize, unitsHandedOver, type Stop } from "./run.ts";
 import { translate, type Translate } from "./strings.ts";
 
@@ -97,7 +97,7 @@ export function toRouteStops(
       doneAt: stop.completedAt ? clock(stop.completedAt) : null,
       expectedUnits: stop.itemCount,
       // The catalogue is reconstructed from order totals: a product is never shown as a real SKU.
-      deliveredItems: stop.lines.map((line) => ({ code: line.productId, category: t("Inferred product"), qty: line.orderedUnits })),
+      deliveredItems: stop.lines.map((line) => ({ code: productNameOf(line.productId) ?? line.productId, category: t("Inferred product"), qty: line.orderedUnits })),
     };
   });
 }

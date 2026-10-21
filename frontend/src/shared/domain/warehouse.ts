@@ -15,6 +15,9 @@ export type ProductView = {
   temperature: Temperature | null;
   verifiedRealSku: boolean;
   basis: string;
+  /** The warehouse's name, still a reconstruction: shown labelled inferred. Absent from an older server. */
+  name?: string | null;
+  category?: string | null;
 };
 
 /** Show as degraded when stale, never as current. */

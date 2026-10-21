@@ -156,7 +156,9 @@ public class WarehouseHttpClient {
               new BigDecimal(p.path("unit_volume_m3").asText("0")),
               text(p, "base_product_id"),
               p.path("basis").asText("unknown"),
-              p.path("verified_real_sku").asBoolean(false)));
+              p.path("verified_real_sku").asBoolean(false),
+              text(p, "name"),
+              text(p, "category")));
     }
     return Listing.of(entries, response.body().path("total").asInt(entries.size()));
   }

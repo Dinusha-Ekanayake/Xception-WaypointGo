@@ -53,6 +53,13 @@ public class WarehouseController {
     return catalogue.status();
   }
 
+  /** The names of the products on a screen: {@code ?ids=A,B}, at most 200; an unnamed one is absent. */
+  @GetMapping("/catalogue/names")
+  public java.util.Map<String, String> names(@RequestParam String ids, HttpServletRequest request) {
+    authorizer.require(request, READ, "wpt:warehouse:catalogue:*");
+    return catalogue.names(java.util.Arrays.stream(ids.split(",")).map(String::strip).toList());
+  }
+
   @GetMapping("/catalogue/{productId}")
   public ProductView product(@PathVariable String productId, HttpServletRequest request) {
     authorizer.require(request, READ, "wpt:warehouse:product:" + productId);

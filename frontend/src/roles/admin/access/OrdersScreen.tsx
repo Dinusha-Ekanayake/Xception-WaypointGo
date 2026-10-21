@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { productLabel } from "@shared/wording";
 import { Badge, card, field, primary, secondary } from "./components";
 import type { DemoState } from "./model";
 import { todayInColombo } from "./model";
@@ -860,7 +861,7 @@ export function OrdersScreen({
                       <tbody className="divide-y divide-go-subtle">
                         {orderLines.map((line, idx) => (
                           <tr key={`${line.productId}-${idx}`} className="hover:bg-go-subtle">
-                            <td className="p-2.5 font-mono font-medium text-go-ink">{line.productId}</td>
+                            <td className="p-2.5 font-medium text-go-ink">{productLabel(line.productId)}{productLabel(line.productId) !== line.productId && <span className="block font-mono text-[11px] font-normal text-go-muted">{line.productId}</span>}</td>
                             <td className="p-2.5 text-go-secondary">{line.productName || "Inferred product, description unavailable"}</td>
                             <td className="p-2.5 text-right font-bold text-go-ink">{line.quantity}</td>
                             <td className="p-2.5 text-right text-go-secondary">{line.revision == null ? "Unavailable" : `Rev ${line.revision}`}</td>
