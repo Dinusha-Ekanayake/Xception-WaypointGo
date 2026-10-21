@@ -3,6 +3,7 @@ package com.waypoint.dispatch.planning;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -188,6 +189,23 @@ class PlanningRevisionIntegrationTest extends PlanningIntegrationSupport {
     assertEquals("PUBLISHED", plan(original).get("status").asText(), "only a dispatcher publishes it");
     // The Plan screen says why the draft is there (R-FLT-06).
     assertTrue(view.path("revisionReason").asText().contains(lost), view.path("revisionReason").toString());
+  }
+
+  @Test
+  void aVehicleLostWhoseTripHasAlreadyLeftDraftsNothingThatCouldNotBePublished() throws Exception {
+    // Found on the live stack, 2026-10-22: the revision moved the trip on the road too, so it could never be sent.
+    demand("ambient");
+    UUID original = publishedPlan();
+    JsonNode trip = plan(original).get("trips").get(0);
+    String lost = trip.get("vehicleId").asText();
+    UUID tripId = UUID.fromString(trip.get("tripId").asText());
+    deliver("planning.on-trip-released", new com.waypoint.dispatch.loading.contract.LoadingEvents.TripReleased(
+        tripId, original, 1, lost, depot, serviceDate, List.of()));
+
+    deliver("planning.on-vehicle-status-changed", new VehicleStatusChanged(lost, serviceDate, "unavailable", Optional.of("broken down")));
+
+    assertNull(openDraft(), "the trip on the road stays; there is nothing to move, so no draft is waiting");
+    assertEquals("PUBLISHED", plan(original).get("status").asText());
   }
 
   @Test

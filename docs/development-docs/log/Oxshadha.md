@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-22 - fix: a vehicle lost between trips is replanned without its trip on the road
+
+`dev` · @Oxshadha
+
+- Found by the end-to-end run from an empty database: when a vehicle was marked not available after its first trip had left, Planning's revision moved that trip too, so publishing it was refused (R-PLN-44) and the dispatcher could never send the update. Now only the trips still at the depot move, no vehicle on the road is offered as a replacement, and no draft is made when nothing can move (FLT-08).
+
+---
+
 ## 2026-10-22 - test: today's features end to end on the running stack
 
 `dev` · @Oxshadha

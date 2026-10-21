@@ -366,6 +366,10 @@ final class PlanningConsumers {
                 published, reason, Actor.SYSTEM_ID, drafts.newId(now),
                 drafts.nextVersion(published.depotCode(), published.serviceDate()));
         PlanningRun run = revisions.replanVehicle(revision, change.vehicleId(), reason, Actor.SYSTEM_ID);
+        if (run == revision.run()) {
+          // R-PLN-44: every trip of the vehicle has already left; there is nothing to move, so no draft.
+          continue;
+        }
         revisions.store(published, run, revision.built(), Actor.SYSTEM_ID, now, envelope.eventId());
         metrics.increment("waypoint.plan.vehicle_lost", "depot", published.depotCode());
         log.warn("Plan {} uses {}; revision draft {} awaits the dispatcher", published.planId(), reason, run.planId());

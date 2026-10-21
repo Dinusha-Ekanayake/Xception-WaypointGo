@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -42,12 +43,16 @@ class PlanningRevisions {
   private final ReferenceQuery reference;
   private final ConstraintRegistry registry;
 
+  private final com.waypoint.dispatch.planning.infrastructure.JdbcReleasedTrips released;
+
   PlanningRevisions(
       JdbcPlanRepository plans,
       PlanningProblems problems,
       PlanningDrafts drafts,
       ReferenceQuery reference,
-      ConstraintRegistry registry) {
+      ConstraintRegistry registry,
+      com.waypoint.dispatch.planning.infrastructure.JdbcReleasedTrips released) {
+    this.released = released;
     this.plans = plans;
     this.problems = problems;
     this.drafts = drafts;
@@ -151,8 +156,11 @@ class PlanningRevisions {
                     .orElseThrow(
                         () -> new DomainException(ErrorCode.VALIDATION_FAILED, id + " is not a vehicle of depot " + run.depotCode()))));
     Set<String> busy = run.days().stream().map(VehicleDay::vehicleId).collect(Collectors.toSet());
+    // R-PLN-44: a vehicle that has left with a trip is not a replacement; its trip cannot change.
+    Set<String> away = released.vehiclesForDay(run.depotCode(), run.serviceDate());
     built.fleet().values().stream()
         .filter(FleetVehicle::available)
+        .filter(v -> !away.contains(v.vehicleId()))
         .filter(v -> !v.vehicleId().equals(current) && !replacement.equals(Optional.of(v.vehicleId())))
         .sorted(
             Comparator.comparing((FleetVehicle v) -> busy.contains(v.vehicleId()))
@@ -194,19 +202,41 @@ class PlanningRevisions {
    */
   PlanningRun replanVehicle(
       PlanningRun run, Built built, String vehicleId, String reason, UUID actor, UUID nextId, int nextVersion) {
+    // R-PLN-44: a trip of this vehicle that has already left stays as it is; only the
+    // trips still at the depot move (a driver back between trips reports it broken).
+    Set<UUID> departed = departedOrders(run.depotCode(), run.serviceDate(), vehicleId);
     for (int guard = 0; guard < 10; guard++) {
-      boolean busy = run.days().stream().anyMatch(d -> d.vehicleId().equals(vehicleId));
-      if (!busy) {
+      Optional<VehicleDay> day = run.days().stream().filter(d -> d.vehicleId().equals(vehicleId)).findFirst();
+      int number = 0;
+      for (int i = 1; day.isPresent() && i <= day.get().trips().size(); i++) {
+        if (!departed.containsAll(day.get().trip(i).orders().stream().map(o -> o.orderId()).toList())) {
+          number = i;
+          break;
+        }
+      }
+      if (number == 0) {
         return run;
       }
       run =
           run.replanTrip(
-                  nextId, nextVersion, vehicleId, 1,
+                  nextId, nextVersion, vehicleId, number,
                   candidates(run, built, vehicleId, Optional.empty()), reason, actor, registry,
                   built.problem().context())
               .run();
     }
     throw new IllegalStateException("vehicle " + vehicleId + " still has trips after replanning");
+  }
+
+  /** The orders of this vehicle's trips that have left the depot today. */
+  private Set<UUID> departedOrders(String depotCode, java.time.LocalDate day, String vehicleId) {
+    Set<UUID> out = new java.util.HashSet<>();
+    for (Map<String, Object> left : released.ofVehicle(depotCode, day, vehicleId)) {
+      UUID tripId = (UUID) left.get("trip_id");
+      plans.allocations((UUID) left.get("plan_id")).stream()
+          .filter(a -> a.tripId().equals(Optional.of(tripId)))
+          .forEach(a -> out.add(a.orderId()));
+    }
+    return out;
   }
 
   /** Stores a revision as the day's one open draft; unchanged trips keep their ids. */
