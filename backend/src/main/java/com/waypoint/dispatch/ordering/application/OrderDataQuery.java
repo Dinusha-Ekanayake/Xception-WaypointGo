@@ -238,6 +238,53 @@ public class OrderDataQuery implements OrderQuery {
                 .toList());
   }
 
+  @Override
+  public Page<com.waypoint.dispatch.ordering.contract.OrderViews.OrderHistoryView> orderHistory(
+      String depotCode, LocalDate from, LocalDate to, Optional<String> cursor, int limit) {
+    int size = Page.limit(limit);
+    Optional<Keyset> after = cursor.filter(c -> !c.isBlank()).map(Keyset::decode);
+    List<Map<String, Object>> rows =
+        read(
+            ambient(),
+            () ->
+                database.query(
+                    """
+                    SELECT o.order_id, o.placed_at, (o.placed_at AT TIME ZONE 'Asia/Colombo')::date AS placed_date,
+                           o.outlet_id, o.brand_code, o.depot_code, o.temperature, o.volume_m3, o.status
+                      FROM ordering.orders o
+                     WHERE o.depot_code = ? AND o.status <> 'cancelled'
+                       AND o.placed_at >= (?::date)::timestamp AT TIME ZONE 'Asia/Colombo'
+                       AND o.placed_at < (?::date + 1)::timestamp AT TIME ZONE 'Asia/Colombo'
+                       AND (?::timestamptz IS NULL OR (o.placed_at, o.order_id) > (?::timestamptz, ?::uuid))
+                     ORDER BY o.placed_at, o.order_id
+                     LIMIT ?
+                    """,
+                    depotCode,
+                    java.sql.Date.valueOf(from),
+                    java.sql.Date.valueOf(to),
+                    after.map(k -> java.sql.Timestamp.from(k.placedAt())).orElse(null),
+                    after.map(k -> java.sql.Timestamp.from(k.placedAt())).orElse(null),
+                    after.map(Keyset::orderId).orElse(null),
+                    size + 1));
+    Page<Map<String, Object>> page = Page.fromOverfetch(rows, size, r -> new Keyset(
+        ((java.sql.Timestamp) r.get("placed_at")).toInstant(), (UUID) r.get("order_id")).encode());
+    return new Page<>(
+        page.items().stream()
+            .map(
+                r ->
+                    new com.waypoint.dispatch.ordering.contract.OrderViews.OrderHistoryView(
+                        (UUID) r.get("order_id"),
+                        ((java.sql.Date) r.get("placed_date")).toLocalDate(),
+                        (String) r.get("outlet_id"),
+                        (String) r.get("brand_code"),
+                        (String) r.get("depot_code"),
+                        Optional.ofNullable((String) r.get("temperature")),
+                        Optional.ofNullable((java.math.BigDecimal) r.get("volume_m3")),
+                        JdbcOrderRepository.status(r.get("status"))))
+            .toList(),
+        page.nextCursor());
+  }
+
   /**
    * Orders not yet delivered or ended, by the day they are due. A store-unknown
    * order has no measures yet and adds nothing (R-STK-05).

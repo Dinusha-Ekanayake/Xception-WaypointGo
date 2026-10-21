@@ -181,6 +181,16 @@ def test_the_export_is_fetched_page_by_page_and_never_over_plain_http_elsewhere(
     items = list(fetch.pages('http://localhost:8080', 'KDY', '2026-01-01', '2026-02-01', 'SESSION=x', opener))
     assert items == [1, 2, 3]
     assert 'after=c1' in seen[1]
+    assert '/api/ml/training/routes?' in seen[0]
+
+    seen.clear()
+    items = list(fetch.pages('http://localhost:8080', 'KDY', '2026-01-01', '2026-02-01', 'SESSION=x', opener,
+                             kind='orders'))
+    assert items == [1, 2, 3]
+    assert all('/api/ml/training/orders?' in u for u in seen), 'the demand history is the orders export (#7)'
+    with pytest.raises(ValueError):
+        list(fetch.pages('http://localhost:8080', 'KDY', '2026-01-01', '2026-02-01', 'SESSION=x', opener,
+                         kind='plans'))
 
 
 def test_the_scheduled_run_trains_on_the_last_finished_weeks_of_every_depot(tmp_path):

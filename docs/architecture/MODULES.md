@@ -103,7 +103,7 @@ allocation distances or capacity rules. See [the plan](../issues/161-live-map/PL
 
 | Layer | Contents |
 | --- | --- |
-| contract | `OrderViews`, `OrderStatus`, `OrderQuery` (incl. `confirmedDemand`, and `bookedVolumes` and `openOrders`, depot totals and unplanned orders by delivery day for the date outlook), `OrderCommands`, `OrderEvents` |
+| contract | `OrderViews`, `OrderStatus`, `OrderQuery` (incl. `confirmedDemand`, and `bookedVolumes` and `openOrders`, depot totals and unplanned orders by delivery day for the date outlook, and `orderHistory`, every order as demand by placement for retraining the forecast, #7), `OrderCommands`, `OrderEvents` |
 | domain | `Order`, `OrderLine`, `OrderStatus` state machine, `Cutoff`, `TemperatureRequirement`, `OrderVersion` |
 | application | `PlaceOrderHandler`, `AmendOrderHandler`, `CancelOrderHandler`, `CloseOrdersHandler`, `OrderDataQuery` |
 | infrastructure | `JdbcOrderRepository`, `OrderProjection`. The warehouse adapter lives in the Warehouse module, behind `StockPort` |
@@ -419,7 +419,7 @@ A driver is pushed only trip-level events (R-NOT-08), and whoever caused an even
 | domain | `DeterministicEstimator`, `ModelGate`, `SupplyPolicy`, `PlannedRoutes`, `CircuitBreaker` |
 | application | `PlanScoringJob`, `ForecastJob`, `ModelHandlers`, `IntelligenceConsumers`, `IntelligenceDataQuery`, `ReferencePayload` |
 | infrastructure | `ModelServingAdapter` (HTTP to the model service, behind a circuit breaker), `JdbcIntelligenceRepository` |
-| web | `/api/ml/models`, `/plans/{id}/predictions`, `/forecast`, `/forecast/overview` (a depot's weeks with calendar and fleet capacity), `/orders/{id}/supply-probability`, `/training/deliveries` |
+| web | `/api/ml/models`, `/plans/{id}/predictions`, `/forecast`, `/forecast/overview` (a depot's weeks with calendar and fleet capacity), `/orders/{id}/supply-probability`, `/training/deliveries`, `/training/routes`, `/training/orders` |
 
 **The model service** (`ml-server/`, ADR-001's Python trigger) serves the trained Datathon models: `delivery_risk` (service minutes and P(late) per stop, scored over whole planned routes, with a no-road-conditions fallback) and `demand_forecast` (weekly total and chilled m³). It only predicts, and refuses to start if a model file differs from its manifest.
 
@@ -436,7 +436,7 @@ A driver is pushed only trip-level events (R-NOT-08), and whoever caused an even
 - Consumes `plan.published` and `plan.revised`.
 - Publishes `order.outlook_changed` when a day an order is booked for worsens to busy or at risk (`OutlookWatchJob`, R-ML-08).
 - Publishes `stop.likely_late` when a published stop will likely arrive after its window (`LateNoticeJob`, R-ML-22).
-- Reads Planning (`PlanQuery.plan`), Ordering (`order`, `dailyVolumes`, `bookedVolumes`, `openOrders`), Execution (`actuals`) and Reference (outlets, vehicles, travel, calendar, traffic speed, road conditions) through their contracts.
+- Reads Planning (`PlanQuery.plan`), Ordering (`order`, `dailyVolumes`, `bookedVolumes`, `openOrders`, `orderHistory`), Execution (`actuals`) and Reference (outlets, vehicles, travel, calendar, traffic speed, road conditions) through their contracts.
 - Planning reads `PredictionQuery.planScoring` for `plannedWithoutPredictor`, lazily, so it still works without this module.
 
 ---

@@ -18,20 +18,20 @@ The weekly demand forecast keeps itself current on Waypoint's own orders: a week
 
 | Piece | Where | Notes |
 | --- | --- | --- |
-| `OrderQuery.orderHistory(depot, from, to, cursor, limit)` | `ordering/contract` + `application` + `infrastructure` | One row per order, keyset-paged on `(placed date, order_id)`. Read under the caller's actor, so row-level security limits it to their depots (rule 7) |
+| `OrderQuery.orderHistory(depot, from, to, cursor, limit)` | `ordering/contract` + `application`, index in `migrations/` | One row per order, keyset-paged on `(placed date, order_id)`. Read under the caller's actor, so row-level security limits it to their depots (rule 7) |
 | `OrderHistoryView` | `ordering/contract` | `orderId, placedDate, outletId, brandCode, depotCode, temperature, volumeM3, status`. No personal data |
 | `IntelligenceDataQuery.trainingOrders` and `GET /api/ml/training/orders` | `intelligence/application`, `web` | The same action and resource as the route export: `ml:ExportTrainingData` on `wpt:ml:training:<depot>`. No new catalogue row |
 | `training/fetch.py --kind orders` | `ml-server/training` | The same pager, the other endpoint |
 | `training/retrain_demand.py` | `ml-server/training` | Fit, backtest, gate, write the model and its manifest entry |
 | `training/run.py` | `ml-server/training` | One demand candidate per week beside the late-risk ones |
 | `app/registry.py` | `ml-server/app` | Load the demand model by its manifest artifact name |
-| Frontend mirror | `frontend/src/shared/domain/` | `OrderHistoryView` in the ordering file (a contract change is a change there) |
+| Frontend | none | No screen reads it: like the other training exports and the module-to-module order views (`DailyVolumeView`), it has no mirror in `frontend/src/shared/domain/` |
 
 No module reads another's tables: intelligence reaches orders only through `OrderQuery`.
 
 ## Decisions
 
-1. **What counts as demand.** Every order once, by its placement date in depot time, as `dailyVolumes` already counts. Cancelled orders are excluded, and so are redeliveries (`redelivery_of` set), which repeat demand already counted. Deferred orders count: demand does not depend on whether a truck could take it. Temperature and volume are the warehouse's answer and can be missing: an order without a temperature cannot be put in a segment and is left out (counted in the export's report), and one without a volume is kept with none, which the model uses for the order schedule but not for the size regressions, as it did for the Datathon's never-run orders.
+1. **What counts as demand.** Every order once, by its placement date in depot time, exactly the orders `OrderQuery.dailyVolumes` counts: cancelled orders are left out, deferred orders and redeliveries stay. `dailyVolumes` gives the actuals every forecast is judged against (`ml.forecast_accuracy`, R-ML-13), so training on any other count would grade the model against a different quantity (rule 5). A redelivery is also volume the depot carries that week, which is what the forecast plans for. Temperature and volume are the warehouse's answer and can be missing: an order without a temperature cannot be put in a segment and is left out (counted in the export's report), and one without a volume is kept with none, which the model uses for the order schedule but not for the size regressions, as it did for the Datathon's never-run orders.
 2. **One model for all depots.** `DemandModel` fits each segment across every outlet with an effect per outlet, as the team trained it. The export is fetched per depot and concatenated.
 3. **The reference.** Calendar and outlets come from the same tables the late-risk retrain reads (`data/General Data`, `planning.reference_tables`). After a newer reference import, retrain (the same rule as the README gives for MF-05).
 4. **Enough history first.** The model has an annual term and a ramp per festival, so it is refused with under 52 weeks of orders. The tool exits 2 and says so. A pilot depot needs a year before its first candidate; until then production keeps the deterministic forecast, which is the honest answer.
@@ -42,14 +42,14 @@ No module reads another's tables: intelligence reaches orders only through `Orde
 
 ## Pull requests
 
-1. **Export:** the ordering query (with domain, integration and denied-scope tests), the intelligence endpoint, the frontend mirror, and `fetch --kind orders`.
+1. **Export:** the ordering query and its index, the intelligence endpoint, the integration and denied-scope test, and `fetch --kind orders`.
 2. **Retrain:** `retrain_demand.py`, `run.py`, the registry change, tests, and the README section next to "Retraining on our own deliveries".
 
 ## Tests
 
 | Level | Covers |
 | --- | --- |
-| Integration (Java) | The export pages by keyset, counts each order once, leaves out cancelled orders and redeliveries, and is dated by placement in depot time |
+| Integration (Java) | The export pages by keyset, counts each order once, leaves out cancelled orders, keeps redeliveries, and is dated by placement in depot time |
 | Authorization (Java) | A depot outside the person's scope is 403 and audited, never an empty page |
 | `ml-server` pytest | On a synthetic year of orders: under 52 weeks exits 2; a model that beats the naive forecast is written with a manifest entry whose hash matches; a worse one exits 2; `--current` blocks a regression; the registry serves a `waypoint-demand` entry |
 | Dry run (team machine) | The Datathon order history in the export's shape reproduces the team's backtest at their origins (total WAPE about 3.2%, chilled about 2.0%) within rounding. It checks the tool, not a production model |

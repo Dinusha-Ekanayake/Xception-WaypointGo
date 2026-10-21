@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-21 - feat(ml): export every order as demand for retraining the forecast
+
+`feat/demand-retraining` · @tharushaudana · [#7](https://github.com/jv-ransika/yi-yi/issues/7)
+
+First of two pull requests for retraining the demand model on our own orders ([plan](../../issues/007-demand-retraining/PLAN.md)). `OrderQuery.orderHistory` gives a depot's orders one by one, keyset-paged on placement, and `GET /api/ml/training/orders` exports them behind `ml:ExportTrainingData`; a depot outside scope is 403 and audited. It counts exactly what `dailyVolumes` counts for the forecast's actuals, so redeliveries stay (the plan first left them out; R-ML-28, ML-43). `training.fetch --kind orders` pages it.
+Verified: `IntelligenceIntegrationTest` (46, the export's test among them) and the full backend suite (759) on a fresh local PostgreSQL 17 database; `ml-server` pytest.
+Open: the retrain tool is the second pull request.
+
+---
+
 ## 2026-10-21 - feat(ml): scan every model file before it is loaded
 
 `feat/model-file-scan` · @tharushaudana · [#5](https://github.com/jv-ransika/yi-yi/issues/5)

@@ -38,6 +38,18 @@ public interface OrderQuery {
       String depotCode, String brandCode, LocalDate from, LocalDate to);
 
   /**
+   * Every order of a depot placed from {@code from} to {@code to} in depot time,
+   * each once, keyset-paged on placement (issue #7: the demand model's
+   * training history). The orders {@link #dailyVolumes} counts, one by one, so
+   * a model trains on what its forecasts are judged against: cancelled orders
+   * are left out; deferred orders and redeliveries stay, as volume the depot
+   * carries. Read as the ambient actor, so row-level security limits it to
+   * their depots.
+   */
+  Page<OrderViews.OrderHistoryView> orderHistory(
+      String depotCode, LocalDate from, LocalDate to, Optional<String> cursor, int limit);
+
+  /**
    * Volume already booked per delivery day and brand for a depot: orders still
    * to be delivered, by the day they are due (issue #224, the date outlook).
    * Totals only, read as the system across every outlet of the depot, so the

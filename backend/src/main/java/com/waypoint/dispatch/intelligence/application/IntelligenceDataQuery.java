@@ -228,6 +228,25 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
   }
 
   /**
+   * Issue #7: every order of a depot as demand, keyset-paged on placement, as
+   * the demand model's training history. A depot outside the reader's scope is
+   * refused and audited, never an empty page that reads as "no orders".
+   */
+  public Page<PredictionViews.TrainingOrderView> trainingOrders(
+      Actor actor, String depot, LocalDate from, LocalDate to, Optional<String> cursor, Integer limit) {
+    if (from.isAfter(to)) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "from is after to");
+    }
+    requireDepot(actor, depot, EXPORT, "wpt:ml:training:" + depot);
+    Page<com.waypoint.dispatch.ordering.contract.OrderViews.OrderHistoryView> page =
+        read(actor.userId(), () -> orders.orderHistory(depot, from, to, cursor, Page.limit(limit)));
+    return new Page<>(page.items().stream()
+        .map(o -> new PredictionViews.TrainingOrderView(o.orderId(), o.placedDate(), o.outletId(), o.brandCode(),
+            o.depotCode(), o.temperature(), o.volumeM3(), o.status().name().toLowerCase(java.util.Locale.ROOT)))
+        .toList(), page.nextCursor());
+  }
+
+  /**
    * Roadmap MF-05: the depot's scored routes with their outcomes, keyset-paged
    * on (day, plan, route), as the training input. Rows outside the reader's
    * depots are filtered in SQL.
@@ -433,13 +452,16 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
   }
 
   private void requireDepot(Actor actor, String depot) {
+    requireDepot(actor, depot, READ, "wpt:ml:forecast:" + depot);
+  }
+
+  private void requireDepot(Actor actor, String depot, String action, String resource) {
     boolean inScope = read(actor.userId(), () -> Boolean.TRUE.equals(
         database.queryOne("SELECT app.actor_has_depot(?) AS ok", depot).get("ok")));
     if (!inScope) {
-      String resource = "wpt:ml:forecast:" + depot;
       String reason = "outside the actor's scope";
       audit.recordStandalone(com.waypoint.dispatch.platform.audit.AuditEntry.denied(
-          actor.userId(), actor.deviceId(), READ, resource, reason));
+          actor.userId(), actor.deviceId(), action, resource, reason));
       throw new DomainException(ErrorCode.FORBIDDEN, resource + " is " + reason);
     }
   }
