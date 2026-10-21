@@ -82,3 +82,34 @@ test("the dispatcher decides from the trip's chat: Skip beside the report, End t
   await expect(report.getByRole("button", { name: "Skip OUT063" })).toHaveCount(0);
   await expect(chat.getByRole("button", { name: "End trip" })).toHaveCount(0);
 });
+
+test("the chat suggests the likely decisions beside a report, and keeps which one was taken (#269)", async ({ page }) => {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
+    said("r1", "2027-03-01T10:05:00Z", {
+      kind: "report", reportType: "failed_delivery", authorName: "Dilan R.", authorRole: "driver", audience: "dispatch",
+      body: "OUT063 shutter is down, nobody answers", aboutOutletId: "OUT063",
+    }),
+  ]);
+  const desk = await serve(page, { ...liveDay(), threads: [thread] });
+  await page.goto("/#/live");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("region", { name: "Timeline" }).getByTestId("report-sign").first().click();
+
+  const report = page.getByRole("dialog", { name: "Trip messages" }).locator("#message-r1");
+  const chips = report.getByRole("group", { name: "Suggested decisions" });
+  await expect(chips).toContainText("Suggested by the rules");
+  await expect(chips.getByRole("button")).toHaveText(["Call the store", "Skip to next day", "Wait a little"]);
+  await expect(chips).toContainText("skipped twice in a row");
+
+  await chips.getByRole("button", { name: "Skip to next day" }).click();
+  const form = report.getByRole("group", { name: "Skip OUT063" });
+  await expect(form.getByRole("radio", { name: "Next day" })).toHaveAttribute("aria-checked", "true");
+  await form.getByRole("textbox", { name: "Why" }).fill("Nobody came to the door");
+  await form.getByRole("button", { name: "Skip to next day" }).click();
+
+  await expect.poll(() => desk.commands.find((c) => c.kind === "ml:RecordSuggestion")?.payload).toEqual({
+    deliveryId: "d-VEH020-2", situation: "STORE_CLOSED", shown: ["CALL_STORE", "SKIP_NEXT_DAY", "WAIT"], chosen: "SKIP_NEXT_DAY",
+  });
+  expect(desk.commands.find((c) => c.kind === "delivery:SkipStop")?.payload).toMatchObject({ then: "NEXT_DAY" });
+});

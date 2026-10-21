@@ -18,7 +18,7 @@ import Refusal from "./Refusal.tsx";
 // opened in place under a report in the trip's chat, where a dialog cannot sit
 // over the chat drawer.
 
-type Then = "NEXT_DAY" | "CANCEL";
+export type Then = "NEXT_DAY" | "CANCEL";
 
 const field = "min-h-11 w-full rounded-go-input border border-go-rule bg-go-surface px-3 text-[14px] font-normal outline-none focus:border-go-teal";
 const link = "min-h-9 self-start rounded-full px-3 text-[13px] font-medium text-go-teal hover:bg-go-surface disabled:opacity-40";
@@ -52,17 +52,30 @@ export function SkipStopButton({ stop, online, inline = false }: { stop: RunShee
   );
 }
 
-function SkipStopForm({ stop, onDone }: { stop: RunSheetStopView; onDone: () => void }): React.JSX.Element {
+/** @param initialThen what a suggestion chose; @param onSent after the skip went through, before onDone */
+export function SkipStopForm({
+  stop,
+  onDone,
+  initialThen = "NEXT_DAY",
+  onSent,
+}: {
+  stop: RunSheetStopView;
+  onDone: () => void;
+  initialThen?: Then;
+  onSent?: () => void;
+}): React.JSX.Element {
   const { busy, run } = useCommand();
-  const [then, setThen] = useState<Then>("NEXT_DAY");
+  const [then, setThen] = useState<Then>(initialThen);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<Error | null>(null);
   const ready = reason.trim().length >= REASON_MIN;
 
   const send = async () => {
     const sent = await run(ExecutionCommandKind.skipStop, { deliveryId: stop.deliveryId, then, reason: reason.trim() }, stop.rowVersion);
-    if (sent.ok) onDone();
-    else setError(sent.error);
+    if (sent.ok) {
+      onSent?.();
+      onDone();
+    } else setError(sent.error);
   };
 
   return (
@@ -136,7 +149,17 @@ export function EndTripButton({
   );
 }
 
-function EndTripForm({ tripId, openStops, onDone }: { tripId: string; openStops: RunSheetStopView[]; onDone: () => void }): React.JSX.Element {
+export function EndTripForm({
+  tripId,
+  openStops,
+  onDone,
+  onSent,
+}: {
+  tripId: string;
+  openStops: RunSheetStopView[];
+  onDone: () => void;
+  onSent?: () => void;
+}): React.JSX.Element {
   const { busy, run } = useCommand();
   const [reason, setReason] = useState("");
   const [error, setError] = useState<Error | null>(null);
@@ -144,8 +167,10 @@ function EndTripForm({ tripId, openStops, onDone }: { tripId: string; openStops:
 
   const send = async () => {
     const sent = await run(ExecutionCommandKind.endTrip, { tripId, reason: reason.trim() }, null);
-    if (sent.ok) onDone();
-    else setError(sent.error);
+    if (sent.ok) {
+      onSent?.();
+      onDone();
+    } else setError(sent.error);
   };
 
   return (

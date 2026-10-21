@@ -336,3 +336,44 @@ export type RecordRiskReview = {
   choice: "KEEP" | "SWAP";
   reason: string;
 };
+
+// ---- Issue #269, docs/issues/decision-suggestions/PLAN.md: playbooks and suggested decisions ----
+
+/** GET /api/ml/playbooks: one situation's steps and ready message. */
+export type PlaybookView = {
+  situation: string;
+  steps: string[];
+  /** Who the ready message is for and its wording with {blanks}; null when there is nobody useful to write to. */
+  message: { to: string; template: string } | null;
+};
+
+export type DecisionAction =
+  | "SKIP_NEXT_DAY"
+  | "SKIP_CANCEL"
+  | "ASK_RECEIVE_LATER"
+  | "WAIT"
+  | "CALL_STORE"
+  | "END_TRIP"
+  | "TELL_STORE"
+  | "NOTED";
+
+/** One suggested decision; `chance` 0 to 1, summing to 1 over what is offered. */
+export type SuggestionView = { action: DecisionAction; chance: number; warning: string | null };
+
+/** GET /api/ml/decision-suggestions?deliveryId=&situation=: advice for one stop, most likely first. */
+export type SuggestionsView = {
+  situation: string;
+  deliveryId: string;
+  /** "rules" until learned chances exist. */
+  basis: string;
+  version: number;
+  suggestions: SuggestionView[];
+  playbook: PlaybookView;
+};
+
+export const SuggestionCommandKind = {
+  /** The suggestions shown beside a stop and the one taken, or none. */
+  record: "ml:RecordSuggestion",
+} as const;
+
+export type RecordSuggestionPayload = { deliveryId: string; situation: string; shown: DecisionAction[]; chosen?: DecisionAction };

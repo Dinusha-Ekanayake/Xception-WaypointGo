@@ -6,6 +6,12 @@ Owner: @Oxshadha, for review by @jv-ransika. Written 2026-10-21 after a strict r
 
 The trip's chat is where a problem on the road is reported and where the dispatcher decides. Each situation has a short, known list of sensible decisions, so the chat can offer the likely ones as chips, with how often each was chosen there, and one tap opens the decision already filled in. That replaces most phone calls and keeps every decision recorded (rule 8). It does not remove backend work: every decision still needs its command, rules, state moves and tests, as Skip store did (docs/issues/trip-skip/PLAN.md).
 
+## Merged with issue #269 (2026-10-21)
+
+Issue #269 (playbooks, @Dinusha-Ekanayake) already gave each "Needs you" situation its steps and a ready message, in the frontend, with "playbooks an administrator can edit, which need the backend" left to do. Two catalogues for one kind of advice would break rule 5, so this plan is #269's backend: one catalogue on the server (intelligence `Playbooks`) holds the five playbooks unchanged and the report situations of the chat, each with its steps, message and decisions. "Needs you" and the chat both read it. An administrator's editor for it is still #269's.
+
+**Built in the first slice:** `Playbooks` (pure, `PlaybooksTest`), `GET /api/ml/playbooks`, `GET /api/ml/decision-suggestions?deliveryId=&situation=` (`PlaybookQuery`, facts from Execution, Ordering and Reference, scoped to the dispatcher's depots), `ml:RecordSuggestion` into `ml.decision_suggestions`, the chips beside a report in the chat (`ReportSuggestions`), and "Needs you" reading the server's playbooks. Rule R-ML-26; edge cases ML-39 to ML-41. Not yet: counting chances from the log (PR 3), a log row when the dispatcher decided without a chip, the store manager's chips and several-store messages (PR 4), Jev (PR 5).
+
 ## What exists
 
 - **Decisions with commands:** `delivery:SkipStop`, `delivery:EndTrip` (R-EXE-31), `issue:AskDecision` and its answers (FF-09, R-ISS-12 to R-ISS-15), resolving a report (R-MSG-07), and messages.

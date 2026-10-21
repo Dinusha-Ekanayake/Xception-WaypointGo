@@ -288,6 +288,32 @@ class StopSkipIntegrationTest {
     assertEquals(1, order.get("deferralCount").asInt());
   }
 
+  @Test
+  void theChatSuggestsDecisionsForTheStopAndKeepsWhichWasTaken() throws Exception {
+    // Issue #269: the store is closed, the van is at the door, the window closes in 20 minutes.
+    command(driver, "delivery:RecordArrival", 1L, stop(stopOne), 200);
+    JsonNode s = json(read(dispatcher, "/api/ml/decision-suggestions?deliveryId=" + stopOne + "&situation=failed_delivery", 200));
+    assertEquals("STORE_CLOSED", s.get("situation").asText(), "a report type names its situation");
+    assertEquals("rules", s.get("basis").asText());
+    assertEquals("CALL_STORE", s.get("suggestions").get(0).get("action").asText());
+    assertEquals(3, s.get("suggestions").size(), "at most three chips");
+    assertTrue(s.get("playbook").get("steps").size() > 0);
+    read(farDispatcher, "/api/ml/decision-suggestions?deliveryId=" + stopOne + "&situation=failed_delivery", 403);
+    assertEquals(11, json(read(dispatcher, "/api/ml/playbooks", 200)).size());
+
+    String shown = "\"shown\":[\"CALL_STORE\",\"SKIP_NEXT_DAY\",\"WAIT\"]";
+    command(dispatcher, "ml:RecordSuggestion", null,
+        "{\"deliveryId\":\"" + stopOne + "\",\"situation\":\"STORE_CLOSED\"," + shown + ",\"chosen\":\"SKIP_NEXT_DAY\"}", 200);
+    command(dispatcher, "ml:RecordSuggestion", null,
+        "{\"deliveryId\":\"" + stopOne + "\",\"situation\":\"STORE_CLOSED\"," + shown + ",\"chosen\":\"END_TRIP\"}", 422);
+    command(driver, "ml:RecordSuggestion", null,
+        "{\"deliveryId\":\"" + stopOne + "\",\"situation\":\"STORE_CLOSED\"," + shown + "}", 403);
+    long kept = ((Number) database.asSystemSeparately(ModuleRole.ML, () -> database.queryOne(
+        "SELECT count(*) AS n FROM ml.decision_suggestions WHERE delivery_id = ? AND chosen = 'SKIP_NEXT_DAY'",
+        stopOne)).get("n")).longValue();
+    assertEquals(1, kept);
+  }
+
   // ---- helpers ----
 
   private String skip(String who, UUID deliveryId, Long version, String then, String reason, int expected) throws Exception {

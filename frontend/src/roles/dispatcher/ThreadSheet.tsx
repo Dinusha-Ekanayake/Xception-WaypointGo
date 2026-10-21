@@ -10,6 +10,7 @@ import { TripThread, useOverlay } from "@shared/ui";
 import { dayLabel } from "@shared/wording";
 import { useDispatcherInbox, type OpenThread } from "./inbox.tsx";
 import { EndTripButton, SkipStopButton, skippable } from "./screens/LiveTripSkip.tsx";
+import ReportSuggestions from "./screens/ReportSuggestions.tsx";
 
 // A trip's thread in a sheet on the right (issue #136), over whichever screen
 // opened it: a warning sign on the timeline, the trip page, a notification.
@@ -36,6 +37,7 @@ function ThreadSheetPanel({
   onClose: () => void;
 }): React.JSX.Element {
   const panel = useRef<HTMLDivElement>(null);
+  const inbox = useDispatcherInbox();
   const { closing, requestClose } = useOverlay(panel, onClose);
   const threadId = open.threadId;
   const thread = useResource(
@@ -79,9 +81,26 @@ function ThreadSheetPanel({
   const ordered = rankReplies(ready, ranking.data ?? null, roll.current);
   const openStops = tripStops.filter(skippable);
   // The decision beside a report is about the stop it names, while that stop is still open.
+  // Issue #269: the decisions most likely here as chips, then Skip itself for a stop still open.
   const reportActions = (m: MessageView) => {
+    const about = tripStops.find((s) => s.outletId === m.aboutOutletId);
     const stop = openStops.find((s) => s.outletId === m.aboutOutletId);
-    return stop ? <SkipStopButton stop={stop} online={online} inline /> : null;
+    if (!about) return null;
+    return (
+      <div className="flex flex-col gap-2">
+        {m.reportType && m.resolvedAt === null && (
+          <ReportSuggestions
+            stop={about}
+            report={m.reportType}
+            openStops={openStops}
+            vehicleId={head?.vehicleId ?? null}
+            online={online}
+            onDraft={(draft) => inbox?.openThread({ threadId: open.threadId, draft })}
+          />
+        )}
+        {stop && <SkipStopButton stop={stop} online={online} inline />}
+      </div>
+    );
   };
 
   return (
@@ -120,7 +139,8 @@ function ThreadSheetPanel({
           </p>
         )}
         <TripThread
-          key={open.threadId}
+          // A new draft for the same thread (a suggestion's message) starts the composer again.
+          key={`${open.threadId}|${open.draft?.body ?? ""}`}
           threadId={open.threadId}
           online={online}
           variant="desk"

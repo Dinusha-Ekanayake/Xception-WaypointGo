@@ -4,6 +4,7 @@ import { answerInMock, askInMock } from "../decision-mocks.ts";
 import type { AnswerDecision, DecisionView } from "../../src/shared/domain/issues.ts";
 import { postToThread, redirectInThread, resolveInThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
 import { nextRun } from "../../src/roles/dispatcher/data/scope.ts";
+import { PLAYBOOKS, storeClosed } from "../playbook-fixture.ts";
 import type { RunSheetStopView, RunSheetView } from "../../src/shared/domain/execution.ts";
 import type { ReadyTripView } from "../../src/shared/domain/loading.ts";
 import type { OrderStatus, OrderView } from "../../src/shared/domain/ordering.ts";
@@ -377,6 +378,8 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (pathname.startsWith("/api/plans/policies/")) {
       return route.fulfill(json({ policyVersionId: pathname.split("/").pop(), keys: ["PRIOR_SKIP", "FRESH", "CHILLED", "STRICT_WINDOW", "CADENCE", "EARLIEST_CLOSE", "LONGEST_DISTANCE", "LARGEST_VOLUME", "LONGEST_UNSERVED"] }));
     }
+    if (pathname === "/api/ml/playbooks") return route.fulfill(json(PLAYBOOKS));
+    if (pathname === "/api/ml/decision-suggestions") return route.fulfill(json(storeClosed(url.searchParams.get("deliveryId") ?? "")));
     if (pathname === "/api/ml/models") {
       return route.fulfill(json(desk.models ?? [
         { name: "datathon-task2a", version: "2026.1", kind: "demand_forecast", status: "ACTIVE", metrics: { total_wape: "0.0415", chilled_wape: "0.0439" } },

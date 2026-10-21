@@ -33,5 +33,5 @@ export { NotificationCommandKind } from "./notification.ts";
 export { SyncCommandKind } from "./sync.ts";
 export { MessageCommandKind } from "./messaging.ts";
 export { WarehouseCommandKind } from "./warehouse.ts";
-export { ModelCommandKind } from "./intelligence.ts";
+export { ModelCommandKind, SuggestionCommandKind } from "./intelligence.ts";
 export { DemoCommandKind } from "./demo.ts";

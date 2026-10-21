@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-21 - feat: one playbook catalogue on the server, and suggested decisions in the trip's chat (#269)
+
+`dev` · @Oxshadha
+
+- Merged the decision-suggestions plan with issue #269 rather than build a second catalogue (rule 5). @Dinusha-Ekanayake's five playbooks moved unchanged from `dispatcher/data/playbooks.ts` to the server (`intelligence/domain/Playbooks`), beside the chat's report situations; "Needs you" reads them from `GET /api/ml/playbooks` and says so when it cannot. @Dinusha-Ekanayake: the editor for administrators is still yours on #269; the catalogue it would edit is now the server's.
+- Beside a report in the chat, at most three decisions as chips, most likely first, checked by the server against the rules (R-ML-26): no skip, wait or question on a stop done, none of a mall's after its window, a warning before a second skip, cold chain for chilled goods. Skip and End trip open already set; Tell the store puts the playbook's message in the composer. What was shown and taken goes to `ml.decision_suggestions` (`ml:RecordSuggestion`). Rule priors until a situation has 20 cases. Plan: [docs/issues/decision-suggestions/PLAN.md](../../issues/decision-suggestions/PLAN.md); edge cases ML-39 to ML-41.
+
+---
+
 ## 2026-10-21 - feat: a skipped stop reaches the driver at once, and the dispatcher sees whether it did
 
 `dev` · @Oxshadha

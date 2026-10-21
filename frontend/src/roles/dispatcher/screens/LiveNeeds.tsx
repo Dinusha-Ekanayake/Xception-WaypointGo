@@ -8,7 +8,8 @@ import { cx } from "@shared/ui";
 import { clockOn, hhmm, stops } from "@shared/wording";
 import { lateBy, tripOf, updateText, useOpenTripThread } from "../data/threads.ts";
 import { depotSummaries, etaOf, groupByTrip, NEEDS_SHOWN, progress, routeLabel, summaryText, type NeedCard, type Run } from "../data/liveDesk.ts";
-import { suggestionFor, type Suggestion } from "../data/playbooks.ts";
+import { playbookOf, suggestionFor, type Suggestion } from "../data/playbooks.ts";
+import { usePlaybooks } from "../data/usePlaybooks.ts";
 import DecisionAsk from "./DecisionAsk.tsx";
 import { Action, Bar, Chip, NOT_AVAILABLE_NOTE, STATUS } from "./LiveParts.tsx";
 
@@ -59,13 +60,17 @@ export default function LiveNeeds({
     setNote(null);
     void openThread(tripOf(run), { address: { to: "outlet", outletId: next.outletId }, body: updateText(next, lateBy(next, date)) }).then(setNote);
   };
-  // The playbook for a card, its message filled from the stop it is about (issue #269).
-  const suggest = (card: NeedCard): { suggestion: Suggestion; tripId: string | null; outletId: string | null } => {
+  // The playbook for a card, its message filled from the stop it is about (issue #269). Read from the
+  // server once; while it cannot be read, a card offers no steps rather than old ones.
+  const playbooks = usePlaybooks();
+  const suggest = (card: NeedCard): { suggestion: Suggestion; tripId: string | null; outletId: string | null } | null => {
+    const playbook = playbookOf(playbooks.data, card.kind);
+    if (!playbook) return null;
     const run = runs.find((r) => r.day.vehicleId === card.vehicleId);
     const stops = run?.day.stops ?? [];
     const stop =
       (card.kind === "failed" ? stops.find((s) => s.outcome === "FAILED") : card.kind === "left" ? stops.find((s) => `left-${s.deliveryId}` === card.id) : run?.day.current) ?? null;
-    const suggestion = suggestionFor(card.kind, {
+    const suggestion = suggestionFor(playbook, {
       vehicle: card.vehicleId,
       store: stop?.outletId ?? null,
       expected: stop ? etaOf(stop, date) : null,
@@ -134,7 +139,15 @@ export default function LiveNeeds({
           onChanged={decisions.refresh}
         />
       )}
-      <Suggested {...suggest(card)} online={online} showMessage={card.kind !== "window"} onWrite={write} />
+      {(() => {
+        const suggested = suggest(card);
+        return suggested ? (
+          <Suggested {...suggested} online={online} showMessage={card.kind !== "window"} onWrite={write} />
+        ) : playbooks.error ? (
+          // Rule 9: say the advice is missing rather than show none silently.
+          <p className="mt-1 text-[12px] text-go-secondary">Suggested steps could not be read.</p>
+        ) : null;
+      })()}
     </>
   );
   return (

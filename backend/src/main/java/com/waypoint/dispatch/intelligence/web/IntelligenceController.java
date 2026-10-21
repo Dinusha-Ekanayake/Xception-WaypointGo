@@ -51,6 +51,7 @@ public class IntelligenceController {
   private final KpiQuery kpis;
   private final RequestAuthorizer authorizer;
   private final com.waypoint.dispatch.intelligence.application.AiExplainer explainer;
+  private final com.waypoint.dispatch.intelligence.application.PlaybookQuery playbooks;
 
   public IntelligenceController(
       IntelligenceDataQuery intelligence,
@@ -61,8 +62,10 @@ public class IntelligenceController {
       com.waypoint.dispatch.intelligence.application.ReplyRankingQuery replyRanking,
       com.waypoint.dispatch.intelligence.application.RiskReviewQuery riskReviews,
       RequestAuthorizer authorizer,
-      com.waypoint.dispatch.intelligence.application.AiExplainer explainer) {
+      com.waypoint.dispatch.intelligence.application.AiExplainer explainer,
+      com.waypoint.dispatch.intelligence.application.PlaybookQuery playbooks) {
     this.explainer = explainer;
+    this.playbooks = playbooks;
     this.intelligence = intelligence;
     this.outlook = outlook;
     this.attention = attention;
@@ -232,6 +235,26 @@ public class IntelligenceController {
   public com.waypoint.dispatch.intelligence.application.ReplyRankingQuery.ReplyRankingView replyRanking(
       HttpServletRequest request) {
     return replyRanking.ranking(read(request, "wpt:ml:replies:*"));
+  }
+
+  /** Issue #269: every situation's steps and ready message, for Live's "Needs you" and the trip's chat. */
+  @GetMapping("/playbooks")
+  public java.util.List<com.waypoint.dispatch.intelligence.contract.PlaybookViews.PlaybookView> playbooks(
+      HttpServletRequest request) {
+    read(request, "wpt:ml:playbooks:*");
+    return playbooks.catalogue();
+  }
+
+  /**
+   * The decisions to suggest for one stop in a situation (a situation's name or
+   * a report type), checked against the rules, most likely first. Advice only.
+   */
+  @GetMapping("/decision-suggestions")
+  public com.waypoint.dispatch.intelligence.contract.PlaybookViews.SuggestionsView decisionSuggestions(
+      @org.springframework.web.bind.annotation.RequestParam java.util.UUID deliveryId,
+      @org.springframework.web.bind.annotation.RequestParam String situation,
+      HttpServletRequest request) {
+    return playbooks.forStop(read(request, "wpt:ml:delivery:" + deliveryId), deliveryId, situation);
   }
 
   private Actor read(HttpServletRequest request, String resource) {
