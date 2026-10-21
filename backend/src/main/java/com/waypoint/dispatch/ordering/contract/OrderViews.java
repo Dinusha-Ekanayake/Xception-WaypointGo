@@ -117,6 +117,21 @@ public final class OrderViews {
   public record DailyVolumeView(
       LocalDate date, int orders, java.math.BigDecimal totalM3, java.math.BigDecimal chilledM3) {}
 
+  /**
+   * One order as demand, by the day it was placed in depot time (issue #7, the
+   * demand model's training history). Temperature and volume are the
+   * warehouse's answer and are empty until it comes.
+   */
+  public record OrderHistoryView(
+      java.util.UUID orderId,
+      LocalDate placedDate,
+      String outletId,
+      String brandCode,
+      String depotCode,
+      java.util.Optional<String> temperature,
+      java.util.Optional<java.math.BigDecimal> volumeM3,
+      OrderStatus status) {}
+
   /** An order booked for a day and not yet planned (issue #224, slice 3). */
   public record OpenOrderView(java.util.UUID orderId, String outletId, String brandCode, LocalDate deliveryDate) {}
 

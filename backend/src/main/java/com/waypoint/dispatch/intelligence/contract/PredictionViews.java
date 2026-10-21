@@ -141,6 +141,22 @@ public final class PredictionViews {
       boolean degraded) {}
 
   /**
+   * One order as demand, as the demand model trains on it (issue #7): placed on
+   * {@code placedDate} in depot time, with the warehouse's temperature and
+   * volume when they have come. {@code status} is the order's code, for the
+   * export's own counts; the model does not read it.
+   */
+  public record TrainingOrderView(
+      UUID orderId,
+      LocalDate placedDate,
+      String outletId,
+      String brand,
+      String depot,
+      Optional<String> temperature,
+      Optional<BigDecimal> volumeM3,
+      String status) {}
+
+  /**
    * One delivery's actuals, as a model trains on them. Waiting for the window is
    * kept apart from service, so a long wait never teaches the model a long
    * service (EXE-18).

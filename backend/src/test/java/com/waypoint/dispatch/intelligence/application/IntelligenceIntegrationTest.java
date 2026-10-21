@@ -1077,6 +1077,54 @@ class IntelligenceIntegrationTest {
   }
 
   @Test
+  void theOrderHistoryExportCountsEachOrderOnceByPlacementAndRefusesAnotherDepot() throws Exception {
+    // Issue #7: the demand model's training history, counted as dailyVolumes counts the actuals.
+    UUID first = demandOf("0.6000");
+    UUID second = demandOf("0.7000");
+    UUID cancelled = demandOf("0.8000");
+    UUID redelivery = demandOf("0.9000");
+    database.asSystem(ModuleRole.ORDERING, () -> {
+      database.update("UPDATE ordering.orders SET status = 'cancelled' WHERE order_id = ?", cancelled);
+      return database.update("UPDATE ordering.orders SET redelivery_of = ? WHERE order_id = ?", first, redelivery);
+    });
+    LocalDate today = LocalDate.now(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE);
+    UUID adminId = account("mlx-" + run, "admin", true);
+    Cookie exporter = session("mlx-" + run);
+    String path = "/api/ml/training/orders?depot=" + depot + "&from=" + today.minusDays(1) + "&to=" + today.plusDays(1);
+
+    // Two at a time, so the keyset is followed across pages.
+    List<String> seen = new java.util.ArrayList<>();
+    Map<String, JsonNode> mine = new java.util.HashMap<>();
+    String cursor = null;
+    do {
+      JsonNode page = read(exporter, path + "&limit=2" + (cursor == null ? "" : "&after=" + cursor), 200);
+      for (JsonNode o : page.get("items")) {
+        seen.add(o.get("orderId").asText());
+        mine.put(o.get("orderId").asText(), o);
+      }
+      cursor = page.get("nextCursor").isNull() ? null : page.get("nextCursor").asText();
+    } while (cursor != null);
+
+    assertEquals(seen.size(), new java.util.HashSet<>(seen).size(), "each order once across pages");
+    assertTrue(mine.containsKey(first.toString()) && mine.containsKey(second.toString()), seen.toString());
+    assertFalse(mine.containsKey(cancelled.toString()), "a cancelled order is no demand");
+    assertTrue(mine.containsKey(redelivery.toString()), "a redelivery is volume the depot carries, as in dailyVolumes");
+    JsonNode o = mine.get(second.toString());
+    assertEquals(today.toString(), o.get("placedDate").asText(), "dated by placement in depot time");
+    assertEquals(outlet.outletId(), o.get("outletId").asText());
+    assertEquals(depot, o.get("depot").asText());
+    assertEquals("ambient", o.get("temperature").asText());
+    assertEquals(0.7, o.get("volumeM3").asDouble(), 1e-9);
+
+    String other = reference.depotCodes().stream().filter(d -> !d.equals(depot)).findFirst().orElseThrow();
+    long before = denials(adminId, IntelligenceDataQuery.EXPORT);
+    read(exporter, "/api/ml/training/orders?depot=" + other + "&from=" + today + "&to=" + today, 403);
+    assertEquals(before + 1, denials(adminId, IntelligenceDataQuery.EXPORT), "a depot outside scope is audited");
+    read(dispatcher, path, 403);
+    read(exporter, "/api/ml/training/orders?depot=" + depot + "&from=" + today + "&to=" + today.minusDays(1), 422);
+  }
+
+  @Test
   void aPlannedOrdersSupplyProbabilityRestsOnThePlan() throws Exception {
     UUID planId = publishedPlan();
     JsonNode stops = read(dispatcher, "/api/plans/" + planId, 200).at("/trips/0/stops");
