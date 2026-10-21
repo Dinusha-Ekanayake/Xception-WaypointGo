@@ -36,7 +36,9 @@ public record AiProperties(
     @DefaultValue("300") @Min(0) @Max(100_000) int dailyCalls,
     @DefaultValue("12s") @NotNull Duration timeout,
     @DefaultValue("false") boolean jevEnabled,
-    @DefaultValue("typesafe/jev-1.13") String jevModel) {
+    @DefaultValue("typesafe/jev-1.13") String jevModel,
+    /** The watcher's AI layer, in shadow (docs/issues/watch-review/PLAN.md); off by default. */
+    @DefaultValue("false") boolean watchReview) {
 
   public static final String GROQ = "groq";
   public static final String OPENROUTER = "openrouter";

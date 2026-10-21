@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-21 - feat: the watcher's AI layer, in shadow
+
+`dev` · @Oxshadha
+
+- The hybrid watcher agreed on 2026-10-21 ([plan](../../issues/watch-review/PLAN.md)). The rules still detect; every 5 minutes a model orders only what they raised for a depot and says why in one line, from codes under short references, masked. Used only as an exact reordering with a faithful line; recorded in `ml.ai_calls` as `watch_review` and shown to nobody, so the AI health screen shows how it does and a metric counts agreement with the rules' first item (R-ML-32, ML-49). Off unless `AI_WATCH_REVIEW=true`.
+
+---
+
 ## 2026-10-21 - feat: the store gets ready replies for its delivery's situation
 
 `dev` · @Oxshadha

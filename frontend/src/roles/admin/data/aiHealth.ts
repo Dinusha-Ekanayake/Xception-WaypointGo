@@ -7,6 +7,7 @@ import type { AiHealthView, CallDayView } from "../../../shared/domain/intellige
 export const PURPOSE_LABEL: Record<string, string> = {
   explain_plan: "Plan explanations",
   explain_order: "Order explanations",
+  watch_review: "Watcher review (shadow)",
 };
 
 export const OUTCOME_LABEL: Record<string, string> = {

@@ -86,6 +86,7 @@ class IntelligenceIntegrationTest {
     registry.add("app.ai.enabled", () -> "true");
     registry.add("app.ai.groq-key", () -> "test-only");
     registry.add("app.ai.jev-enabled", () -> "true");
+    registry.add("app.ai.watch-review", () -> "true");
     registry.add("app.ai.openrouter-key", () -> "test-only");
   }
 
@@ -151,6 +152,7 @@ class IntelligenceIntegrationTest {
   @Autowired AttentionWatchJob attentionWatch;
   @Autowired JevShadow.Job jevJob;
   @Autowired KnownNames knownNames;
+  @Autowired WatchReviewJob watchReview;
   @Autowired ModelMetricsJob metricsJob;
   @Autowired FallbackTuningJob tuningJob;
   @Autowired ModelQualityJob qualityJob;
@@ -1379,7 +1381,14 @@ class IntelligenceIntegrationTest {
       if ("explain_plan".equals(day.get("purpose").asText())) unfaithful += day.get("unfaithful").asLong();
     }
     assertTrue(unfaithful >= 1, health.toString());
-    JsonNode failure = health.get("failures").get(0);
+    JsonNode failure = null;
+    for (JsonNode f : health.get("failures")) {
+      if ("explain_plan".equals(f.get("purpose").asText())) {
+        failure = f;
+        break;
+      }
+    }
+    assertTrue(failure != null, health.toString());
     assertEquals("unfaithful", failure.get("outcome").asText());
     assertEquals(com.waypoint.dispatch.intelligence.domain.PromptFacts.version(AiExplainer.INSTRUCTION),
         failure.get("promptVersion").asText());
@@ -1551,6 +1560,30 @@ class IntelligenceIntegrationTest {
     send(stranger, envelope("ml:AcknowledgeAttention", 1L,
         "{\"depotCode\":\"" + depot + "\",\"deliveryId\":\"" + delivery
             + "\",\"kind\":\"WINDOW_AT_RISK\",\"reason\":\"Not mine to decide\"}"), 403);
+  }
+
+  @Test
+  void theWatchersAiLayerOrdersWhatTheRulesRaisedInShadowAndAnInventedItemIsRefused() throws Exception {
+    // docs/issues/watch-review/PLAN.md: two open items, one review; recorded, shown to nobody.
+    LocalDate day = LocalDate.of(2031, 3, 8);
+    Instant at = Instant.parse("2031-03-08T04:00:00Z");
+    raiseAttention(UUID.randomUUID(), UUID.randomUUID(), day, at);
+    raiseAttention(UUID.randomUUID(), UUID.randomUUID(), day, at);
+
+    StubLanguage.ANSWER.set("{\"order\": [\"A2\", \"A1\"], \"why\": \"A2 closes in 48 minutes\"}");
+    assertTrue(watchReview.runAt(at, day) >= 1);
+    assertEquals("used", watchCall(at));
+
+    StubLanguage.ANSWER.set("{\"order\": [\"A9\", \"A1\"], \"why\": \"A9 first\"}");
+    Instant later = at.plusSeconds(600);
+    watchReview.runAt(later, day);
+    assertEquals("unfaithful", watchCall(later), "an item never sent is not used");
+  }
+
+  private String watchCall(Instant at) {
+    return (String) database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT outcome FROM ml.ai_calls WHERE purpose = 'watch_review' AND cache_key = ?",
+        "watch:" + depot + ":" + at.getEpochSecond() / 300)).get("outcome");
   }
 
   private boolean raiseAttention(UUID delivery, UUID trip, LocalDate day, Instant at) {

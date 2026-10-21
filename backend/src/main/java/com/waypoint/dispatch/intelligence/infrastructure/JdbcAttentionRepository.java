@@ -98,6 +98,15 @@ public class JdbcAttentionRepository {
   }
 
   /** Open items, most urgent first: by severity, then the window closing soonest, then the oldest. */
+  /** The depots with at least this many open items on a day, for the watch review. */
+  public List<String> depotsWithOpen(LocalDate serviceDate, int atLeast) {
+    return database.query(
+            "SELECT depot_code FROM ml.attention_items WHERE service_date = ? AND cleared_at IS NULL"
+                + " GROUP BY depot_code HAVING count(*) >= ? ORDER BY depot_code",
+            Date.valueOf(serviceDate), atLeast)
+        .stream().map(r -> (String) r.get("depot_code")).toList();
+  }
+
   public List<AttentionItemView> open(String depotCode, LocalDate serviceDate) {
     return database.query(
             """
