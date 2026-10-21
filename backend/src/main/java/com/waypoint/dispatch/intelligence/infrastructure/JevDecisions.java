@@ -36,6 +36,7 @@ public class JevDecisions implements DecisionPort {
   private final HttpClient http;
   private final URI url;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public JevDecisions(AiProperties properties, ObjectMapper json, Metrics metrics, Clock clock) {
     this(properties, json, metrics, clock, URI.create(URL));
   }

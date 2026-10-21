@@ -12,7 +12,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODE="${1:-up}"
 
 # DB_PORT from the root .env moves the database off 5432 when another PostgreSQL holds it.
-DB_PORT="$( (grep -E '^DB_PORT=' "$ROOT/.env" 2>/dev/null || true) | tail -1 | cut -d= -f2 )"
+# DB_PORT set in the shell wins over the file.
+DB_PORT="${DB_PORT:-$( (grep -E '^DB_PORT=' "$ROOT/.env" 2>/dev/null || true) | tail -1 | cut -d= -f2 )}"
 export DB_PORT="${DB_PORT:-5432}"
 export DATABASE_URL="postgresql://waypoint:local-testing-only@127.0.0.1:${DB_PORT}/waypoint"
 export DEMO_MODE=1
@@ -24,7 +25,7 @@ export SEED_PASSWORD="${SEED_PASSWORD:-Waypoint2026!}"
 if [[ -f "$ROOT/.env" ]]; then
   while IFS='=' read -r name value; do
     export "$name=$value"
-  done < <(grep -E '^(AI_ENABLED|AI_PROVIDER|AI_MODEL|AI_DAILY_CALLS|GROQ_API_KEY|OPENROUTER_API_KEY|JEV_ENABLED|JEV_MODEL|SPEECH_URL)=' "$ROOT/.env" || true)
+  done < <(grep -E '^(AI_ENABLED|AI_PROVIDER|AI_MODEL|AI_DAILY_CALLS|GROQ_API_KEY|OPENROUTER_API_KEY|JEV_ENABLED|JEV_MODEL|AI_WATCH_REVIEW|SPEECH_URL)=' "$ROOT/.env" || true)
 fi
 
 docker_cmd() {
