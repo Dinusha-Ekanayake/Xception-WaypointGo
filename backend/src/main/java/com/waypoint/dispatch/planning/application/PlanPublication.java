@@ -100,6 +100,14 @@ class PlanPublication {
       violations.addAll(
           drafts.run(opened)
               .verify(opened.built().orders().keySet(), opened.built().problem().context(), registry));
+      // R-PLN-44, FLT-08: a vehicle that went out of use after its trips left keeps those trips; the
+      // availability rule cannot refuse what already happened. Any trip of it still at the depot is refused.
+      Set<UUID> departed = released.forDay(row.depotCode(), row.serviceDate());
+      if (!departed.isEmpty()) {
+        Map<String, Boolean> onlyDeparted = new java.util.HashMap<>();
+        view.draftView(row).trips().forEach(t -> onlyDeparted.merge(t.vehicleId(), departed.contains(t.tripId()), Boolean::logicalAnd));
+        violations.removeIf(v -> "R-FLT-03".equals(v.ruleId()) && Boolean.TRUE.equals(onlyDeparted.get(v.subject())));
+      }
     }
     if (!violations.isEmpty()) {
       violations.stream().map(Violation::ruleId).distinct()

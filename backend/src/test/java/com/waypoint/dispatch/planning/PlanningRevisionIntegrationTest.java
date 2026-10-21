@@ -206,6 +206,14 @@ class PlanningRevisionIntegrationTest extends PlanningIntegrationSupport {
 
     assertNull(openDraft(), "the trip on the road stays; there is nothing to move, so no draft is waiting");
     assertEquals("PUBLISHED", plan(original).get("status").asText());
+
+    // The vehicle is out of use now, but its trip left before: a revision can still be sent (FLT-08).
+    database.asModule(ModuleRole.REF, null, () -> database.update(
+        "INSERT INTO ref.vehicle_day_status (vehicle_id, service_date, status, reason) VALUES (?, ?, 'unavailable', 'broken down')",
+        lost, java.sql.Date.valueOf(serviceDate)));
+    UUID revision = UUID.fromString(
+        mapper.readTree(send(dispatcher, revise(original, 2L, "a second look"), 200)).get("result").get("planId").asText());
+    send(dispatcher, publish(revision, 1L), 200);
   }
 
   @Test

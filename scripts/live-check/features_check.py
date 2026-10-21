@@ -92,15 +92,17 @@ if waiting:
     ok = isinstance(draft, dict) and lost in (draft.get("revisionReason") or "")
     check("Planning drafts a revision naming the vehicle", ok, str(draft)[:300])
     if ok:
-        check("no trip of the draft is on the lost vehicle", all(t["vehicleId"] != lost for t in draft["trips"]))
+        left = {t["tripId"] for t in trips() if t["status"] != "NOT_STARTED"}
+        check("only the lost vehicle's trips that already left stay on it (FLT-08)",
+              all(t["tripId"] in left for t in draft["trips"] if t["vehicleId"] == lost))
     titles = poll(lambda: [n["title"] for n in a.json("dispatcher", "/api/notifications")["items"]],
                   lambda ts: isinstance(ts, list) and any(f"{lost} out of use" in t for t in ts), timeout=60)
     check("the dispatcher is told at once", isinstance(titles, list) and any(f"{lost} out of use" in t for t in titles), str(titles)[:200])
     if ok:
         a.must("dispatcher", "plan:Publish", {"planId": draft["planId"]}, version=draft["rowVersion"])
-        board = poll(trips, lambda ts: isinstance(ts, list) and all(t["vehicleId"] != lost for t in ts), timeout=60)
-        check("after the update is sent, the loader's dock board no longer has the lost vehicle",
-              isinstance(board, list) and all(t["vehicleId"] != lost for t in board))
+        board = poll(trips, lambda ts: isinstance(ts, list) and all(t["vehicleId"] != lost or t["status"] != "NOT_STARTED" for t in ts), timeout=60)
+        check("after the update is sent, the loader has nothing left to load on the lost vehicle",
+              isinstance(board, list) and all(t["vehicleId"] != lost or t["status"] != "NOT_STARTED" for t in board))
     a.must("driver", "vehicle:SetDayStatus", {"vehicleId": lost, "serviceDate": day.isoformat(), "status": "available"})
     titles = poll(lambda: [n["title"] for n in a.json("dispatcher", "/api/notifications")["items"]],
                   lambda ts: isinstance(ts, list) and any(f"{lost} back in use" in t for t in ts), timeout=60)
