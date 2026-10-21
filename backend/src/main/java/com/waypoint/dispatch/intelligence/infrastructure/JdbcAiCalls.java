@@ -33,11 +33,11 @@ public class JdbcAiCalls {
 
   public void record(
       UUID callId, String purpose, String cacheKey, String provider, String model, String sentFacts,
-      Optional<String> answer, String outcome, UUID askedBy, Instant at, long millis) {
+      Optional<String> answer, String outcome, UUID askedBy, Instant at, long millis, String promptVersion) {
     database.update(
         "INSERT INTO ml.ai_calls (call_id, purpose, cache_key, provider, model, sent_facts, answer, outcome, asked_by,"
-            + " asked_at, millis) VALUES (?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?)",
+            + " asked_at, millis, prompt_version) VALUES (?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?)",
         callId, purpose, cacheKey, provider, model, sentFacts, answer.orElse(null), outcome, askedBy, Timestamp.from(at),
-        (int) Math.min(Integer.MAX_VALUE, millis));
+        (int) Math.min(Integer.MAX_VALUE, millis), promptVersion);
   }
 }

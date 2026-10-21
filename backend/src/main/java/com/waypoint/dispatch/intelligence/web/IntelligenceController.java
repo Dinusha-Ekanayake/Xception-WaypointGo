@@ -52,6 +52,7 @@ public class IntelligenceController {
   private final RequestAuthorizer authorizer;
   private final com.waypoint.dispatch.intelligence.application.AiExplainer explainer;
   private final com.waypoint.dispatch.intelligence.application.PlaybookQuery playbooks;
+  private final com.waypoint.dispatch.intelligence.application.AiHealthQuery aiHealth;
 
   public IntelligenceController(
       IntelligenceDataQuery intelligence,
@@ -63,7 +64,9 @@ public class IntelligenceController {
       com.waypoint.dispatch.intelligence.application.RiskReviewQuery riskReviews,
       RequestAuthorizer authorizer,
       com.waypoint.dispatch.intelligence.application.AiExplainer explainer,
-      com.waypoint.dispatch.intelligence.application.PlaybookQuery playbooks) {
+      com.waypoint.dispatch.intelligence.application.PlaybookQuery playbooks,
+      com.waypoint.dispatch.intelligence.application.AiHealthQuery aiHealth) {
+    this.aiHealth = aiHealth;
     this.explainer = explainer;
     this.playbooks = playbooks;
     this.intelligence = intelligence;
@@ -119,6 +122,17 @@ public class IntelligenceController {
   @GetMapping("/capacity/decisions")
   public List<CapacityDecisionView> capacityDecisions(@RequestParam String depot, HttpServletRequest request) {
     return capacityDecisions.fromThisWeek(read(request, "wpt:ml:forecast:" + depot), depot);
+  }
+
+  /**
+   * R-ML-27: where the language models and Jev fail, for the administrator. Its
+   * own action: it shows every depot's masked inputs, which ml:Read does not reach.
+   */
+  @GetMapping("/ai-health")
+  public com.waypoint.dispatch.intelligence.contract.AiHealthViews.AiHealthView aiHealth(
+      @RequestParam(defaultValue = "14") int days, HttpServletRequest request) {
+    authorizer.require(request, com.waypoint.dispatch.intelligence.contract.AiHealthViews.READ, "wpt:ml:ai:*");
+    return aiHealth.over(days);
   }
 
   @GetMapping("/models")

@@ -1317,6 +1317,28 @@ class IntelligenceIntegrationTest {
     explain(dispatcher, "anything:" + planId, "{}", 422);
   }
 
+  @Test
+  void theAdministratorSeesWhereTheModelFailedAndADispatcherDoesNot() throws Exception {
+    // R-ML-27: an unfaithful answer shows on the AI health screen, with its prompt version.
+    UUID planId = publishedPlan();
+    StubLanguage.ANSWER.set("The plan carries 9 orders.");
+    explain(dispatcher, "plan:" + planId + ":health", "{\"headline\":\"2 orders\"}", 200);
+
+    JsonNode health = read(admin, "/api/ml/ai-health?days=1", 200);
+    long unfaithful = 0;
+    for (JsonNode day : health.get("calls")) {
+      if ("explain_plan".equals(day.get("purpose").asText())) unfaithful += day.get("unfaithful").asLong();
+    }
+    assertTrue(unfaithful >= 1, health.toString());
+    JsonNode failure = health.get("failures").get(0);
+    assertEquals("unfaithful", failure.get("outcome").asText());
+    assertEquals(com.waypoint.dispatch.intelligence.domain.PromptFacts.version(AiExplainer.INSTRUCTION),
+        failure.get("promptVersion").asText());
+    assertTrue(health.has("jev") && health.has("suggestions"));
+
+    read(dispatcher, "/api/ml/ai-health", 403);
+  }
+
   private JsonNode explain(Cookie who, String key, String facts, int expected) throws Exception {
     MvcResult r = http.perform(post("/api/ml/explain").cookie(who).contentType(MediaType.APPLICATION_JSON)
         .content("{\"key\":\"" + key + "\",\"facts\":" + facts + "}")).andReturn();

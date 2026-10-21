@@ -140,6 +140,7 @@ public class AiExplainer {
       String cacheKey, Kind kind, String sent, Optional<String> answer, String outcome, Actor actor, Instant at, long millis) {
     database.asSystem(ModuleRole.ML, () -> calls.record(
         UuidV7.generate(at, random), "explain_" + kind.name().toLowerCase(java.util.Locale.ROOT), cacheKey,
-        model.provider(), model.model(), sent, answer, outcome, actor.userId(), at, millis));
+        model.provider(), model.model(), sent, answer, outcome, actor.userId(), at, millis,
+        PromptFacts.version(INSTRUCTION)));
   }
 }

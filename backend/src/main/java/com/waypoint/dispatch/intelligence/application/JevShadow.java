@@ -30,6 +30,11 @@ import org.springframework.stereotype.Component;
  * Jev may advise anyone. Off unless {@code JEV_ENABLED=true}.
  */
 final class JevShadow {
+  /** R-ML-27: the instruction and the options in plain words are the prompt; a change to either is a new version. */
+  static final String PROMPT_VERSION =
+      com.waypoint.dispatch.intelligence.domain.PromptFacts.version(
+          IssueTriage.INSTRUCTIONS + "\n" + new java.util.TreeMap<>(IssueTriage.OPTIONS));
+
   private JevShadow() {}
 
   /** Queues a person's issue with words of its own; a redelivered event queues nothing new. */
@@ -151,7 +156,7 @@ final class JevShadow {
           }
           String probs = probabilities;
           database.asSystem(ModuleRole.ML, () -> shadow.answered(
-              p.issueId(), c.option(), c.confidence(), probs, c.model(), agrees, clock.now()));
+              p.issueId(), c.option(), c.confidence(), probs, c.model(), agrees, clock.now(), PROMPT_VERSION));
           metrics.increment("waypoint.ai.jev_shadow", "agrees", String.valueOf(agrees));
           answered++;
         } else {

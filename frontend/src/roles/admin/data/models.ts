@@ -95,3 +95,8 @@ export function trainingPeriod(from: string | null, to: string | null): string {
   const month = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
   return from && to ? `Trained on ${month(from)} to ${month(to)}` : "Training period not recorded";
 }
+
+/** R-ML-27: where the language models and Jev failed over the last days. Administrators only. */
+export function fetchAiHealth(days: number, signal?: AbortSignal) {
+  return request<import("@shared/domain/intelligence").AiHealthView>(`/api/ml/ai-health?days=${days}`, { signal });
+}

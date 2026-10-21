@@ -56,6 +56,20 @@ public final class PromptFacts {
   private static final Pattern LINK = Pattern.compile("(?:https?://|www\\.)\\S+");
   private static final Pattern NUMBER = Pattern.compile("\\d+(?:[.:]\\d+)?");
 
+  /**
+   * The version of an instruction (R-ML-27): the first 12 hex digits of its
+   * SHA-256. A changed prompt is a new version by construction.
+   */
+  public static String version(String instruction) {
+    try {
+      byte[] hash = java.security.MessageDigest.getInstance("SHA-256")
+          .digest(instruction.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      return java.util.HexFormat.of().formatHex(hash).substring(0, 12);
+    } catch (java.security.NoSuchAlgorithmException e) {
+      throw new IllegalStateException("SHA-256 is part of every JVM", e);
+    }
+  }
+
   /** Masks what identifies a person or leads elsewhere; the rest of the text is kept. */
   public static String mask(String text) {
     String t = LINK.matcher(text).replaceAll("[link]");

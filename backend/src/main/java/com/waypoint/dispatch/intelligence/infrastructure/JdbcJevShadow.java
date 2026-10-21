@@ -47,12 +47,13 @@ public class JdbcJevShadow {
   }
 
   public void answered(UUID issueId, String choice, double confidence, String probabilitiesJson, String model,
-      boolean agrees, Instant at) {
+      boolean agrees, Instant at, String promptVersion) {
     database.update(
         "UPDATE ml.jev_shadow SET status = 'answered', attempts = attempts + 1, jev_choice = ?, confidence = ?,"
-            + " probabilities = ?::jsonb, model = ?, agrees = ?, answered_at = ? WHERE issue_id = ? AND status = 'pending'",
+            + " probabilities = ?::jsonb, model = ?, agrees = ?, answered_at = ?, prompt_version = ?"
+            + " WHERE issue_id = ? AND status = 'pending'",
         choice, BigDecimal.valueOf(confidence).setScale(4, java.math.RoundingMode.HALF_UP), probabilitiesJson, model,
-        agrees, Timestamp.from(at), issueId);
+        agrees, Timestamp.from(at), promptVersion, issueId);
   }
 
   /** No answer: tried again next run, given up after the last attempt. */

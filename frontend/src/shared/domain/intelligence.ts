@@ -384,3 +384,40 @@ export const SuggestionCommandKind = {
 } as const;
 
 export type RecordSuggestionPayload = { deliveryId: string; situation: string; shown: DecisionAction[]; chosen?: DecisionAction };
+
+// ---- AI health (R-ML-27): where the language models and Jev fail ----------------
+
+/** One use of a model on one depot day. */
+export type CallDayView = {
+  purpose: string;
+  day: IsoDate;
+  used: number;
+  unfaithful: number;
+  failed: number;
+  capped: number;
+  p50Millis: number;
+  p95Millis: number;
+};
+
+/** A call that was not used, with the masked facts that were sent. */
+export type AiFailureView = {
+  at: IsoInstant;
+  purpose: string;
+  outcome: "unfaithful" | "failed" | "capped";
+  model: string;
+  promptVersion: string | null;
+  millis: number;
+  sentFacts: string;
+};
+
+export type JevVersionView = { promptVersion: string | null; model: string; answered: number; agreed: number };
+export type JevHealthView = { pending: number; answered: number; agreed: number; failed: number; byVersion: JevVersionView[] };
+export type SuggestionUseView = { situation: string; decided: number; chosen: number; chosenFirst: number };
+
+export type AiHealthView = {
+  days: number;
+  calls: CallDayView[];
+  failures: AiFailureView[];
+  jev: JevHealthView;
+  suggestions: SuggestionUseView[];
+};

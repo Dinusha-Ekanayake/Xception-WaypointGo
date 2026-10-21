@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-21 - feat: AI health for the administrator, with a prompt version on every call
+
+`dev` · @Oxshadha
+
+- Every language model call (`ml.ai_calls`) and Jev shadow answer (`ml.jev_shadow`) now records its prompt version, a hash of the instruction text, so a prompt change can be compared and rolled back. A new admin tab, AI health, shows per use how calls ended and how slow they were, the newest failures with their masked input, Jev's agreement per prompt version, and how often suggested decisions are taken (R-ML-27, ML-42, ML-43). Its own action `ml:ReadAiHealth`, since `ml:Read` is a dispatcher's and the screen reaches every depot.
+- Why: a gateway with guardrails is only half of it; the other half is seeing where it fails. Next in this line: masking known names, transcription on our own servers, a hybrid watcher that sends only raised items to a model.
+
+---
+
 ## 2026-10-21 - feat: a loader takes back a flag when the goods turn up
 
 `dev` · @Oxshadha
