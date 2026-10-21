@@ -26,7 +26,8 @@ public final class AiHealthViews {
       String sentFacts) {}
 
   /** Jev's shadow guesses against the real issue type, per prompt version and model. */
-  public record JevVersionView(Optional<String> promptVersion, String model, long answered, long agreed) {}
+  /** @param source issue or report (R-ML-33): what Jev was asked about under that prompt */
+  public record JevVersionView(Optional<String> promptVersion, String model, long answered, long agreed, String source) {}
 
   public record JevView(long pending, long answered, long agreed, long failed, List<JevVersionView> byVersion) {}
 

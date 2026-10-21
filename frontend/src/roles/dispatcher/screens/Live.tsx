@@ -17,7 +17,7 @@ import { Toggle } from "./LiveParts.tsx";
 import LiveTimeline, { RoadCard } from "./LiveTimeline.tsx";
 import LiveTrip from "./LiveTrip.tsx";
 import Refusal from "./Refusal.tsx";
-import { businessNow } from "@shared/wording";
+import { businessNow, onClockOffset } from "@shared/wording";
 
 // Figma "05 Live" (189:20983 needs you, 189:21127 timeline, 189:21358 map,
 // 189:21943 trip). Run sheets are read every 2 seconds while the tab is
@@ -66,7 +66,12 @@ export default function Live({
   // "At risk" compares a window with the time now, so the time moves.
   useEffect(() => {
     const timer = window.setInterval(() => setNow(businessNow()), 30_000);
-    return () => window.clearInterval(timer);
+    // The demo clock's offset arrives after the first paint: until it does, a window would be measured from the device's time.
+    const unsubscribe = onClockOffset(() => setNow(businessNow()));
+    return () => {
+      window.clearInterval(timer);
+      unsubscribe();
+    };
   }, []);
 
   const sheets = live.data?.sheets ?? [];

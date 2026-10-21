@@ -410,7 +410,8 @@ export type AiFailureView = {
   sentFacts: string;
 };
 
-export type JevVersionView = { promptVersion: string | null; model: string; answered: number; agreed: number };
+/** `source` (R-ML-33): what Jev was asked about; absent from a server older than it. */
+export type JevVersionView = { promptVersion: string | null; model: string; answered: number; agreed: number; source?: "issue" | "report" };
 export type JevHealthView = { pending: number; answered: number; agreed: number; failed: number; byVersion: JevVersionView[] };
 export type SuggestionUseView = { situation: string; decided: number; chosen: number; chosenFirst: number };
 

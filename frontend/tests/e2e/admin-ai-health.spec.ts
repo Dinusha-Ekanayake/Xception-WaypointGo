@@ -12,7 +12,7 @@ const HEALTH = {
   failures: [
     { at: "2026-10-21T06:30:00Z", purpose: "explain_plan", outcome: "unfaithful", model: "gpt-small", promptVersion: "3f2a9c1b7d04", millis: 1800, sentFacts: "{\"headline\":\"2 orders\",\"reason\":\"call [phone]\"}" },
   ],
-  jev: { pending: 2, answered: 20, agreed: 18, failed: 1, byVersion: [{ promptVersion: "a1b2c3d4e5f6", model: "jev-1", answered: 20, agreed: 18 }] },
+  jev: { pending: 2, answered: 20, agreed: 18, failed: 1, byVersion: [{ promptVersion: "a1b2c3d4e5f6", model: "jev-1", answered: 15, agreed: 13, source: "issue" }, { promptVersion: "0f9e8d7c6b5a", model: "jev-1", answered: 5, agreed: 5, source: "report" }] },
   suggestions: [{ situation: "STORE_CLOSED", decided: 30, chosen: 25, chosenFirst: 21 }],
 };
 
@@ -36,5 +36,8 @@ test("an administrator sees which AI use fails, the latest failure masked, and J
   await screen.getByText("What was sent (masked)").click();
   await expect(screen).toContainText("call [phone]");
   await expect(screen).toContainText("18 of 20 agreed (90%)");
+  // R-ML-33: issues and trip reports are measured apart.
+  await expect(screen).toContainText("Issues · Prompt a1b2c3d4e5f6 · jev-1 · 13 of 15 agreed (87%)");
+  await expect(screen).toContainText("Trip reports · Prompt 0f9e8d7c6b5a · jev-1 · 5 of 5 agreed (100%)");
   await expect(screen.getByRole("row", { name: /store closed/i })).toContainText("21 (70%)");
 });

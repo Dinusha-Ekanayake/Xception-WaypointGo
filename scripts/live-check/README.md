@@ -38,7 +38,8 @@ The store manager is granted the first two stops' outlets through
 - The demo accounts (`scripts/dev.sh setup` or the `demo-accounts` command) with
   the password in `SEED_PASSWORD` (default `Waypoint2026!`).
 - A delivery day: `seed-delivery-day` once, which also sets the loader PIN
-  (`DEMO_LOADER_PIN`, default `2468`). Later runs need a fresh day; the script
+  (`DEMO_LOADER_PIN`, default `2468`). The seed gives the demo driver no vehicle: assign
+  them the depot's vehicles with `iam:AssignDriver` (People & access) first. Later runs need a fresh day; the script
   asks the admin for one with `demo:ResetDay` (Peliyagoda only).
 - Python 3.9 or later with `requests`.
 

@@ -49,8 +49,8 @@ import org.springframework.core.env.Environment;
  *   <li>{@code seed-delivery-day} places the Task 2B peak day as confirmed orders on
  *       the first open operating day, marks its workshop vehicles, and grants
  *       {@code store_manager@waypoint.local} the outlet {@code DEMO_OUTLET}, gives
- *       {@code loader@waypoint.local} the PIN {@code DEMO_LOADER_PIN} and
- *       {@code driver@waypoint.local} the depot's vehicles for that day; orders once per database
+ *       {@code loader@waypoint.local} the PIN {@code DEMO_LOADER_PIN}; orders once per database.
+ *       No vehicle gets a driver: an administrator assigns one ({@code iam:AssignDriver})
  *   <li>{@code forecast-run} runs the demand forecast once, now, without waiting for the
  *       hourly check to find a run due (P-29); for a model just activated
  * </ul>

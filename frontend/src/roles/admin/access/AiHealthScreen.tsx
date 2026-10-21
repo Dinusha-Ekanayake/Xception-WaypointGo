@@ -127,15 +127,15 @@ export function AiHealthScreen() {
       {view && view.jev.answered + view.jev.pending + view.jev.failed > 0 && (
         <div className={`${card} flex flex-col gap-3 p-5`}>
           <h2 className="text-[17px] font-medium text-go-ink">Jev in shadow</h2>
-          <p className="text-sm text-go-muted">Jev guesses each new issue's type from its masked words; nobody sees the guess. Agreement is with the type the issue was given.</p>
+          <p className="text-sm text-go-muted">Jev guesses each new issue's type, and the situation of each trip report sent with a type, from the masked words alone; nobody sees the guess. Agreement is with the type the person chose.</p>
           <p className="text-sm text-go-ink">
             {[agreement(view.jev.answered, view.jev.agreed) ?? "No answer yet", `${view.jev.pending} waiting`, `${view.jev.failed} gave up`].join(" · ")}
           </p>
           {view.jev.byVersion.length > 0 && (
             <ul className="flex flex-col gap-1 text-sm">
               {view.jev.byVersion.map((v) => (
-                <li key={`${v.promptVersion}-${v.model}`} className="text-go-muted">
-                  {`${v.promptVersion ? `Prompt ${v.promptVersion}` : "Prompt not recorded"} · ${v.model} · ${agreement(v.answered, v.agreed)}`}
+                <li key={`${v.source}-${v.promptVersion}-${v.model}`} className="text-go-muted">
+                  {`${v.source === "report" ? "Trip reports" : "Issues"} · ${v.promptVersion ? `Prompt ${v.promptVersion}` : "Prompt not recorded"} · ${v.model} · ${agreement(v.answered, v.agreed)}`}
                 </li>
               ))}
             </ul>

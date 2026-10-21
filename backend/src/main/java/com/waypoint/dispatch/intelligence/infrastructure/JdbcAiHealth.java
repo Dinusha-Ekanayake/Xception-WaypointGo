@@ -63,13 +63,13 @@ public class JdbcAiHealth {
             + " FROM ml.jev_shadow WHERE created_at >= ?",
         Timestamp.from(since));
     List<JevVersionView> byVersion = database.query(
-            "SELECT prompt_version, model, count(*) AS answered, count(*) FILTER (WHERE agrees) AS agreed"
+            "SELECT prompt_version, model, source, count(*) AS answered, count(*) FILTER (WHERE agrees) AS agreed"
                 + " FROM ml.jev_shadow WHERE status = 'answered' AND created_at >= ?"
-                + " GROUP BY 1, 2 ORDER BY max(answered_at) DESC",
+                + " GROUP BY 1, 2, 3 ORDER BY max(answered_at) DESC",
             Timestamp.from(since))
         .stream()
         .map(r -> new JevVersionView(Optional.ofNullable((String) r.get("prompt_version")), (String) r.get("model"),
-            n(r, "answered"), n(r, "agreed")))
+            n(r, "answered"), n(r, "agreed"), (String) r.get("source")))
         .toList();
     return new JevView(n(all, "pending"), n(all, "answered"), n(all, "agreed"), n(all, "failed"), byVersion);
   }

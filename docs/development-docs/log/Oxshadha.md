@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-21 - fix: the AI parts checked end to end on the local stack
+
+`dev` · @Oxshadha
+
+- A real day driven through the commands (`scripts/live-check`, now reporting at the depot first, R-LOD-13) on a separate local database, with Jev and the watcher on: Jev answered 5 of 5 typed driver reports from masked text, the "other" report was not queued, and the watcher's first review was used in 0.5 s on `qwen/qwen3.8-27b`. Found on screen: Live measured a window from the device until its next tick when the demo clock's offset came after the first paint ("1989 min left" for 156), fixed (DEMO-13); the AI health screen now tells issue and trip-report agreement apart. `seed-delivery-day` no longer gives the demo driver vehicles, so a local day needs `iam:AssignDriver` first.
+
+---
+
 ## 2026-10-21 - fix: the AI parts measured against the real models, and two faults fixed
 
 `dev` · @Oxshadha

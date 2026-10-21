@@ -585,6 +585,11 @@ class LiveCheck:
         self.open_stream("pos-outlet1", "store_manager", f"/api/execution/positions/stream?outlet={first['outlet']}&date={day}")
         self.open_stream("pos-outlet2", "store_manager", f"/api/execution/positions/stream?outlet={second['outlet']}&date={day}")
 
+        # R-LOD-13: a trip is taken for loading only once its driver has reported at the depot.
+        print("\n== delivery:ArriveAtDepot (driver)")
+        a.must("driver", "delivery:ArriveAtDepot", {"vehicleId": self.vehicle, "serviceDate": day.isoformat()})
+        time.sleep(3)  # Loading hears it through the outbox relay
+
         print("\n== Loader PIN operator")
         loader = a.users["loader"]
         r = a.sessions["loader"].post(a.base + "/api/session/operator", json={"userId": loader, "pin": self.args.loader_pin}, timeout=15)

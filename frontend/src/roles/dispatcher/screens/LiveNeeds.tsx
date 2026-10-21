@@ -5,7 +5,7 @@ import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import type { DecisionView } from "@shared/domain/types";
 import { cx } from "@shared/ui";
-import { clockOn, hhmm, stops } from "@shared/wording";
+import { businessNow, clockOn, hhmm, stops } from "@shared/wording";
 import { lateBy, tripOf, updateText, useOpenTripThread } from "../data/threads.ts";
 import { depotSummaries, etaOf, groupByTrip, NEEDS_SHOWN, progress, routeLabel, summaryText, type NeedCard, type Run } from "../data/liveDesk.ts";
 import { playbookOf, suggestionFor, type Suggestion } from "../data/playbooks.ts";
@@ -134,7 +134,7 @@ export default function LiveNeeds({
           stops={stopOf(card)!.stops}
           decisions={decisions.data ?? []}
           online={online}
-          now={new Date()}
+          now={businessNow()}
           date={date}
           onChanged={decisions.refresh}
         />
