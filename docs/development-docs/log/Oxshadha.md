@@ -8,6 +8,7 @@
 
 `dev` · @Oxshadha
 
+- Also found live: the dispatcher's chat read the run sheets with no depot, which the server answers with the reader's own vehicles, none for a dispatcher. So the real chat never showed End trip, Skip beside a report, the ready replies or any chips; the browser mock ignored the depot and hid it. Fixed, and the mock now answers as the server does (MSG-29).
 - Found while checking the trip outlook live: a vehicle with two trips a day has both threads opened by the plan at once, and a breakdown notice and fault report went to whichever sorted last, often the trip not yet left. They now go to the trip whose channel the driver opened last (EDGE-CASES MSG-28).
 
 ---

@@ -52,9 +52,15 @@ function ThreadSheetPanel({
   const head = thread.data && thread.data.threadId === open.threadId ? thread.data : null;
   // FF-08: the trip's state, for the ready replies: its run sheet and the stores' answers today.
   const date = head?.serviceDate ?? null;
+  const depot = head?.depotCode ?? null;
+  // The depot's run sheets: without a depot the server answers with the reader's own vehicles, which
+  // for a dispatcher is none, and the chat would offer no decision at all.
   const sheets = useResource(
-    date ? (signal: AbortSignal) => request<RunSheetView[]>(`/api/execution/run-sheets?date=${encodeURIComponent(date)}`, { signal }) : null,
-    `thread-sheets|${date}`,
+    date && depot
+      ? (signal: AbortSignal) =>
+          request<RunSheetView[]>(`/api/execution/run-sheets?date=${encodeURIComponent(date)}&depot=${encodeURIComponent(depot)}`, { signal })
+      : null,
+    `thread-sheets|${depot}|${date}`,
     30_000,
     // A stop skipped here or recorded on the road changes the buttons at once (F-07b).
     head ? { depots: [head.depotCode], topics: ["delivery", "trip"] } : undefined,
