@@ -183,12 +183,15 @@ public final class ExecutionViews {
       Optional<java.math.BigDecimal> expectedServiceMinutes,
       /** Roadmap MF-06: about four stops in five take between these minutes; empty with too little history. */
       Optional<java.math.BigDecimal> expectedServiceLow,
-      Optional<java.math.BigDecimal> expectedServiceHigh) {
+      Optional<java.math.BigDecimal> expectedServiceHigh,
+      /** R-EXE-32: the driver reported the store closed or that they cannot unload; the dispatcher decides. */
+      Optional<String> reportedProblem) {
 
     public DeliveryRecordView {
       lines = List.copyOf(lines);
       expectedServiceLow = expectedServiceLow == null ? Optional.empty() : expectedServiceLow;
       expectedServiceHigh = expectedServiceHigh == null ? Optional.empty() : expectedServiceHigh;
+      reportedProblem = reportedProblem == null ? Optional.empty() : reportedProblem;
     }
 
     /** The same record with the driver named; the driver is read from Identity, not from this record. */
@@ -199,7 +202,7 @@ public final class ExecutionViews {
           deliveredUnits, failureReason, dispositionNote, lowEvidence, proofId, clientRecordedAt,
           serverRecordedAt, rowVersion, lines, stopSequence, tripStopCount, plannedArrival,
           expectedArrival, releasedAt, startedAt, driver, expectedServiceMinutes, expectedServiceLow,
-          expectedServiceHigh);
+          expectedServiceHigh, reportedProblem);
     }
   }
 

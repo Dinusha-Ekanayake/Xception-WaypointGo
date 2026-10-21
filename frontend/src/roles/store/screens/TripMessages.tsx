@@ -5,6 +5,8 @@ import { queuedSender } from "@shared/messaging/senders";
 import { useTripThread } from "@shared/messaging/useThread";
 import { SecondaryButton, Sheet, SkeletonRows, TripThread } from "@shared/ui";
 import { useT } from "../i18n.tsx";
+import type { DeliveryRecordView } from "@shared/domain/types";
+import { storeReplies } from "@shared/messaging/templates";
 
 // A trip's thread for the store (issue #136): what the dispatcher or the driver
 // wrote to this store or to everyone on the trip, and the store's own replies
@@ -21,12 +23,15 @@ export default function TripMessages({
   online,
   onQueued,
   onClose,
+  delivery = null,
 }: {
   accountId: string;
   open: OpenThread;
   online: boolean;
   onQueued: () => void;
   onClose: () => void;
+  /** The store's delivery on this trip, for its ready replies; null when not known. */
+  delivery?: DeliveryRecordView | null;
 }): React.JSX.Element {
   const t = useT();
   const byTrip = useTripThread("tripId" in open ? open.tripId : null, accountId);
@@ -46,7 +51,16 @@ export default function TripMessages({
       </header>
       <div className="flex h-[62dvh] min-h-0 flex-col">
         {threadId ? (
-          <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} tr={t} />
+          <TripThread
+            threadId={threadId}
+            online={online}
+            variant="phone"
+            sender={sender}
+            keepsOffline
+            accountId={accountId}
+            tr={t}
+            replies={storeReplies(delivery, (english) => t(english))}
+          />
         ) : byTrip.loading ? (
           <SkeletonRows label={t("Loading messages…")} />
         ) : byTrip.error ? (

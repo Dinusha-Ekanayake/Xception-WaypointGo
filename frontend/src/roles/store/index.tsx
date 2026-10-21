@@ -375,7 +375,16 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
         unread={inbox.unread}
         onNotifications={gateway.sample ? undefined : () => setInboxOpen(true)}
       />
-      {thread && <TripMessages accountId={userId} open={thread} online={online} onQueued={queued} onClose={() => setThread(null)} />}
+      {thread && (
+        <TripMessages
+          accountId={userId}
+          open={thread}
+          online={online}
+          onQueued={queued}
+          onClose={() => setThread(null)}
+          delivery={"tripId" in thread ? (deliveries.data ?? []).find((d) => d.tripId === thread.tripId) ?? null : null}
+        />
+      )}
       {inboxOpen && <NotificationsDrawer inbox={inbox} onSubject={openSubject} onClose={() => setInboxOpen(false)} />}
       {warehouseDown && (
         <Notice tone="warning" live title={t("The warehouse is not answering")}>

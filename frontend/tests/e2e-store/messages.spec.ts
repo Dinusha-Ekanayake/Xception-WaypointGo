@@ -83,3 +83,24 @@ test("a store still waiting writes to the stores' channel, and is asked before n
   await expect(sheet.getByText("To the stores still waiting")).toBeVisible();
   expect(sent.filter((c) => c.kind === "message:Post").at(-1)?.payload).toMatchObject({ to: "channel" });
 });
+
+test("a store the driver found closed is offered to say it is open now, to the dispatcher (decision suggestions part 4)", async ({ page }) => {
+  const { sent } = await mockStore(page, { threads: [thread()] });
+  // The driver reported the store closed (R-EXE-32): the store's ready replies follow that.
+  const { DELIVERY } = await import("./mocks.ts");
+  await page.route("**/api/execution/deliveries**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json",
+      body: JSON.stringify([{ ...DELIVERY, outcome: "ARRIVED", arrivedAt: new Date().toISOString(), reportedProblem: "STORE_CLOSED" }]) }));
+  await page.goto("/");
+  await page.getByRole("button", { name: /^Deliveries/ }).click();
+  await page.getByRole("region", { name: "Today" }).getByRole("article", { name: "VEH043" }).getByRole("button", { name: "Message" }).click();
+
+  const sheet = page.getByRole("dialog", { name: "Messages · VEH043" });
+  const chips = sheet.getByRole("group", { name: "Suggested replies" });
+  await expect(chips.getByRole("button", { name: "We are open now" })).toBeVisible();
+  await expect(chips.getByRole("button", { name: "Deliver on the next day" })).toBeVisible();
+  await chips.getByRole("button", { name: "We are open now" }).click();
+  await expect(sheet.getByRole("textbox", { name: "Message" })).toHaveValue("We are open now and can receive. Please send the driver back.");
+  await sheet.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.poll(() => sent.find((c) => c.kind === "message:Post")?.payload).toMatchObject({ to: "dispatch", templateId: "storereply.open_now" });
+});

@@ -122,6 +122,8 @@ export type DeliveryRecordView = {
   /** Roadmap MF-06: about four stops in five take between these minutes; null with too little history. */
   expectedServiceLow?: number | string | null;
   expectedServiceHigh?: number | string | null;
+  /** R-EXE-32: the driver reported the store closed or that they cannot unload; the dispatcher decides. Absent from an older server. */
+  reportedProblem?: StopProblem | null;
 };
 
 /** A name and the badge shown on screen, never an email or a phone number. */
