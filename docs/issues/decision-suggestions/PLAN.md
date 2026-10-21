@@ -60,3 +60,51 @@ Minutes from report to decision; the share of decisions taken in the chat agains
 1. The rule priors for each situation before there is data.
 2. Whether the chips show counts ("7 of 10 times") or only an order.
 3. Jev for voice and free text: agreement to run it in shadow, and later to switch it on. **Shadow agreed 2026-10-21:** production runs it once `JEV_ENABLED=true` and `OPENROUTER_API_KEY` are set in the server's `.env`. Showing its guesses to anyone is still a later decision, read from the scores.
+
+## Part 2: one prediction per trip (planned 2026-10-23)
+
+Decided with @Oxshadha on 2026-10-23: the suggestion moves from one report about one stop to **one live prediction per trip**, recomputed whenever something arrives on the trip. Typed reports feed it directly; human-written text is first given a class by Jev, and that class feeds the same prediction. The chances are the rule priors and learned counts of part 1, not a trained model, until the log is large enough for one. Nothing here acts by itself: the dispatcher still confirms every decision (rule 8).
+
+### Inputs
+
+| Input | Where it comes from | Becomes |
+| --- | --- | --- |
+| A typed report (vehicle fault, store closed, cannot unload, road blocked, late, goods problem) | Messaging's `MessagePosted`, `kind = report` | a **signal**: its situation by `Playbooks.ofReport`, confidence 1 |
+| A driver's or store's typed message, a voice note's transcript, a report sent as "other" | `MessagePosted`, and the transcript once it is ready | a **signal** when Jev's class is not "none" and its confidence is at or above the live threshold; otherwise nothing |
+| The trip | Execution's run sheet | **trip facts**: stops left, minutes late, signal or no signal, trip time used against its limit |
+| Each stop still waiting | Execution, Ordering, Reference (as `PlaybookQuery` reads them today) | **stop facts**: open or reached, window (inside, closing, missed), mall, chilled, deferred before, its place on the trip |
+| What dispatchers chose before | `ml.decision_suggestions` | the **tally** per situation and decision, as part 1 |
+
+A signal's **scope** follows its situation: a breakdown, a blocked road or running late is about the **trip** and touches every stop still waiting; store closed, cannot unload and a goods problem are about **one stop**, the one the report names or the store that wrote the message. A signal stays active until its report is resolved or a decision is taken on what it is about (open question 3).
+
+### Outputs
+
+`GET /api/ml/trip-outlook?tripId=` (scoped to the dispatcher's depots, refused outside them):
+
+- **Trip:** the chance of End trip, Wait and Carry on.
+- **Each stop still waiting:** the chance of Skip to next day, Skip and cancel, Ask to receive later and Deliver as planned, with the rule warnings of part 1.
+- **Why:** the signals behind it (message ids, situation, and for one Jev read, its confidence), the basis (rules or learned) and the version.
+
+On screen, at the top of the trip's chat: the trip's likely decision and each waiting store's, as chips; a tap opens the decision's form inline, as today. No new dialog.
+
+### Jev, live
+
+Jev classifies driver and store typed messages, voice transcripts and reports sent as "other" into the report situations or "none" (the R-ML-33 prompt, extended to plain messages). An answer at or above the live threshold becomes a signal at once; below it, the message adds nothing and the screen does not pretend it was read. Every answer is still kept in `ml.jev_shadow` and scored, so AI health keeps measuring it. With Jev off or down, the prediction stands on typed reports and says so (rule 9).
+
+### Pull requests
+
+1. `TripOutlook` in `intelligence/domain` (pure, tested), `TripOutlookQuery` and the endpoint, the chips at the top of the chat, from typed reports only.
+2. Jev live: classify the four kinds of text, keep each class (`ml.message_situations`), the threshold as a registered parameter, degrade visibly.
+3. The log per trip: what was shown and taken for the trip and for each stop, and the learned counts per scope.
+
+### Decided 2026-10-23 (@Oxshadha)
+
+1. **Live threshold 0.5**, a registered parameter: on the 60 labelled reports every answer at 0.5 or more was right.
+2. **A signal lasts until** its report is resolved or a decision is taken on what it is about; no clock.
+3. **Jev is asked at once** as a message arrives, outside the transaction that posted it; the minute queue stays as the retry.
+4. **The source is said plainly** under a chip that came from a message: "From the driver's message, read automatically". Jev is not named and no score is shown.
+
+### Open, for @jv-ransika
+
+1. **Data processing.** Live classification sends masked driver and store text to the model gateway on every message. He agreed to shadow only; production stays in shadow (`JEV_LIVE` off) until he agrees.
+2. **The priors for a trip situation's effect on each stop** (for example, how much a breakdown raises Skip to next day for a store whose window will be missed). Until he sets them, the first numbers are ours, recorded in `Playbooks` and the assumption register.
