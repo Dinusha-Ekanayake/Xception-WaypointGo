@@ -15,7 +15,7 @@ Verified: store browser suites `shared-days` (with a new case), `outlook`, `ride
 
 `dev` · @jv-ransika
 
-Testing several stores on one demo day needed an account per outlet. `scripts/demo-accounts.csv` adds `out002@`, `out003@` and `out008@waypoint.local` (store managers, `SEED_PASSWORD`), and `scripts/seed-demo.sql` gives each its outlet, so every fresh install and demo reset has them. A demo database now makes its accounts with `DEMO_SIGN_IN_PASSWORD` when set (`deploy/vps/demo-reset.sh`), so accounts only the demo has open with the demo password too.
+Testing several stores on one demo day needed an account per outlet. `scripts/demo-accounts.csv` adds `out002@`, `out003@` and `out008@waypoint.local` (store managers, `SEED_PASSWORD`), and `scripts/seed-demo.sql` gives each its outlet, so every fresh install and demo reset has them. A demo database now makes its accounts with `DEMO_SIGN_IN_PASSWORD` when set (`deploy/vps/demo-reset.sh`), so accounts only the demo has open with the demo password too. The spare demo database is also marked with a fingerprint of the mounted seed files, since a reset just after this change still swapped in a spare built from the old account list.
 Verified: a preview demo reset, each signing in and seeing its outlet.
 
 ## 2026-10-20 - feat: deciding a deferred order shows matching trips and whom to call; times carry their day
