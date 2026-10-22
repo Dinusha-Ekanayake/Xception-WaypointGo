@@ -133,9 +133,10 @@ public class PostMessageHandler implements CommandHandler {
 
     UUID messageId = UuidV7.generate(now, random);
     String kind = post.reportType().isPresent() ? "report" : "message";
+    Optional<String> about = aboutOutlet(role, kind, post, b);
     threads.insert(
         messageId, threadId, actor.userId(), role.code(), kind, post.reportType(), post.to().code(), post.outletId(),
-        body, voiceNoteId, clientId, Optional.empty(), Optional.empty(), aboutOutlet(role, kind, post, b),
+        body, voiceNoteId, clientId, Optional.empty(), Optional.empty(), about,
         Optional.of(command.commandId()), now);
     // FF-08: which ready reply it came from, for measuring the replies' use.
     reply.ifPresent(r -> {
@@ -162,17 +163,19 @@ public class PostMessageHandler implements CommandHandler {
             voiceNoteId.isPresent() ? MessagePolicy.voiceExcerpt(body, post.reportType().isPresent())
                 : MessagePolicy.excerpt(body), now,
             voiceNoteId, note.flatMap(JdbcThreadRepository.VoiceNote::durationMs),
-            note.map(JdbcThreadRepository.VoiceNote::peaks).orElse(List.of())));
+            note.map(JdbcThreadRepository.VoiceNote::peaks).orElse(List.of()), about));
     metrics.increment("waypoint.message.posted", "role", role.code(), "to", post.to().code(), "kind", kind);
     return result(messageId, threadId, false);
   }
 
   /**
-   * The stop a report is about: a store's own outlet on this trip, when it has
+   * The stop a store's post is about: its own outlet on this trip, when it has
    * exactly one. A driver's or a loader's report is about the trip as a whole.
+   * Kept for every store post, not only reports, so what a store writes can be
+   * read for its own stop (R-ML-35); only a report shows it on screen.
    */
   private static Optional<String> aboutOutlet(Role role, String kind, Post post, JdbcThreadRepository.Belonging b) {
-    if (!"report".equals(kind) || role != Role.STORE_MANAGER) {
+    if (role != Role.STORE_MANAGER) {
       return Optional.empty();
     }
     return b.outlets().size() == 1 ? Optional.of(b.outlets().get(0)) : post.outletId();

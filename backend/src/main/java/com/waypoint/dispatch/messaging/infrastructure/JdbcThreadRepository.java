@@ -470,6 +470,19 @@ public class JdbcThreadRepository {
         depotCode, serviceDate);
   }
 
+  /** The post a voice note belongs to, with its thread, for saying it was written down (R-ML-35). */
+  public Optional<Map<String, Object>> postOfVoice(UUID voiceNoteId) {
+    return Optional.ofNullable(database.queryOne(
+        """
+        SELECT m.message_id, m.thread_id, m.author_role, m.kind, m.report_type, m.about_outlet,
+               t.subject_type, t.subject_id, t.depot_code
+          FROM messaging.messages m
+          JOIN messaging.threads t ON t.thread_id = m.thread_id
+         WHERE m.voice_note_id = ?
+        """,
+        voiceNoteId));
+  }
+
   /** One thread's reports not yet resolved, oldest first (decision suggestions part 2). */
   public List<Map<String, Object>> openReports(UUID threadId) {
     return database.query(

@@ -86,6 +86,7 @@ class IntelligenceIntegrationTest {
     registry.add("app.ai.enabled", () -> "true");
     registry.add("app.ai.groq-key", () -> "test-only");
     registry.add("app.ai.jev-enabled", () -> "true");
+    registry.add("app.ai.jev-live", () -> "true");
     registry.add("app.ai.watch-review", () -> "true");
     registry.add("app.ai.openrouter-key", () -> "test-only");
   }
@@ -151,6 +152,7 @@ class IntelligenceIntegrationTest {
   @Autowired com.waypoint.dispatch.intelligence.infrastructure.JdbcAttentionRepository attentionItems;
   @Autowired AttentionWatchJob attentionWatch;
   @Autowired JevShadow.Job jevJob;
+  @Autowired MessageSituations.Job messageJob;
   @Autowired KnownNames knownNames;
   @Autowired WatchReviewJob watchReview;
   @Autowired ModelMetricsJob metricsJob;
@@ -1492,6 +1494,57 @@ class IntelligenceIntegrationTest {
     assertFalse(((String) row.get("masked_text")).contains("mld-" + run), row.toString());
     assertTrue(((String) row.get("masked_text")).contains("[phone]"), row.toString());
     assertTrue(StubLanguage.JEV_STATE.get() == null || !StubLanguage.JEV_STATE.get().contains("0771234567"));
+  }
+
+  @Test
+  void jevReadsADriversOrAStoresOwnWordsTypedOrSpokenAndNothingThatAlreadyNamesItsSituation() throws Exception {
+    // R-ML-35: a typed message, a report sent as "other" and a voice note once written down are read;
+    // a report with its type picked, the dispatcher's own words and a voice note before its words are not.
+    UUID typed = UUID.randomUUID();
+    UUID other = UUID.randomUUID();
+    UUID picked = UUID.randomUUID();
+    UUID dispatcherOwn = UUID.randomUUID();
+    UUID spoken = UUID.randomUUID();
+    knownNames.forget();
+    deliver("ml.on-message-posted-situation", UUID.randomUUID(), chat(typed, "driver", "message", Optional.empty(),
+        "Engine light is on, ask mld-" + run + ", call 0771234567", Optional.empty()));
+    deliver("ml.on-message-posted-situation", UUID.randomUUID(), chat(other, "store_manager", "report", Optional.of("other"),
+        "Our shutter will stay down until noon today", Optional.empty()));
+    deliver("ml.on-message-posted-situation", UUID.randomUUID(), chat(picked, "driver", "report", Optional.of("store_closed"),
+        "Shutter is down at the store", Optional.empty()));
+    deliver("ml.on-message-posted-situation", UUID.randomUUID(), chat(dispatcherOwn, "dispatcher", "message", Optional.empty(),
+        "Please take the bypass road", Optional.empty()));
+    deliver("ml.on-message-posted-situation", UUID.randomUUID(), chat(spoken, "driver", "message", Optional.empty(),
+        "Voice note", Optional.of(UUID.randomUUID())));
+    deliver("ml.on-message-transcribed-situation", UUID.randomUUID(),
+        new com.waypoint.dispatch.messaging.contract.MessagingEvents.MessageTranscribed(
+            UUID.randomUUID(), spoken, "trip", UUID.randomUUID().toString(), depot, "driver", "message", Optional.empty(),
+            Optional.empty(), "The road is flooded near the bridge, cannot pass", Optional.of("en"), Instant.now()));
+
+    StubLanguage.JEV_ANSWER.set("BREAKDOWN");
+    messageJob.runAt(Instant.now());
+    List<Map<String, Object>> rows = database.asSystem(ModuleRole.ML, () -> database.query(
+        "SELECT message_id, source, status, situation, masked_text, prompt_version, author_role FROM ml.message_situations"
+            + " WHERE message_id IN (?, ?, ?, ?, ?) ORDER BY source", typed, other, picked, dispatcherOwn, spoken));
+    assertEquals(3, rows.size(), "the typed message, the report sent as other and the voice note: " + rows);
+    assertEquals(List.of("message", "report", "voice"), rows.stream().map(r -> (String) r.get("source")).toList());
+    for (Map<String, Object> r : rows) {
+      assertEquals("answered", r.get("status"));
+      assertEquals("BREAKDOWN", r.get("situation"));
+      assertEquals(MessageSituations.PROMPT_VERSION, r.get("prompt_version"));
+    }
+    String masked = (String) rows.get(0).get("masked_text");
+    assertFalse(masked.contains("mld-" + run), masked);
+    assertTrue(masked.contains("[phone]"), masked);
+    assertEquals("store_manager", rows.get(1).get("author_role"));
+  }
+
+  private com.waypoint.dispatch.messaging.contract.MessagingEvents.MessagePosted chat(
+      UUID messageId, String role, String kind, Optional<String> type, String words, Optional<UUID> voice) {
+    return new com.waypoint.dispatch.messaging.contract.MessagingEvents.MessagePosted(
+        UUID.randomUUID(), messageId, "trip", UUID.randomUUID().toString(), depot, Optional.of("VEH001"),
+        Optional.of(serviceDate), "Kasun", role, kind, type, "dispatch", List.of(), words,
+        Instant.now(), voice, Optional.empty(), List.of(), Optional.empty());
   }
 
   private com.waypoint.dispatch.messaging.contract.MessagingEvents.MessagePosted report(

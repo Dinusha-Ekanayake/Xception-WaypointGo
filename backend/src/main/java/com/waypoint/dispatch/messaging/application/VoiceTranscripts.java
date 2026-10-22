@@ -1,6 +1,8 @@
 package com.waypoint.dispatch.messaging.application;
 
 import com.waypoint.dispatch.messaging.contract.MessagingEvents.MessagePosted;
+import com.waypoint.dispatch.messaging.contract.MessagingEvents.MessageTranscribed;
+import com.waypoint.dispatch.messaging.domain.MessagePolicy;
 import com.waypoint.dispatch.messaging.domain.TranscriptText.Heard;
 import com.waypoint.dispatch.messaging.infrastructure.JdbcThreadRepository;
 import com.waypoint.dispatch.messaging.infrastructure.JdbcThreadRepository.VoiceNote;
@@ -11,11 +13,13 @@ import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.EventSubscriber;
 import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.platform.scheduling.ScheduledJob;
+import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.event.EventEnvelope;
 import com.waypoint.dispatch.shared.util.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
@@ -77,9 +81,12 @@ public final class VoiceTranscripts {
     private final Clock clock;
 
     private final boolean keepAfterAudio;
+    private final com.waypoint.dispatch.platform.messaging.EventPublisher events;
 
     Job(Transcription engine, JdbcTranscripts transcripts, JdbcThreadRepository threads, Database database,
-        Metrics metrics, Clock clock, com.waypoint.dispatch.platform.config.TranscribeProperties properties) {
+        Metrics metrics, Clock clock, com.waypoint.dispatch.platform.config.TranscribeProperties properties,
+        com.waypoint.dispatch.platform.messaging.EventPublisher events) {
+      this.events = events;
       this.keepAfterAudio = properties.keepAfterAudio();
       this.engine = engine;
       this.transcripts = transcripts;
@@ -135,7 +142,17 @@ public final class VoiceTranscripts {
                 : Optional.empty();
         if (heard.isPresent()) {
           Heard h = heard.get();
-          database.asSystem(ModuleRole.MESSAGING, () -> transcripts.done(p.voiceNoteId(), h.text(), h.language(), engine.engine(), clock.now()));
+          database.asSystem(ModuleRole.MESSAGING, () -> {
+            transcripts.done(p.voiceNoteId(), h.text(), h.language(), engine.engine(), clock.now());
+            // What was said can now be read like a typed post (R-ML-35): said in the same transaction.
+            threads.postOfVoice(p.voiceNoteId()).ifPresent(m -> events.publish(Actor.SYSTEM, new MessageTranscribed(
+                (UUID) m.get("thread_id"), (UUID) m.get("message_id"), (String) m.get("subject_type"),
+                (String) m.get("subject_id"), (String) m.get("depot_code"), (String) m.get("author_role"),
+                (String) m.get("kind"), Optional.ofNullable((String) m.get("report_type")),
+                Optional.ofNullable((String) m.get("about_outlet")), MessagePolicy.excerpt(h.text()), h.language(),
+                clock.now())));
+            return null;
+          });
           metrics.increment("waypoint.transcribe.made", "lang", h.language().orElse("unknown"));
           made++;
         } else {

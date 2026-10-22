@@ -127,6 +127,9 @@ services:
       # Jev in shadow (roadmap AI-J1): guesses issue types and report situations, nobody sees it. Off unless true.
       JEV_ENABLED: ${JEV_ENABLED:-false}
       JEV_MODEL: ${JEV_MODEL:-typesafe/jev-1.13}
+      # Jev live on the trip's chat (R-ML-35): off until agreed; needs JEV_ENABLED.
+      JEV_LIVE: ${JEV_LIVE:-false}
+      JEV_LIVE_MIN_CONFIDENCE: ${JEV_LIVE_MIN_CONFIDENCE:-0.5}
       # The speech service (R-MSG-10): http://speech:8090 with the "speech" profile; blank turns it off.
       SPEECH_URL: ${SPEECH_URL:-}
       # Roadmap M-01: the object store. OBJECT_STORE=s3 with all four S3 values set puts new proofs there.

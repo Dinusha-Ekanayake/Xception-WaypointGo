@@ -273,3 +273,61 @@ test("while a problem is open, one Next step card decides and then offers the wo
   await expect(done).toContainText("Done: OUT063 moves to the next delivery day. The store was told.");
   await expect(done.getByRole("button", { name: /^Send to/ })).toHaveCount(0);
 });
+
+test("a driver's message read as a breakdown says so plainly, and the dispatcher can take it off the card with a reason (R-ML-35)", async ({ page }) => {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
+    said("m1", "2027-03-01T10:05:00Z", { authorName: "Dilan R.", authorRole: "driver", audience: "dispatch", body: "Engine light came on, pulled over" }),
+  ]);
+  const desk = await serve(page, { ...liveDay(), threads: [thread] });
+  await page.route("**/api/ml/trip-outlook**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      tripId: "t-VEH020", version: 1, situation: "BREAKDOWN",
+      trip: [{ action: "END_TRIP", chance: 0.5, warning: null }, { action: "WAIT", chance: 0.4, warning: null }, { action: "CARRY_ON", chance: 0.1, warning: null }],
+      signals: [{ messageId: "m1", situation: "BREAKDOWN", source: "message", outletId: null, authorRole: "driver" }],
+      stops: [],
+      messagesRead: true,
+      unreadMessages: 0,
+    }),
+  }));
+  await page.goto("/#/live");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("region", { name: "Timeline" }).getByRole("button", { name: /^VEH020/ }).first().click();
+  await page.getByRole("button", { name: /Messages|All messages/ }).first().click();
+
+  const card = page.getByRole("dialog", { name: "Trip messages" }).getByRole("region", { name: "Next step" });
+  await expect(card).toContainText("Breakdown: from the driver's message, read automatically");
+  await expect(card).not.toContainText("Jev");
+  await expect(card).toContainText("Likely from the trip's reports and messages.");
+  await expect(card).not.toContainText("%) ");
+  await card.getByRole("button", { name: "Not a problem" }).click();
+  const off = card.getByRole("group", { name: "Take it off the card" });
+  await expect(off.getByRole("button", { name: "Take it off" })).toBeDisabled();
+  await off.getByRole("textbox", { name: "Why" }).fill("Only a warning light, driving on");
+  await off.getByRole("button", { name: "Take it off" }).click();
+  await expect.poll(() => desk.commands.find((c) => c.kind === "ml:DismissSignal")?.payload).toEqual({
+    tripId: "t-VEH020", messageId: "m1", reason: "Only a warning light, driving on",
+  });
+});
+
+test("messages that could not be read automatically are said, even with nothing else open (rule 9)", async ({ page }) => {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
+    said("m1", "2027-03-01T10:05:00Z", { authorName: "Dilan R.", authorRole: "driver", audience: "dispatch", body: "Something is wrong" }),
+  ]);
+  await serve(page, { ...liveDay(), threads: [thread] });
+  await page.route("**/api/ml/trip-outlook**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ tripId: "t-VEH020", version: 1, situation: null, trip: [], signals: [], stops: [], messagesRead: true, unreadMessages: 2 }),
+  }));
+  await page.goto("/#/live");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("region", { name: "Timeline" }).getByRole("button", { name: /^VEH020/ }).first().click();
+  await page.getByRole("button", { name: /Messages|All messages/ }).first().click();
+  const chat = page.getByRole("dialog", { name: "Trip messages" });
+  await expect(chat.getByRole("status").filter({ hasText: "2 messages could not be read automatically. Read them yourself." })).toBeVisible();
+  await expect(chat.getByRole("region", { name: "Next step" })).toHaveCount(0);
+});

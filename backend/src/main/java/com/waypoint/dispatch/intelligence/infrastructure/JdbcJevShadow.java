@@ -74,7 +74,7 @@ public class JdbcJevShadow {
             + " FROM ml.jev_shadow");
   }
 
-  private static List<String> strings(Object value) {
+  static List<String> strings(Object value) {
     if (value instanceof Array array) {
       try {
         return Arrays.asList((String[]) array.getArray());

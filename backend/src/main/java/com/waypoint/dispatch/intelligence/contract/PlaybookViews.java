@@ -13,6 +13,9 @@ public final class PlaybookViews {
   /** The dispatcher records which suggestions were shown and which, if any, was taken. */
   public static final String RECORD = "ml:RecordSuggestion";
 
+  /** The dispatcher takes a message read automatically off the trip's Next step card, with a reason (R-ML-35). */
+  public static final String DISMISS_SIGNAL = "ml:DismissSignal";
+
   public record MessageView(String to, String template) {}
 
   /** One situation's steps and ready message; {@code message} is empty when there is nobody useful to write to. */
@@ -43,10 +46,12 @@ public final class PlaybookViews {
    * @param situation the trip's situation, when a breakdown, a blocked road or running late is on it
    * @param trip End trip, Wait and Carry on, most likely first; empty with no trip situation
    * @param signals what it was made from, so the screen can say where a chip came from
+   * @param messagesRead whether drivers' and stores' own words are read for it (R-ML-35); false, it stands on reports alone
+   * @param unreadMessages words that could not be read: waiting over a minute, or given up on (rule 9)
    */
   public record TripOutlookView(
       String tripId, int version, Optional<String> situation, List<ChanceView> trip, List<SignalView> signals,
-      List<StopOutlookView> stops) {}
+      List<StopOutlookView> stops, boolean messagesRead, int unreadMessages) {}
 
   /** @param chance 0 to 1, summing to 1 over the list it is in */
   public record ChanceView(String action, double chance, Optional<String> warning) {}
@@ -60,6 +65,10 @@ public final class PlaybookViews {
       String deliveryId, String outletId, int sequence, long rowVersion, String situation, List<ChanceView> chances,
       boolean learned, List<String> because) {}
 
-  /** @param source {@code report} for a report picked by its writer; {@code message} for one read automatically */
-  public record SignalView(String messageId, String situation, String source, Optional<String> outletId) {}
+  /**
+   * @param source {@code report} for a report picked by its writer; {@code message} for one read automatically
+   * @param authorRole who wrote a message read automatically (driver, store_manager), so the card can say so
+   */
+  public record SignalView(String messageId, String situation, String source, Optional<String> outletId,
+      Optional<String> authorRole) {}
 }

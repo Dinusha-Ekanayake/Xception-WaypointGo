@@ -36,9 +36,21 @@ public final class MessagingEvents {
       Instant at,
       Optional<UUID> voiceNoteId,
       Optional<Integer> voiceDurationMs,
-      List<Integer> voicePeaks)
+      List<Integer> voicePeaks,
+      /** The store a store manager wrote from, when they run one on the trip; a report's stop (R-ML-35). */
+      Optional<String> aboutOutletId)
       implements DomainEvent {
     public static final String TYPE = "message.posted";
+
+    /** As written before the store a message came from was carried. */
+    public MessagePosted(
+        UUID threadId, UUID messageId, String subjectType, String subjectId, String depotCode,
+        Optional<String> vehicleId, Optional<LocalDate> serviceDate, String authorName, String authorRole, String kind,
+        Optional<String> reportType, String audience, List<String> outletIds, String excerpt, Instant at,
+        Optional<UUID> voiceNoteId, Optional<Integer> voiceDurationMs, List<Integer> voicePeaks) {
+      this(threadId, messageId, subjectType, subjectId, depotCode, vehicleId, serviceDate, authorName, authorRole, kind,
+          reportType, audience, outletIds, excerpt, at, voiceNoteId, voiceDurationMs, voicePeaks, Optional.empty());
+    }
 
     public MessagePosted {
       outletIds = List.copyOf(outletIds);
@@ -46,7 +58,48 @@ public final class MessagingEvents {
       voiceNoteId = voiceNoteId == null ? Optional.empty() : voiceNoteId;
       voiceDurationMs = voiceDurationMs == null ? Optional.empty() : voiceDurationMs;
       voicePeaks = voicePeaks == null ? List.of() : List.copyOf(voicePeaks);
+      aboutOutletId = aboutOutletId == null ? Optional.empty() : aboutOutletId;
     }
+
+    @Override
+    public String type() {
+      return TYPE;
+    }
+
+    @Override
+    public String aggregateType() {
+      return "thread";
+    }
+
+    @Override
+    public String aggregateId() {
+      return threadId.toString();
+    }
+  }
+
+  /**
+   * A voice note on a trip's thread was written down (R-MSG-15), so what was
+   * said can be read like a typed message: by Intelligence for the trip's Next
+   * step card (R-ML-35). Carries only the first line, as {@link MessagePosted}'s
+   * excerpt, never the whole transcript.
+   *
+   * @param aboutOutletId as {@link MessagePosted#aboutOutletId()}
+   */
+  public record MessageTranscribed(
+      UUID threadId,
+      UUID messageId,
+      String subjectType,
+      String subjectId,
+      String depotCode,
+      String authorRole,
+      String kind,
+      Optional<String> reportType,
+      Optional<String> aboutOutletId,
+      String excerpt,
+      Optional<String> language,
+      Instant at)
+      implements DomainEvent {
+    public static final String TYPE = "message.transcribed";
 
     @Override
     public String type() {

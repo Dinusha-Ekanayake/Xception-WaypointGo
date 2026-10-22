@@ -55,7 +55,7 @@ class AiLiveEvaluation {
 
   AiProperties properties(String provider, String model) {
     return new AiProperties(true, provider, env("GROQ_API_KEY"), env("OPENROUTER_API_KEY"), model, 100_000,
-        Duration.ofSeconds(30), true, Optional.ofNullable(System.getenv("JEV_MODEL")).orElse("typesafe/jev-1.13"), true);
+        Duration.ofSeconds(30), true, Optional.ofNullable(System.getenv("JEV_MODEL")).orElse("typesafe/jev-1.13"), true, false, 0.5);
   }
 
   static String env(String name) {

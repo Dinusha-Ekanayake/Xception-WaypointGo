@@ -50,10 +50,15 @@ public class TripOutlookQuery {
   private final Database database;
   private final Clock clock;
   private final JdbcDecisionSuggestions log;
+  private final com.waypoint.dispatch.intelligence.infrastructure.JdbcMessageSituations read;
+  private final com.waypoint.dispatch.platform.config.AiProperties ai;
 
   public TripOutlookQuery(
       TripReportQuery reports, ExecutionQuery execution, OrderQuery orders, Database database, Clock clock,
-      JdbcDecisionSuggestions log) {
+      JdbcDecisionSuggestions log, com.waypoint.dispatch.intelligence.infrastructure.JdbcMessageSituations read,
+      com.waypoint.dispatch.platform.config.AiProperties ai) {
+    this.read = read;
+    this.ai = ai;
     this.reports = reports;
     this.execution = execution;
     this.orders = orders;
@@ -103,6 +108,18 @@ public class TripOutlookQuery {
       Playbooks.ofReport(r.reportType())
           .ifPresent(s -> signals.add(new Signal(r.messageId(), s, r.aboutOutletId(), r.at(), Source.REPORT)));
     }
+    // R-ML-35: what a driver or a store wrote, read by Jev at or above the live confidence; nothing while it is off.
+    Map<java.util.UUID, String> authors = new HashMap<>();
+    int unread = ai.jevLive() ? read.unread(tripId, now.minusSeconds(60)) : 0;
+    if (ai.jevLive()) {
+      for (var m : read.forTrip(tripId)) {
+        com.waypoint.dispatch.intelligence.domain.MessageTriage.signal(m.situation(), m.confidence(), ai.jevLiveMinConfidence())
+            .ifPresent(s -> {
+              signals.add(new Signal(m.messageId(), s, m.outletId(), m.at(), Source.MESSAGE));
+              authors.put(m.messageId(), m.authorRole());
+            });
+      }
+    }
     Map<Situation, Playbooks.Tally> tallies = new HashMap<>();
     TripOutlook.Outlook o = TripOutlook.of(
         signals, new TripOutlook.Trip(left, noneInWindow), stops,
@@ -113,7 +130,8 @@ public class TripOutlookQuery {
         o.tripSituation().map(Situation::name),
         o.trip().stream().map(c -> new ChanceView(c.action().name(), c.chance(), c.warning())).toList(),
         signals.stream()
-            .map(s -> new SignalView(s.messageId().toString(), s.situation().name(), s.source().name().toLowerCase(java.util.Locale.ROOT), s.outletId()))
+            .map(s -> new SignalView(s.messageId().toString(), s.situation().name(), s.source().name().toLowerCase(java.util.Locale.ROOT),
+                s.outletId(), Optional.ofNullable(authors.get(s.messageId()))))
             .toList(),
         o.stops().stream()
             .map(s -> new StopOutlookView(
@@ -121,7 +139,9 @@ public class TripOutlookQuery {
                 byDelivery.get(s.deliveryId().toString()).rowVersion(), s.situation().name(),
                 s.chances().stream().map(c -> new ChanceView(c.action().name(), c.chance(), c.warning())).toList(),
                 s.learned(), s.because().stream().map(Object::toString).toList()))
-            .toList());
+            .toList(),
+        ai.jevLive(),
+        unread);
   }
 
   private static boolean open(RunSheetStopView s) {

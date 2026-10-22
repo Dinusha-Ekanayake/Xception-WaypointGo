@@ -24,6 +24,10 @@ import org.springframework.validation.annotation.Validated;
  * @param jevEnabled Jev in shadow (roadmap AI-J1, R-ML-33): it guesses each new issue's type, and
  *     each typed trip-chat report's situation, from its text and the guess is recorded beside the real type; nobody sees it. Needs OPENROUTER_API_KEY
  * @param jevModel pinned, never the latest alias: thresholds hold only for the version they were tuned on
+ * @param jevLive Jev live on the trip's chat (decision suggestions part 2, R-ML-35): its class of a driver's or
+ *     store's own words feeds the trip's Next step card. Off by default; production keeps it off until
+ *     @jv-ransika agrees to the data processing. Needs {@code jevEnabled}
+ * @param jevLiveMinConfidence below this, a class Jev gave a message adds nothing to the card (P-39)
  */
 @Validated
 @ConfigurationProperties(prefix = "app.ai")
@@ -38,7 +42,10 @@ public record AiProperties(
     @DefaultValue("false") boolean jevEnabled,
     @DefaultValue("typesafe/jev-1.13") String jevModel,
     /** The watcher's AI layer, in shadow (docs/issues/watch-review/PLAN.md); off by default. */
-    @DefaultValue("false") boolean watchReview) {
+    @DefaultValue("false") boolean watchReview,
+    @DefaultValue("false") boolean jevLive,
+    @DefaultValue("0.5") @jakarta.validation.constraints.DecimalMin("0.0") @jakarta.validation.constraints.DecimalMax("1.0")
+        double jevLiveMinConfidence) {
 
   public static final String GROQ = "groq";
   public static final String OPENROUTER = "openrouter";
@@ -64,6 +71,11 @@ public record AiProperties(
   @AssertTrue(message = "app.ai.jev-enabled needs OPENROUTER_API_KEY, and a pinned Jev model, never ~jev-latest")
   public boolean isJevUsable() {
     return !jevEnabled || (openrouterKey != null && !openrouterKey.isBlank() && jevModel != null && !jevModel.contains("latest"));
+  }
+
+  @AssertTrue(message = "app.ai.jev-live needs app.ai.jev-enabled: Jev reads nothing live that it is not also measured on")
+  public boolean isJevLiveMeasured() {
+    return !jevLive || jevEnabled;
   }
 
   @AssertTrue(message = "app.ai.enabled needs the provider's key (GROQ_API_KEY or OPENROUTER_API_KEY)")

@@ -2,14 +2,11 @@
 
 import { useState } from "react";
 import { request } from "@shared/api/client";
-import { send } from "@shared/api/commands";
-import { announceChange } from "@shared/api/changes";
-import { friendlyError } from "@shared/api/problem";
 import { useResource } from "@shared/api/useResource";
-import type { ChanceView, RunSheetStopView, TripOutlookView } from "@shared/domain/types";
-import { newId, postCommand } from "@shared/messaging/useThread";
+import type { RunSheetStopView, TripOutlookView } from "@shared/domain/types";
 import type { ThreadDraft } from "@shared/ui";
 import { EndTripForm, SkipStopForm } from "./LiveTripSkip.tsx";
+import { AfterDecision, ReadMessage, Row, SITUATION, type FollowUp } from "./NextStepParts.tsx";
 
 // Decision suggestions part 2 (R-ML-34, docs/issues/decision-suggestions/PLAN.md):
 // while a problem is open on the trip, one "Next step" card at the top of its
@@ -25,33 +22,6 @@ const HAPPENED: Record<string, string> = {
   ROAD_BLOCKED: "is held up by a blocked road",
   RUNNING_LATE: "is running late",
 };
-
-const SITUATION: Record<string, string> = {
-  BREAKDOWN: "Breakdown",
-  ROAD_BLOCKED: "Road blocked",
-  RUNNING_LATE: "Running late",
-  STORE_CLOSED: "Store closed",
-  CANNOT_UNLOAD: "Cannot unload",
-  GOODS_PROBLEM: "Goods problem",
-};
-
-const ACTION: Record<string, string> = {
-  END_TRIP: "End trip",
-  WAIT: "Wait",
-  CARRY_ON: "Carry on",
-  SKIP_NEXT_DAY: "Skip to next day",
-  SKIP_CANCEL: "Skip and cancel",
-  ASK_RECEIVE_LATER: "Ask to receive later",
-  DELIVER: "Deliver as planned",
-};
-
-/** Below this a decision is not worth a chip. */
-const SHOWN_FROM = 0.05;
-
-type Word = { address: NonNullable<ThreadDraft["address"]>; body: string; to: string };
-
-/** After a decision: what happened, and the word to send when the system did not already send one. */
-type FollowUp = { said: string; word: Word | null };
 
 type Open = { kind: "end" } | { kind: "skip"; stop: RunSheetStopView; then: "NEXT_DAY" | "CANCEL" };
 
@@ -98,7 +68,16 @@ export default function TripOutlookChips({
   const vehicle = vehicleId ?? "The vehicle";
 
   if (after) return <AfterDecision followUp={after} threadId={threadId} online={online} onDraft={onDraft} onClose={() => setAfter(null)} />;
-  if (!view || !problemOpen(view)) return null;
+  if (!view) return null;
+  // Rule 9: words Jev could not read are said even when nothing else is open, so a problem only they raised is not missed.
+  const unread = view.unreadMessages > 0 ? (
+    <p role="status" className="text-[12px] text-go-warning-text">
+      {`${view.unreadMessages === 1 ? "1 message" : `${view.unreadMessages} messages`} could not be read automatically. Read ${view.unreadMessages === 1 ? "it" : "them"} yourself.`}
+    </p>
+  ) : null;
+  if (!problemOpen(view)) {
+    return unread && <div className="rounded-go-card-s bg-go-warning-tint px-3.5 py-2.5">{unread}</div>;
+  }
 
   if (open?.kind === "end") {
     const waiting = openStops.length;
@@ -172,121 +151,14 @@ export default function TripOutlookChips({
       {view.stops.map((s) => (
         <Row key={s.deliveryId} label={`${s.outletId} · ${SITUATION[s.situation] ?? s.situation}`} chances={s.chances} online={online} onPick={(a) => pick(a, s.outletId)} />
       ))}
-      <span className="text-[11px] text-go-muted">Likely from the trip&apos;s reports. You confirm every decision.</span>
-    </section>
-  );
-}
-
-/** What happened, and the word to send: sent from here, edited in the composer, or left. */
-function AfterDecision({
-  followUp,
-  threadId,
-  online,
-  onDraft,
-  onClose,
-}: {
-  followUp: FollowUp;
-  threadId: string;
-  online: boolean;
-  onDraft: (draft: ThreadDraft) => void;
-  onClose: () => void;
-}): React.JSX.Element {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const word = followUp.word;
-  const sendNow = async () => {
-    if (!word) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await send(postCommand({
-        threadId,
-        to: word.address.to,
-        ...(word.address.outletId ? { outletId: word.address.outletId } : {}),
-        body: word.body,
-        clientMessageId: newId(),
-      }));
-      announceChange({ topic: "message" });
-      onClose();
-    } catch (failure) {
-      setError(friendlyError(failure));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <section aria-label="Next step" className="flex flex-col gap-2 rounded-go-card-s bg-go-surface px-3.5 py-3">
-      <p role="status" className="text-[13px] font-medium text-go-ink">{followUp.said}</p>
-      {word && <p className="rounded-xl bg-go-card px-3 py-2 text-[13px] text-go-ink">{word.body}</p>}
-      {error && <p role="alert" className="text-[12px] text-go-danger">{error}</p>}
-      <div className="flex flex-wrap gap-1.5">
-        {word && (
-          <>
-            <button
-              type="button"
-              disabled={!online || busy}
-              onClick={() => void sendNow()}
-              className="min-h-8 rounded-full bg-go-ink px-3 text-[13px] font-medium text-go-card disabled:opacity-40"
-            >
-              {busy ? "Sending…" : `Send to ${word.to}`}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onDraft({ address: word.address, body: word.body });
-                onClose();
-              }}
-              className="min-h-8 rounded-full bg-go-card px-3 text-[13px] font-medium text-go-teal shadow-[inset_0_0_0_1px_rgb(0_0_0/0.08)]"
-            >
-              Edit first
-            </button>
-          </>
-        )}
-        <button type="button" onClick={onClose} className="min-h-8 px-2 text-[13px] font-medium text-go-teal">
-          {word ? "Not now" : "Done"}
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function Row({
-  label,
-  chances,
-  online,
-  onPick,
-}: {
-  label: string;
-  chances: ChanceView[];
-  online: boolean;
-  onPick: (action: string) => void;
-}): React.JSX.Element {
-  const shown = chances.filter((c) => c.chance >= SHOWN_FROM);
-  return (
-    <div role="group" aria-label={label} className="flex flex-col gap-1">
-      <span className="text-[12px] text-go-secondary">{label}</span>
-      <div className="flex flex-wrap gap-1.5">
-        {shown.map((c, i) => (
-          <button
-            key={c.action}
-            type="button"
-            disabled={!online}
-            onClick={() => onPick(c.action)}
-            title={c.warning ?? undefined}
-            className={
-              i === 0
-                ? "min-h-8 rounded-full bg-go-ink px-3 text-[13px] font-medium text-go-card disabled:opacity-40"
-                : "min-h-8 rounded-full bg-go-card px-3 text-[13px] font-medium text-go-teal shadow-[inset_0_0_0_1px_rgb(0_0_0/0.08)] disabled:opacity-40"
-            }
-          >
-            {ACTION[c.action] ?? c.action}
-            <span className={i === 0 ? "font-normal text-go-card/70" : "font-normal text-go-secondary"}>{` · ${Math.round(c.chance * 100)}%`}</span>
-          </button>
-        ))}
-      </div>
-      {shown.filter((c) => c.warning).map((c) => (
-        <p key={c.action} className="text-[12px] text-go-warning-text">{`${ACTION[c.action] ?? c.action}: ${c.warning}`}</p>
+      {view.signals.filter((x) => x.source === "message").map((x) => (
+        <ReadMessage key={x.messageId} tripId={tripId} signal={x} online={online} />
       ))}
-    </div>
+      {unread}
+      <span className="text-[11px] text-go-muted">
+        {view.messagesRead ? "Likely from the trip's reports and messages." : "Likely from the trip's reports only; messages are not read automatically."}
+        {" You confirm every decision."}
+      </span>
+    </section>
   );
 }

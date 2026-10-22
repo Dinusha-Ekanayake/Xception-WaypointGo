@@ -491,7 +491,7 @@ The trip is found through the issue's trip, delivery or order subject (`Executio
 
 **The trip's channel (R-MSG-08, FF-04).** `to: channel` is the dispatcher and the stores still waiting. It opens when the driver starts the trip, after loading (`threads.channel_opened_at`, from the first `delivery.started`). Membership is in `messaging.thread_outlets` per outlet: active from the plan, read only once every order of the outlet on the trip is delivered or failed, never back. A store reads the channel while active, plus what came before; the driver and the loaders do not read it. `message:Redirect` takes a post off the channel with a reason (`messaging.message_redirects`); the message never changes.
 
-**Publishes:** `message.posted` (never the body; an excerpt for the notification; `outletIds` of a channel post are the stores still active).
+**Publishes:** `message.posted` (never the body; an excerpt for the notification; `outletIds` of a channel post are the stores still active; `aboutOutletId`, the store a store manager wrote from) and `message.transcribed` (a voice note written down: its first line only).
 **Consumes:** `plan.published`, `plan.revised` (open or widen each trip's thread, and set its channel's outlets: an outlet moved off the trip goes read only in the channel, the thread itself is never narrowed), `issue.raised`, `issue.resolved` (resolves the report made from the issue), `delivery.started` (the first opens the channel), `delivery.completed`, `delivery.failed` (an order done for the channel).
 **Queries used:** `IssueQuery.issue`, `ExecutionQuery.deliveryRecord`, `ExecutionQuery.deliveryForOrder`, `IdentityQuery` (`driverOn`, `scopeOf`), `PersonQuery`.
 
@@ -628,7 +628,8 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `warehouse.discrepancy_found` | Warehouse | Issues |
 | `catalogue.synced` | Warehouse | Ordering |
 | `reference.version_published`, `vehicle.status_changed`, `calendar.overridden` | Reference | Planning, Notification |
-| `message.posted` | Messaging | Notification; Intelligence (a worker's typed report, for Jev in shadow, R-ML-33) |
+| `message.posted` | Messaging | Notification; Intelligence (a worker's typed report, for Jev in shadow, R-ML-33; a driver's or store's own words, for the trip's Next step card, R-ML-35) |
+| `message.transcribed` | Messaging | Intelligence (what a driver or store said in a voice note, its first line, for the trip's Next step card, R-ML-35) |
 | `demo.driver_notifications_requested` | Demo | Notification |
 | `order.outlook_changed` | Intelligence | Notification |
 | `stop.likely_late` | Intelligence | Notification |

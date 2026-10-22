@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-23 - feat: Jev reads drivers' and stores' own words onto the trip's Next step card
+
+`dev` · @Oxshadha
+
+- Part 2, PR 2 of decision suggestions ([PLAN](../../issues/decision-suggestions/PLAN.md)): typed messages, voice notes once written down and reports sent as "other" are read by Jev within about five seconds; at or above 0.5 (P-39) the class feeds the card like a report. The card says the chip came from a message read automatically, and the dispatcher can take it off with a reason. R-ML-35.
+- Messaging publishes `message.transcribed` and carries the store a store manager wrote from. `JEV_LIVE` is off by default; production stays off until @jv-ransika agrees to the data processing.
+- Checked with the real model on the local stack: store closed, a Singlish breakdown and plain chat each read right.
+
+---
+
 ## 2026-10-23 - feat: one Next step card while a problem is open on a trip
 
 `dev` · @Oxshadha

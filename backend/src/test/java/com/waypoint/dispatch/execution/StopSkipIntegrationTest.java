@@ -38,6 +38,7 @@ import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -107,6 +108,10 @@ class StopSkipIntegrationTest {
   @DynamicPropertySource
   static void databaseUrl(DynamicPropertyRegistry registry) {
     registry.add("app.database-url", TestDatabase::url);
+    // R-ML-35: what Jev read from a message is on the card; nothing here calls a model, rows are written below.
+    registry.add("app.ai.jev-enabled", () -> "true");
+    registry.add("app.ai.jev-live", () -> "true");
+    registry.add("app.ai.openrouter-key", () -> "test-only");
   }
 
   @BeforeEach
@@ -426,6 +431,54 @@ class StopSkipIntegrationTest {
     // Another depot's dispatcher and a store manager are refused, never answered with nothing.
     read(farDispatcher, path, 403);
     read(storeTwo, path, 403);
+  }
+
+  @Test
+  void aMessageReadAsABreakdownIsOnTheTripsCardUntilTheDispatcherTakesItOffWithAReason() throws Exception {
+    // R-ML-35: the driver wrote, Jev read it as a breakdown; a second read was not sure enough.
+    String path = "/api/ml/trip-outlook?tripId=" + tripId;
+    UUID sure = UUID.randomUUID();
+    UUID unsure = UUID.randomUUID();
+    for (Object[] m : new Object[][] {{sure, 0.82}, {unsure, 0.31}}) {
+      database.asSystemSeparately(ModuleRole.ML, () -> database.update(
+          "INSERT INTO ml.message_situations (message_id, trip_id, depot_code, author_role, source, masked_text, option_order,"
+              + " status, situation, confidence, model, prompt_version, created_at, answered_at)"
+              + " VALUES (?, ?, ?, 'driver', 'message', 'engine light is on', '{BREAKDOWN,OTHER}', 'answered', 'BREAKDOWN', ?,"
+              + " 'stub', 'v1', now(), now())",
+          m[0], tripId.toString(), depot, m[1]));
+    }
+    // A third could not be read: the card says so (rule 9).
+    database.asSystemSeparately(ModuleRole.ML, () -> database.update(
+        "INSERT INTO ml.message_situations (message_id, trip_id, depot_code, author_role, source, masked_text, option_order,"
+            + " status, attempts, created_at) VALUES (?, ?, ?, 'store_manager', 'voice', 'words', '{OTHER}', 'failed', 3, now())",
+        UUID.randomUUID(), tripId.toString(), depot));
+    JsonNode o = json(read(dispatcher, path, 200));
+    assertEquals("BREAKDOWN", o.get("situation").asText(), o.toString());
+    assertEquals(1, o.get("signals").size(), "the unsure read adds nothing: " + o);
+    assertTrue(o.get("messagesRead").asBoolean());
+    assertEquals(1, o.get("unreadMessages").asInt(), "the one that could not be read is counted");
+    JsonNode signal = o.get("signals").get(0);
+    assertEquals(sure.toString(), signal.get("messageId").asText());
+    assertEquals("message", signal.get("source").asText());
+    assertEquals("driver", signal.get("authorRole").asText());
+    assertEquals(3, o.get("stops").size(), "a breakdown touches every stop still waiting");
+
+    // Taking it off needs a reason; another depot's dispatcher and a driver are refused.
+    String off = "{\"tripId\":\"" + tripId + "\",\"messageId\":\"" + sure + "\",\"reason\":\"%s\"}";
+    command(dispatcher, "ml:DismissSignal", null, String.format(off, " "), 422);
+    command(farDispatcher, "ml:DismissSignal", null, String.format(off, "Not a breakdown"), 403);
+    command(driver, "ml:DismissSignal", null, String.format(off, "Not a breakdown"), 403);
+    JsonNode done = json(command(dispatcher, "ml:DismissSignal", null, String.format(off, "Only a warning light, driving on"), 200));
+    assertFalse(done.get("result").get("alreadyDismissed").asBoolean());
+    JsonNode again = json(command(dispatcher, "ml:DismissSignal", null, String.format(off, "Only a warning light, driving on"), 200));
+    assertTrue(again.get("result").get("alreadyDismissed").asBoolean(), "taking it off twice is harmless");
+
+    JsonNode after = json(read(dispatcher, path, 200));
+    assertTrue(after.get("trip").isEmpty() && after.get("stops").isEmpty(), after.toString());
+    Map<String, Object> row = database.asSystemSeparately(ModuleRole.ML, () -> database.queryOne(
+        "SELECT dismissed_by, dismiss_reason FROM ml.message_situations WHERE message_id = ?", sure));
+    assertEquals(dispatcherId, row.get("dismissed_by"), "rule 8: who");
+    assertEquals("Only a warning light, driving on", row.get("dismiss_reason"), "rule 8: why");
   }
 
   @Test

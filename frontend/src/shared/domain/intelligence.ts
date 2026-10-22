@@ -394,7 +394,14 @@ export type TripOutlookView = {
   /** END_TRIP, WAIT, CARRY_ON, most likely first; empty with no trip situation. */
   trip: ChanceView[];
   /** What it was made from; `source` is "report" or "message" (read automatically). */
-  signals: { messageId: string; situation: string; source: "report" | "message"; outletId: string | null }[];
+  signals: {
+    messageId: string;
+    situation: string;
+    source: "report" | "message";
+    outletId: string | null;
+    /** For a message read automatically (R-ML-35): driver or store_manager. */
+    authorRole: string | null;
+  }[];
   stops: {
     deliveryId: string;
     outletId: string;
@@ -406,11 +413,17 @@ export type TripOutlookView = {
     learned: boolean;
     because: string[];
   }[];
+  /** Drivers' and stores' own words are read for it (R-ML-35); false, it stands on reports alone. */
+  messagesRead: boolean;
+  /** Words that could not be read: waiting over a minute, or given up on (rule 9). */
+  unreadMessages: number;
 };
 
 export const SuggestionCommandKind = {
   /** The suggestions shown beside a stop and the one taken, or none. */
   record: "ml:RecordSuggestion",
+  /** A message read automatically taken off the trip's Next step card, with a reason (R-ML-35). */
+  dismissSignal: "ml:DismissSignal",
 } as const;
 
 export type RecordSuggestionPayload = { deliveryId: string; situation: string; shown: DecisionAction[]; chosen?: DecisionAction };

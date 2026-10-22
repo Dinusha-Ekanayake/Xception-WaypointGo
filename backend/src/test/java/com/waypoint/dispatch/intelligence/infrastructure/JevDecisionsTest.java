@@ -32,7 +32,7 @@ class JevDecisionsTest {
     });
     server.start();
     AiProperties properties = new AiProperties(false, "groq", "", "key", "", 300, Duration.ofSeconds(5), true,
-        "typesafe/jev-1.13", false);
+        "typesafe/jev-1.13", false, false, 0.5);
     return new JevDecisions(properties, new ObjectMapper(), new Metrics(new SimpleMeterRegistry()), Clock.system(),
         URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/"));
   }
