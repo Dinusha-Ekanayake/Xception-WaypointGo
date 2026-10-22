@@ -42,9 +42,14 @@ class Route(Model):
     stops: List[Stop] = Field(min_length=1)
 
 
+# A model as the backend names it, name@version (R-ML-37). Absent: the image's model of the kind.
+LABEL = r'^[a-z0-9][a-z0-9._-]{0,79}@[a-z0-9][a-z0-9._-]{0,79}$'
+
+
 class DeliveryRiskRequest(Model):
     routes: List[Route] = Field(min_length=1)
     reference: Dict[str, List[Dict[str, Any]]]
+    model: Optional[str] = Field(default=None, pattern=LABEL)
 
 
 class StopPrediction(Model):
@@ -74,6 +79,7 @@ class DemandForecastRequest(Model):
     # Every outlet of the depots forecast (outlet_id, brand, depot): the model schedules their orders.
     outlets: List[Dict[str, Any]] = Field(min_length=1)
     weeks: List[Week] = Field(min_length=1)
+    model: Optional[str] = Field(default=None, pattern=LABEL)
 
 
 class WeekForecast(Model):
@@ -94,5 +100,10 @@ class DemandForecastResponse(Model):
 
 class Health(Model):
     status: Literal['ok']
+    # The image's model of each kind: what answers a request that names none.
     models: List[Dict[str, Any]]
+    # Every model loaded, the store's too, each with its source (R-ML-37).
+    available: List[Dict[str, Any]] = []
+    # Store entries that failed their checks, with the reason; never loaded.
+    rejected: List[Dict[str, Any]] = []
     detail: Optional[str] = None

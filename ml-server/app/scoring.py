@@ -93,14 +93,23 @@ def _check_known(routes, g):
                 raise BadRequest(f'route {r.routeId}: outlet {s.outletId} is not in reference.outlets')
 
 
-def delivery_risk(loaded, routes, reference):
-    """[(deliveryId, serviceMin, lateProb, roadConditions)] in request order."""
+def resolve(loaded, kind, label=None):
+    """(info, model) a request is answered by: the one it names, or the image's (R-ML-37)."""
+    found = loaded.resolve(kind, label)
+    if found is None:
+        raise BadRequest(f'model {label} is not loaded' if label else f'no {kind} model is loaded')
+    return found
+
+
+def delivery_risk(loaded, routes, reference, model=None):
+    """[(deliveryId, serviceMin, lateProb, roadConditions)] in request order, by ``model`` or the image's."""
+    info, served = resolve(loaded, 'delivery_risk', model)
     g = general(reference)
     _check_known(routes, g)
-    if loaded.planning is not None:
-        return _planning(loaded.planning, routes, g)
+    if info.pipeline == 'planning':
+        return _planning(served, routes, g)
     cal = g['calendar'].set_index('date')
-    model = _with_context(loaded.task1, _context(g, loaded.task1.ctx))
+    model = _with_context(served, _context(g, served.ctx))
     covered = set(zip(g['road_conditions'].district, g['road_conditions'].date))
     out = {}
     for fallback in (False, True):
@@ -178,12 +187,13 @@ def _with_context(model, ctx):
 FORECAST_OUTLETS = ['outlet_id', 'brand', 'depot']
 
 
-def demand_forecast(loaded, calendar_rows, outlet_rows, weeks):
-    """task2a_demand.predict_rows for any calendar, past the supplied one too.
+def demand_forecast(loaded, calendar_rows, outlet_rows, weeks, model=None):
+    """task2a_demand.predict_rows for any calendar, past the supplied one too, by ``model`` or the image's.
 
     The model schedules each outlet's expected orders, so the outlets of every
     depot forecast come with the request.
     """
+    _info, served = resolve(loaded, 'demand_forecast', model)
     cal = general({**{k: [] for k in TABLES}, 'calendar': calendar_rows})['calendar']
     outlets = pd.DataFrame(outlet_rows)
     missing = [c for c in FORECAST_OUTLETS if c not in outlets.columns]
@@ -195,6 +205,6 @@ def demand_forecast(loaded, calendar_rows, outlet_rows, weeks):
     for row in rows.itertuples(index=False):
         if (row.iso_year, row.iso_week) not in known:
             raise BadRequest(f'week {int(row.iso_year)}-W{int(row.iso_week)} is not in the calendar sent')
-    out = task2a_demand.predict_rows(loaded.task2a, rows, cal, outlets)
+    out = task2a_demand.predict_rows(served, rows, cal, outlets)
     return [(row.depot, row.brand, int(row.iso_year), int(row.iso_week), float(row.pred_total_volume_m3),
              float(row.pred_chilled_volume_m3)) for row in out.itertuples(index=False)]

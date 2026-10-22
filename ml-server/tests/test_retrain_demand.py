@@ -8,6 +8,7 @@ import pytest
 
 from app import registry, scoring
 from app.schemas import Week
+from tests import reference_export
 from tests.demand_orders import orders, write
 from training import retrain_demand as rd
 from training import run
@@ -126,12 +127,16 @@ def test_the_scheduled_run_builds_a_demand_candidate_from_the_order_export(tmp_p
 
     def opener(req):
         asked.append(req.full_url)
+        if '/api/ml/training/reference?' in req.full_url:
+            return Answer(reference_export.tables())
         depot = 'Kandy' if 'depot=Kandy' in req.full_url else 'Peliyagoda'
         return Answer({'items': [r for r in rows if r['depot'] == depot], 'nextCursor': None})
 
     code, build = run.run_demand('http://localhost:8080', ['Kandy', 'Peliyagoda'], 104, tmp_path, 'SESSION=x',
                                  dt.date(2025, 6, 30), opener=opener)
-    assert all('/api/ml/training/orders?' in u for u in asked) and len(asked) == 2
+    ref, *exports = asked
+    assert '/api/ml/training/reference?' in ref, 'the calendar is the backend one (R-ML-36)'
+    assert all('/api/ml/training/orders?' in u for u in exports) and len(exports) == 2
     report = json.loads((build / 'report.json').read_text())
     assert report['current'] is not None, 'replayed against the model the manifest serves'
     assert code == (0 if report['hand_over'] else 2)

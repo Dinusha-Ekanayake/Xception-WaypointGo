@@ -175,3 +175,6 @@ target/
 
 # Local Playwright wrappers pointing at a preinstalled Chromium
 frontend/playwright.local-*.config.ts
+
+# The model store (issue #12): models retraining produced, never committed.
+ml-store/
