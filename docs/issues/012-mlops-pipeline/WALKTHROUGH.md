@@ -1,6 +1,6 @@
 # Walkthrough: the models as a pipeline
 
-Issue [#12](https://github.com/jv-ransika/yi-yi/issues/12), built on `feat/mlops-pipeline` from the [plan](PLAN.md). The rules are R-ML-36 to R-ML-40 in [RULES-AND-POLICIES.md](../../architecture/RULES-AND-POLICIES.md), the cases ML-57 to ML-61 in [EDGE-CASES.md](../../architecture/EDGE-CASES.md).
+Issue [#12](https://github.com/jv-ransika/yi-yi/issues/12), built on `feat/mlops-pipeline` from the [plan](PLAN.md). The rules are R-ML-38 to R-ML-42 in [RULES-AND-POLICIES.md](../../architecture/RULES-AND-POLICIES.md), the cases ML-62 to ML-66 in [EDGE-CASES.md](../../architecture/EDGE-CASES.md).
 
 ## What was built
 
@@ -72,7 +72,7 @@ By hand: start the stack with `ML_STORE_PATH` set, run `training.run --store ...
 
 ## Decisions and where they are recorded
 
-The ten decisions are in the [plan](PLAN.md#decisions): the reference from the backend, the store beside the image, the backend naming the model, shadow predictions kept apart, the review, promotion by a person, the champion as challenger, rollback as the only automatic step, demand stored but not shadowed, and no notification. The rules are R-ML-36 to R-ML-40.
+The ten decisions are in the [plan](PLAN.md#decisions): the reference from the backend, the store beside the image, the backend naming the model, shadow predictions kept apart, the review, promotion by a person, the champion as challenger, rollback as the only automatic step, demand stored but not shadowed, and no notification. The rules are R-ML-38 to R-ML-42.
 
 ## Known gaps
 

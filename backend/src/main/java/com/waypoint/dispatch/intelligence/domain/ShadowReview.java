@@ -11,7 +11,7 @@ import java.util.Optional;
 
 /**
  * Issue #12: the shadow against the model that answered, on the same labelled
- * stops (R-ML-38), and when the system puts a replaced model back (R-ML-40).
+ * stops (R-ML-40), and when the system puts a replaced model back (R-ML-42).
  *
  * <p>The verdict is the one R-ML-16 and the retrain's replay use: better only
  * when both the Brier score and the log loss are lower, on at least
@@ -79,7 +79,7 @@ public final class ShadowReview {
   }
 
   /**
-   * R-ML-40: put the replaced model back when it did better than the model that
+   * R-ML-42: put the replaced model back when it did better than the model that
    * replaced it, on both scores, within {@link #ROLLBACK_WINDOW} of the promotion.
    * A candidate is never activated by the system, and a mixed or thin review never acts.
    */

@@ -2,10 +2,10 @@ import type { Decimal, IsoDate, IsoInstant, Uuid } from "./common.ts";
 
 // Mirrors com.waypoint.dispatch.intelligence.contract.
 
-/** SHADOW: scored beside the active model of its kind, never answering (issue #12, R-ML-38). */
+/** SHADOW: scored beside the active model of its kind, never answering (issue #12, R-ML-40). */
 export type ModelStatus = "REGISTERED" | "ACTIVE" | "SHADOW" | "RETIRED";
 
-/** CANDIDATE: retraining produced it. REPLACED: a promotion replaced it, kept as the challenger (R-ML-40). */
+/** CANDIDATE: retraining produced it. REPLACED: a promotion replaced it, kept as the challenger (R-ML-42). */
 export type ShadowRole = "CANDIDATE" | "REPLACED";
 
 /** delivery_risk: service minutes and P(late) per stop. demand_forecast: weekly m3 per depot and brand. */
@@ -28,7 +28,7 @@ export type ModelVersionView = {
   shadowedAt: IsoInstant | null;
 };
 
-/** One night's comparison of the shadow with the model that answered, on the same labelled stops (R-ML-38). */
+/** One night's comparison of the shadow with the model that answered, on the same labelled stops (R-ML-40). */
 export type ShadowReviewView = {
   kind: ModelKind;
   modelLabel: string;
@@ -44,7 +44,7 @@ export type ShadowReviewView = {
   incumbentBrier: Decimal | null;
   incumbentLogLoss: Decimal | null;
   verdict: "BETTER" | "WORSE" | "MIXED" | "NOT_ENOUGH";
-  /** rolled_back: the system put the replaced model back (R-ML-40). */
+  /** rolled_back: the system put the replaced model back (R-ML-42). */
   action: "rolled_back" | null;
 };
 

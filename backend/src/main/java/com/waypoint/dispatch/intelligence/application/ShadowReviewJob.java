@@ -30,7 +30,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Each night, the late-risk shadow against the model that answered (issue #12,
- * R-ML-38), and the one move the system makes on its own (R-ML-40).
+ * R-ML-40), and the one move the system makes on its own (R-ML-42).
  *
  * <p>The review reads the stops of the last {@link ShadowReview#WINDOW_DAYS}
  * service days, from the day the model became shadow, that have a label, a
@@ -42,7 +42,7 @@ import org.springframework.stereotype.Component;
  * scores, the system puts it back: it becomes active and the newer model returns
  * to registered, in this job's transaction, version-guarded, with a model event
  * and an audit row naming the review. A candidate is never activated here; that
- * is an administrator's decision (R-ML-39).
+ * is an administrator's decision (R-ML-41).
  */
 @Component
 public class ShadowReviewJob implements ScheduledJob {

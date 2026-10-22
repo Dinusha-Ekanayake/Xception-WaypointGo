@@ -149,7 +149,7 @@ class Loaded:
         return found
 
     def available(self) -> list[dict]:
-        """Every model loaded, the image's first: what a request may name (R-ML-37)."""
+        """Every model loaded, the image's first: what a request may name (R-ML-39)."""
         out = [{**i.as_json(), 'source': 'image'} for i in self.info.values()]
         if self.store is not None:
             out += [{**s.info.as_json(), 'source': 'store'} for s in self.store.models()]

@@ -156,7 +156,7 @@ public class IntelligenceController {
   }
 
   /**
-   * Issue #12, R-ML-38: each night's comparison of the shadow with the model
+   * Issue #12, R-ML-40: each night's comparison of the shadow with the model
    * that answered, newest first. Read before promoting a shadow; a rollback the
    * system made is on its review.
    */
@@ -265,7 +265,7 @@ public class IntelligenceController {
   }
 
   /**
-   * Issue #12, R-ML-36: the outlets, service allowances, traffic speed and
+   * Issue #12, R-ML-38: the outlets, service allowances, traffic speed and
    * calendar a retraining run reads, as a scoring request builds them.
    */
   @GetMapping("/training/reference")

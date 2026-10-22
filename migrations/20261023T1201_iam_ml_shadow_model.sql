@@ -1,4 +1,4 @@
--- Issue #12: ml:ShadowModel makes a registered model the shadow of its kind (R-ML-38).
+-- Issue #12: ml:ShadowModel makes a registered model the shadow of its kind (R-ML-40).
 -- The administrator already holds ml:* (20260930T1201); the auditor's explicit deny
 -- names it like every other registry write, in a new version of its policy.
 

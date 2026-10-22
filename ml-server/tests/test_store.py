@@ -1,4 +1,4 @@
-"""Issue #12, R-ML-37: the model store, served beside the image's models, each entry checked before it loads."""
+"""Issue #12, R-ML-39: the model store, served beside the image's models, each entry checked before it loads."""
 import json
 import os
 import pickle

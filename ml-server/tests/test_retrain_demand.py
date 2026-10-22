@@ -135,7 +135,7 @@ def test_the_scheduled_run_builds_a_demand_candidate_from_the_order_export(tmp_p
     code, build = run.run_demand('http://localhost:8080', ['Kandy', 'Peliyagoda'], 104, tmp_path, 'SESSION=x',
                                  dt.date(2025, 6, 30), opener=opener)
     ref, *exports = asked
-    assert '/api/ml/training/reference?' in ref, 'the calendar is the backend one (R-ML-36)'
+    assert '/api/ml/training/reference?' in ref, 'the calendar is the backend one (R-ML-38)'
     assert all('/api/ml/training/orders?' in u for u in exports) and len(exports) == 2
     report = json.loads((build / 'report.json').read_text())
     assert report['current'] is not None, 'replayed against the model the manifest serves'

@@ -94,7 +94,7 @@ def _check_known(routes, g):
 
 
 def resolve(loaded, kind, label=None):
-    """(info, model) a request is answered by: the one it names, or the image's (R-ML-37)."""
+    """(info, model) a request is answered by: the one it names, or the image's (R-ML-39)."""
     found = loaded.resolve(kind, label)
     if found is None:
         raise BadRequest(f'model {label} is not loaded' if label else f'no {kind} model is loaded')

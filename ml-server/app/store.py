@@ -1,4 +1,4 @@
-"""The model store: models retraining produced, served beside the image's (issue #12, R-ML-37).
+"""The model store: models retraining produced, served beside the image's (issue #12, R-ML-39).
 
 The store is a directory the service only reads (mounted read only); the
 scheduled retraining run writes it. Each model is a directory named

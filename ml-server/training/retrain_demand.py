@@ -98,7 +98,7 @@ def load_reference(directory=DEFAULT_REFERENCE) -> tuple[pd.DataFrame, pd.DataFr
 
 
 def load_reference_json(tables: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """The calendar and outlets from the backend's reference export (R-ML-36): the days the forecast serves with."""
+    """The calendar and outlets from the backend's reference export (R-ML-38): the days the forecast serves with."""
     g = planning.reference_from_json(tables)
     return g['calendar'], g['outlets']
 

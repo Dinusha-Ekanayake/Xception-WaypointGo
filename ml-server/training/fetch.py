@@ -4,7 +4,7 @@ Pages ``GET /api/ml/training/routes`` (scored routes with their outcomes) or
 ``GET /api/ml/training/orders`` (every order as demand) for one depot and date
 range and writes one item per line. ``--kind reference`` reads
 ``GET /api/ml/training/reference`` instead: the outlets, service allowances,
-traffic speed and calendar the backend scores with (R-ML-36), as one JSON file. It needs an administrator's session cookie in
+traffic speed and calendar the backend scores with (R-ML-38), as one JSON file. It needs an administrator's session cookie in
 ``WAYPOINT_SESSION`` (the export is ``ml:ExportTrainingData``), refuses plain
 HTTP to any host but this one, and never prints what it fetched.
 """

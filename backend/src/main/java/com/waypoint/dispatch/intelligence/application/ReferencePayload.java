@@ -71,7 +71,7 @@ class ReferencePayload {
   /**
    * The tables a retraining run reads (issue #12): the same rows a scoring
    * request carries, for these depots and days, so training reads the calendar
-   * serving reads, generated days past the supplied calendar included (R-ML-36).
+   * serving reads, generated days past the supplied calendar included (R-ML-38).
    */
   Map<String, Object> forTraining(List<String> depotCodes, LocalDate from, LocalDate to, UUID versionId) {
     List<OutletView> outlets = depotCodes.stream()

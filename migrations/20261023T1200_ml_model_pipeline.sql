@@ -1,10 +1,10 @@
 -- Issue #12 (docs/issues/012-mlops-pipeline/PLAN.md): the models as a pipeline.
 --
 --     A model may be the shadow of its kind: it scores every published plan
---     beside the active model and never answers (R-ML-38). At most one shadow per
+--     beside the active model and never answers (R-ML-40). At most one shadow per
 --     kind. Its role says how it got there: a candidate retraining produced
 --     (ml:ShadowModel), or the model a promotion replaced, kept as the
---     challenger so the system can put it back (R-ML-40).
+--     challenger so the system can put it back (R-ML-42).
 --
 --     Shadow predictions live apart from ml.delivery_predictions, which every
 --     screen, outcome and metric reads: a shadow must change none of them.
@@ -52,7 +52,7 @@ CREATE INDEX IF NOT EXISTS ix_shadow_predictions_model ON ml.shadow_predictions 
 CREATE INDEX IF NOT EXISTS ix_shadow_predictions_order ON ml.shadow_predictions (order_id);
 
 COMMENT ON TABLE ml.shadow_predictions IS
-  'The shadow model''s answer for each stop of a published plan (R-ML-38). Read by the shadow review only, never by a screen.';
+  'The shadow model''s answer for each stop of a published plan (R-ML-40). Read by the shadow review only, never by a screen.';
 
 -- ---- the nightly review -------------------------------------------------------------------
 
@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS ml.shadow_reviews (
 CREATE INDEX IF NOT EXISTS ix_shadow_reviews_day ON ml.shadow_reviews (reviewed_on DESC);
 
 COMMENT ON TABLE ml.shadow_reviews IS
-  'Each night, the shadow against the active model on the same labelled stops (R-ML-38). A rerun the same day replaces its figures.';
+  'Each night, the shadow against the active model on the same labelled stops (R-ML-40). A rerun the same day replaces its figures.';
 
 -- ---- every change of a model's standing ---------------------------------------------------
 

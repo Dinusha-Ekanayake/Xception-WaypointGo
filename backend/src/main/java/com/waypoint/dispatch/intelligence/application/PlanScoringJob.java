@@ -75,7 +75,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>Allocation is never changed by any of this (R-ML-05): the risk is advice.
  *
- * <p>Issue #12, R-ML-38: when the kind has a shadow model and the service has it
+ * <p>Issue #12, R-ML-40: when the kind has a shadow model and the service has it
  * loaded, the shadow scores the same request once the plan's own scoring is
  * written, still with no transaction open. Its answers go to
  * {@code ml.shadow_predictions}, which no screen, outcome or metric reads, and a
@@ -280,7 +280,7 @@ public class PlanScoringJob implements ScheduledJob {
   }
 
   /**
-   * R-ML-38: the shadow's answer for every stop of the plan, kept apart. Once
+   * R-ML-40: the shadow's answer for every stop of the plan, kept apart. Once
    * per plan and shadow, so a degraded plan scored again does not call it twice.
    * A competition model never shadows where it may not answer (R-ML-09).
    */
@@ -406,7 +406,7 @@ public class PlanScoringJob implements ScheduledJob {
         o.itemCount(), o.weightKg(), o.volumeM3()));
   }
 
-  /** @param model the label to name, for a service that holds several (R-ML-37); empty for its image model */
+  /** @param model the label to name, for a service that holds several (R-ML-39); empty for its image model */
   private Map<String, Object> request(Gathered g, Optional<String> model) {
     Map<String, Object> body = new LinkedHashMap<>();
     body.put("routes", routes(g));

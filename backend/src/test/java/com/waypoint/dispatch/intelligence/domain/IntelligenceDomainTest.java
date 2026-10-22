@@ -162,7 +162,7 @@ class IntelligenceDomainTest {
 
   @Test
   void aServiceHoldingSeveralModelsAnswersWhenTheActiveOneIsAmongThem() {
-    // Issue #12, R-ML-37: the image's model and the store's, each named by the request.
+    // Issue #12, R-ML-39: the image's model and the store's, each named by the request.
     assertTrue(ModelGate.decide("delivery_risk", true, Optional.of("ours@2"), Served.loaded(List.of("image@1", "ours@2")))
         .useModel());
     assertGate(ModelGate.decide("delivery_risk", true, Optional.of("ours@3"), Served.loaded(List.of("image@1", "ours@2"))),

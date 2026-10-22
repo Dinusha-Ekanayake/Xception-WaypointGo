@@ -81,7 +81,7 @@ def test_a_late_risk_candidate_is_registered_and_made_the_shadow_never_activated
     fake = FakeBackend()
     assert backend.register('http://localhost:8080', 'SESSION=x', entry, shadow=True, opener=fake) == 'SHADOW'
     kinds = [b['kind'] for b in fake.sent]
-    assert kinds == ['ml:RegisterModel', 'ml:ShadowModel'], 'R-ML-39: activation stays a person\'s'
+    assert kinds == ['ml:RegisterModel', 'ml:ShadowModel'], 'R-ML-41: activation stays a person\'s'
     register, shadow = fake.sent
     assert register['payload']['name'] == 'waypoint-planning' and register['payload']['kind'] == 'delivery_risk'
     assert all(isinstance(v, (int, float)) for v in register['payload']['metrics'].values())

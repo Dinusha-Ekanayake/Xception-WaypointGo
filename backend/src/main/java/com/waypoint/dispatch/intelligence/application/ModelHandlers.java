@@ -175,7 +175,7 @@ final class ModelHandlers {
     }
 
     /**
-     * The model it replaces becomes the shadow of the kind (issue #12, R-ML-40):
+     * The model it replaces becomes the shadow of the kind (issue #12, R-ML-42):
      * it keeps scoring every plan, so the system can put it back if the new
      * model does worse. A shadow already there returns to registered.
      */
@@ -200,7 +200,7 @@ final class ModelHandlers {
   }
 
   /**
-   * Issue #12, R-ML-38: a registered model scores every published plan beside
+   * Issue #12, R-ML-40: a registered model scores every published plan beside
    * the active one, kept apart, and never answers. The scheduled retraining run
    * sends this for a candidate that passed its gates; an administrator may too.
    */

@@ -8,7 +8,7 @@ export, in ``<out>/<date>/demand/``. It never changes ``manifest.json`` or
 ``models/``. Exit 0 means at least one candidate worth handing over was built,
 2 means none was, anything else is a failure.
 
-The reference comes from the backend (R-ML-36), never from ``data/General
+The reference comes from the backend (R-ML-38), never from ``data/General
 Data``: that calendar ends on 2026-06-28 and the backend generates the days
 after it, so training on the CSVs would read different days from serving.
 ``--reference DIR`` keeps the CSVs for a dry run on the Datathon data.
@@ -17,7 +17,7 @@ With ``--store DIR`` a candidate worth handing over is copied into the model
 store the service reads, and with ``--register`` also registered with the
 backend: the late-risk one as the shadow of its kind, which scores every
 published plan beside the active model; the demand one as registered. Neither
-answers until an administrator activates it (R-ML-39).
+answers until an administrator activates it (R-ML-41).
 """
 from __future__ import annotations
 

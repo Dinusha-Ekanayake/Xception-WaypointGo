@@ -93,7 +93,7 @@ def load_reference(path) -> dict:
 
 
 def reference_from_json(tables: dict) -> dict:
-    """The same tables from the backend's ``/api/ml/training/reference`` (R-ML-36), as the CSV reader gives them."""
+    """The same tables from the backend's ``/api/ml/training/reference`` (R-ML-38), as the CSV reader gives them."""
     missing = [n for n in TABLES if n not in tables]
     if missing:
         raise ValueError(f'the reference lacks {missing}')

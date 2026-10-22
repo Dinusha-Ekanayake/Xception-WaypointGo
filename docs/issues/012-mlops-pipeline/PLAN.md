@@ -57,7 +57,7 @@ One branch, `feat/mlops-pipeline`, in four commits that each build and test on t
 1. **Reference from the system:** the endpoint, `fetch.reference`, the JSON readers, `run` using them; tests.
 2. **Model store and selection:** `app/store.py`, registry and scoring changes, `/health`, `run --store --register`, compose volume; tests.
 3. **Shadow:** migrations (status, roles, `shadow_predictions`, `shadow_reviews`, `model_events`, catalogue row), `ModelRegistryPolicy`, `ml:ShadowModel`, the changed activation, `ShadowScoring`, `ShadowReviewJob`, the read endpoint, `availableModels` in both jobs; tests.
-4. **Rollback and documents:** the rollback, rules R-ML-36 to R-ML-40, edge cases ML-57 to ML-61, MODULES, STATUS, the README, the walkthrough and the log.
+4. **Rollback and documents:** the rollback, rules R-ML-38 to R-ML-42, edge cases ML-62 to ML-66, MODULES, STATUS, the README, the walkthrough and the log.
 
 ## Tests
 

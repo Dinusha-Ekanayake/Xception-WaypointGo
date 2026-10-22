@@ -833,7 +833,7 @@ class IntelligenceIntegrationTest {
 
   @Test
   void activatingAModelMakesTheOneItReplacesTheShadowAndTheShadowBeforeItRegistered() throws Exception {
-    // Issue #12, R-ML-40: the champion stays the challenger, so the system can put it back.
+    // Issue #12, R-ML-42: the champion stays the challenger, so the system can put it back.
     String first = activate("delivery_risk");
     String second = activate("delivery_risk");
 
@@ -855,7 +855,7 @@ class IntelligenceIntegrationTest {
       shadow += risk && "SHADOW".equals(m.get("status").asText()) ? 1 : 0;
     }
     assertEquals(1, active, "R-ML-03: one active model per kind");
-    assertEquals(1, shadow, "R-ML-38: one shadow per kind");
+    assertEquals(1, shadow, "R-ML-40: one shadow per kind");
     assertEquals(List.of("activated", "shadowed", "demoted"), events(first));
   }
 
@@ -903,7 +903,7 @@ class IntelligenceIntegrationTest {
     JsonNode body = read(dispatcher, "/api/ml/plans/" + planId + "/predictions", 200);
     assertEquals(champion, body.at("/scoring/modelLabel").asText());
     for (JsonNode stop : body.get("stops")) {
-      assertEquals(champion, stop.get("modelLabel").asText(), "R-ML-38: the shadow never answers");
+      assertEquals(champion, stop.get("modelLabel").asText(), "R-ML-40: the shadow never answers");
       assertEquals(StubModelServer.LATE, stop.get("lateProbability").asDouble(), 1e-9);
     }
     assertTrue(STUB.namedModels.contains(champion) && STUB.namedModels.contains(name + "@1"),
@@ -938,7 +938,7 @@ class IntelligenceIntegrationTest {
 
   @Test
   void aReplacedModelThatDidBetterIsPutBackWithTheReviewAndItsReason() throws Exception {
-    // R-ML-40: the system's one move, only backwards.
+    // R-ML-42: the system's one move, only backwards.
     String older = activate("delivery_risk");
     String newer = activate("delivery_risk");
     backdate(older, newer);
@@ -991,7 +991,7 @@ class IntelligenceIntegrationTest {
     ShadowReviewJob.Outcome outcome = shadowReviews.runAt(Instant.now()).orElseThrow();
 
     assertEquals("BETTER", outcome.result().verdict().name());
-    assertFalse(outcome.rolledBack(), "R-ML-39: promotion stays a person's");
+    assertFalse(outcome.rolledBack(), "R-ML-41: promotion stays a person's");
     JsonNode models = read(admin, "/api/ml/models", 200);
     assertEquals("SHADOW", status(models, name + "@1"));
     assertEquals("ACTIVE", status(models, champion));
@@ -999,7 +999,7 @@ class IntelligenceIntegrationTest {
 
   @Test
   void theTrainingReferenceIsTheCalendarServingReadsAndOnlyForDepotsInScope() throws Exception {
-    // R-ML-36: days past the supplied calendar (2026-06-28) are generated, as scoring sends them.
+    // R-ML-38: days past the supplied calendar (2026-06-28) are generated, as scoring sends them.
     UUID adminId = account("mlr-" + run, "admin", true);
     Cookie exporter = session("mlr-" + run);
     JsonNode ref = read(exporter, "/api/ml/training/reference?depot=" + depot + "&from=2026-06-20&to=2026-07-10", 200);

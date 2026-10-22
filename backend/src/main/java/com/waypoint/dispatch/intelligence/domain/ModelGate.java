@@ -63,7 +63,7 @@ public final class ModelGate {
     if (served.labels().isEmpty()) {
       return Decision.degrade("model serving has no " + kind + " model loaded");
     }
-    // Issue #12, R-ML-37: the service may hold several models of a kind; the active one must be among them.
+    // Issue #12, R-ML-39: the service may hold several models of a kind; the active one must be among them.
     if (!served.labels().contains(activeLabel.get())) {
       return Decision.degrade(
           "model serving has " + String.join(", ", served.labels()) + " but the active model is " + activeLabel.get());

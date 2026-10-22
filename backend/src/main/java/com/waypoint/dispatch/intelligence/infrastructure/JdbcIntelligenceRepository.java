@@ -155,7 +155,7 @@ public class JdbcIntelligenceRepository {
         eventId, modelId, action, actor, reason.orElse(null), reviewId.orElse(null), Timestamp.from(at));
   }
 
-  // ---- shadow scoring and its review (issue #12, R-ML-38) ------------------------------
+  // ---- shadow scoring and its review (issue #12, R-ML-40) ------------------------------
 
   public boolean hasShadowPredictions(UUID planId, String label) {
     return database.queryOne(

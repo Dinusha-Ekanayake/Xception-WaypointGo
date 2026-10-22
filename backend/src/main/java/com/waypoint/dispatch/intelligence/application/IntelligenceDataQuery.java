@@ -204,7 +204,7 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
     return read(actor.userId(), () -> repository.allModels().stream().map(ModelRow::view).toList());
   }
 
-  /** Issue #12, R-ML-38: the newest shadow reviews, what an administrator reads before promoting a model. */
+  /** Issue #12, R-ML-40: the newest shadow reviews, what an administrator reads before promoting a model. */
   public List<com.waypoint.dispatch.intelligence.contract.ModelViews.ShadowReviewView> shadowReviews(
       Actor actor, int limit) {
     if (limit < 1 || limit > 100) {
@@ -263,7 +263,7 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
   static final int TRAINING_REFERENCE_DAYS = 2_000;
 
   /**
-   * Issue #12, R-ML-36: the reference tables a retraining run reads, built as a
+   * Issue #12, R-ML-38: the reference tables a retraining run reads, built as a
    * scoring request builds them, so training and serving read the same days.
    * Every depot named must be in the reader's scope; one outside it is refused
    * and audited, never left out of the answer.

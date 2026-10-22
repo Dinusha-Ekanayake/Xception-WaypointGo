@@ -16,7 +16,7 @@ import java.util.Optional;
 import java.util.Random;
 import org.junit.jupiter.api.Test;
 
-/** Issue #12, R-ML-38 and R-ML-40: the shadow judged on the same stops, and when the system rolls back. */
+/** Issue #12, R-ML-40 and R-ML-42: the shadow judged on the same stops, and when the system rolls back. */
 class ShadowReviewTest {
   /** Stops whose truth the shadow knows {@code shadowSharpness} of, and the incumbent {@code incumbentSharpness}. */
   private static List<Pair> pairs(int n, double shadowSharpness, double incumbentSharpness, long seed) {
@@ -79,7 +79,7 @@ class ShadowReviewTest {
     Instant soon = promoted.plus(Duration.ofDays(10));
     assertTrue(ShadowReview.rollBack(ShadowRole.REPLACED, Verdict.BETTER, Optional.of(promoted), soon));
     assertFalse(ShadowReview.rollBack(ShadowRole.CANDIDATE, Verdict.BETTER, Optional.of(promoted), soon),
-        "R-ML-39: a candidate is promoted by a person");
+        "R-ML-41: a candidate is promoted by a person");
     for (Verdict v : List.of(Verdict.WORSE, Verdict.MIXED, Verdict.NOT_ENOUGH)) {
       assertFalse(ShadowReview.rollBack(ShadowRole.REPLACED, v, Optional.of(promoted), soon), v.name());
     }

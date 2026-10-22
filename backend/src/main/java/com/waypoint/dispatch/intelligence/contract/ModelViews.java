@@ -21,7 +21,7 @@ public final class ModelViews {
   public static final String REGISTER = "ml:RegisterModel";
   public static final String ACTIVATE = "ml:ActivateModel";
   public static final String RETIRE = "ml:RetireModel";
-  /** Issue #12, R-ML-38: a registered model scores every published plan beside the active one, and never answers. */
+  /** Issue #12, R-ML-40: a registered model scores every published plan beside the active one, and never answers. */
   public static final String SHADOW = "ml:ShadowModel";
 
   /** Service minutes and P(late) per stop, scored over whole planned routes (Datathon Task 1). */
@@ -35,7 +35,7 @@ public final class ModelViews {
   public enum ModelStatus {
     REGISTERED,
     ACTIVE,
-    /** Scored beside the active model of its kind, never answering (R-ML-38). At most one per kind. */
+    /** Scored beside the active model of its kind, never answering (R-ML-40). At most one per kind. */
     SHADOW,
     RETIRED
   }
@@ -44,7 +44,7 @@ public final class ModelViews {
   public enum ShadowRole {
     /** A model retraining produced, made the shadow to prove itself before a person promotes it. */
     CANDIDATE,
-    /** The model a promotion replaced, kept as the challenger the system may put back (R-ML-40). */
+    /** The model a promotion replaced, kept as the challenger the system may put back (R-ML-42). */
     REPLACED
   }
 
@@ -99,12 +99,12 @@ public final class ModelViews {
   public record ShadowModel(String name, String version) {}
 
   /**
-   * Issue #12, R-ML-38: one night's comparison of the shadow with the model
+   * Issue #12, R-ML-40: one night's comparison of the shadow with the model
    * that answered, on the same labelled stops of the window.
    *
    * @param incumbentLabel the active model's label, or {@code deterministic} when none was active
    * @param verdict {@code BETTER}, {@code WORSE}, {@code MIXED} or {@code NOT_ENOUGH}, for the shadow
-   * @param action {@code rolled_back} when the system put the replaced model back (R-ML-40)
+   * @param action {@code rolled_back} when the system put the replaced model back (R-ML-42)
    */
   public record ShadowReviewView(
       String kind,

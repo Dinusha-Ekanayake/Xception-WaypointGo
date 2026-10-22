@@ -1,12 +1,12 @@
-"""Hands a candidate to the pipeline (issue #12, R-ML-37): into the model store, then into the backend's registry.
+"""Hands a candidate to the pipeline (issue #12, R-ML-39): into the model store, then into the backend's registry.
 
 A candidate the gates passed is copied into the store directory the model
 service reads, checked first exactly as the service will check it, and
 registered with the backend through the command endpoint (``ml:RegisterModel``),
 under the administrator session the run already uses. A late-risk candidate is
 then made the shadow of its kind (``ml:ShadowModel``), so it scores every
-published plan beside the active model without answering (R-ML-38). Nothing
-here activates a model: that stays an administrator's decision (R-ML-39).
+published plan beside the active model without answering (R-ML-40). Nothing
+here activates a model: that stays an administrator's decision (R-ML-41).
 
 Runs on our own server; it sends the backend only the model's name, version,
 training range and holdout figures.

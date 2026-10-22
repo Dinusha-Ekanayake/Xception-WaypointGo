@@ -42,7 +42,7 @@ class Route(Model):
     stops: List[Stop] = Field(min_length=1)
 
 
-# A model as the backend names it, name@version (R-ML-37). Absent: the image's model of the kind.
+# A model as the backend names it, name@version (R-ML-39). Absent: the image's model of the kind.
 LABEL = r'^[a-z0-9][a-z0-9._-]{0,79}@[a-z0-9][a-z0-9._-]{0,79}$'
 
 
@@ -102,7 +102,7 @@ class Health(Model):
     status: Literal['ok']
     # The image's model of each kind: what answers a request that names none.
     models: List[Dict[str, Any]]
-    # Every model loaded, the store's too, each with its source (R-ML-37).
+    # Every model loaded, the store's too, each with its source (R-ML-39).
     available: List[Dict[str, Any]] = []
     # Store entries that failed their checks, with the reason; never loaded.
     rejected: List[Dict[str, Any]] = []

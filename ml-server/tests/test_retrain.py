@@ -226,7 +226,7 @@ def test_the_scheduled_run_trains_on_the_last_finished_weeks_of_every_depot(tmp_
     code, build = run.run('http://localhost:8080', ['A', 'B'], 26, tmp_path / 'builds', 'SESSION=x',
                           dt.date(2026, 10, 8), opener=opener)
     assert code == 0
-    # R-ML-36: the reference is the backend's, once, from before the window to a year ahead.
+    # R-ML-38: the reference is the backend's, once, from before the window to a year ahead.
     ref, *routes = asked
     assert '/api/ml/training/reference?' in ref and 'depot=A&depot=B' in ref
     assert 'from=2026-02-05' in ref and 'to=2027-10-13' in ref

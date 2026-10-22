@@ -1,4 +1,4 @@
-"""Issue #12, R-ML-36: retraining reads the reference the backend scores with, not the supplied CSVs."""
+"""Issue #12, R-ML-38: retraining reads the reference the backend scores with, not the supplied CSVs."""
 import json
 
 import numpy as np

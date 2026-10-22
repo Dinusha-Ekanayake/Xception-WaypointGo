@@ -42,8 +42,8 @@ class ModelRegistryPolicyTest {
   @Test
   void shadowingTheShadowChangesNothingAndTheActiveOrARetiredModelIsRefused() {
     assertTrue(ModelRegistryPolicy.shadow(CANDIDATE, List.of(ACTIVE, CANDIDATE)).isEmpty());
-    assertEquals("R-ML-38", rule(() -> ModelRegistryPolicy.shadow(ACTIVE, List.of(ACTIVE))));
-    assertEquals("R-ML-38", rule(() -> ModelRegistryPolicy.shadow(RETIRED, List.of(ACTIVE))));
+    assertEquals("R-ML-40", rule(() -> ModelRegistryPolicy.shadow(ACTIVE, List.of(ACTIVE))));
+    assertEquals("R-ML-40", rule(() -> ModelRegistryPolicy.shadow(RETIRED, List.of(ACTIVE))));
   }
 
   @Test
@@ -70,9 +70,9 @@ class ModelRegistryPolicyTest {
   void onlyTheReplacedModelIsPutBackAndTheNewerOneReturnsToRegistered() {
     assertEquals(Map.of(REPLACED.id(), TO_ACTIVE, ACTIVE.id(), TO_REGISTERED),
         ModelRegistryPolicy.rollBack(ACTIVE, REPLACED));
-    assertEquals("R-ML-38", rule(() -> ModelRegistryPolicy.rollBack(ACTIVE, CANDIDATE)),
+    assertEquals("R-ML-40", rule(() -> ModelRegistryPolicy.rollBack(ACTIVE, CANDIDATE)),
         "a candidate is promoted by a person, never by the system");
-    assertEquals("R-ML-38", rule(() -> ModelRegistryPolicy.rollBack(REGISTERED, REPLACED)));
+    assertEquals("R-ML-40", rule(() -> ModelRegistryPolicy.rollBack(REGISTERED, REPLACED)));
   }
 
   private static String rule(Runnable move) {

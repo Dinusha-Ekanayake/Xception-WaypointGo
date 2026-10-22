@@ -13,14 +13,14 @@ import java.util.UUID;
 /**
  * The legal moves of the model registry, and what each does to the other models
  * of the kind (issue #12). At most one model of a kind is active and at most one
- * is the shadow (R-ML-03, R-ML-38).
+ * is the shadow (R-ML-03, R-ML-40).
  *
  * <ul>
  *   <li><b>Shadow</b> a registered model: it becomes the {@code CANDIDATE} shadow;
  *       a shadow already there returns to registered.
  *   <li><b>Activate</b> a registered or shadow model: it becomes active, the
  *       model it replaces becomes the {@code REPLACED} shadow (the champion stays
- *       the challenger, R-ML-40), and any other shadow returns to registered.
+ *       the challenger, R-ML-42), and any other shadow returns to registered.
  *   <li><b>Roll back</b>: only a {@code REPLACED} shadow, back to active; the
  *       model that replaced it returns to registered. The system's one move, and
  *       only ever backwards.
@@ -97,7 +97,7 @@ public final class ModelRegistryPolicy {
     return out;
   }
 
-  /** R-ML-40: the replaced model back to active, the one that replaced it to registered. */
+  /** R-ML-42: the replaced model back to active, the one that replaced it to registered. */
   public static Map<UUID, Move> rollBack(Standing active, Standing shadow) {
     if (active.status() != ModelStatus.ACTIVE) {
       throw refused("Only the active model is rolled back");
@@ -112,7 +112,7 @@ public final class ModelRegistryPolicy {
   }
 
   private static DomainException refused(String message) {
-    return refused(message, "R-ML-38");
+    return refused(message, "R-ML-40");
   }
 
   private static DomainException refused(String message, String rule) {

@@ -92,7 +92,7 @@ public class ModelServingAdapter {
   }
 
   /**
-   * What the service has loaded, per kind (issue #12, R-ML-37).
+   * What the service has loaded, per kind (issue #12, R-ML-39).
    *
    * @param byKind every label of each kind, the image's model first
    * @param selectable whether the service takes a {@code model} on a request; an

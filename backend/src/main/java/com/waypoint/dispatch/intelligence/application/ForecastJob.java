@@ -195,7 +195,7 @@ public class ForecastJob implements ScheduledJob {
       body.put("calendar", payload.calendar(ReferencePayload.CALENDAR_FROM, end));
       body.put("outlets", payload.outlets(depots, versionId.get()));
       body.put("weeks", weeks);
-      // R-ML-37: a service holding several models answers with the one named. An older service is not sent
+      // R-ML-39: a service holding several models answers with the one named. An older service is not sent
       // the field, which it would refuse.
       if (loaded.flatMap(Answer::value).map(Loaded::selectable).orElse(false)) {
         body.put("model", active.get().view().label());
