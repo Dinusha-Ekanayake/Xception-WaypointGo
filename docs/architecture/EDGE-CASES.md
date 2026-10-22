@@ -368,6 +368,7 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | ML-78 | The drafted reply invents a time, leaks a number or carries markup | Dropped, recorded as unfaithful, not asked again; the ready replies stand | `ReplyDraftPolicy.accept` | `waypoint_ai_reply_draft_total{outcome}` | `ReplyDraftPolicyTest`, `IntelligenceIntegrationTest.aMessageNoReadyReplyFitsGetsADraftThatPassesTheChecksAskedOnceAndOnlyInScope` |
 | ML-79 | The same short words arrive again in another chat ("ok", "no", a repeated question) | Served from the cache: no call, not counted against the cap; "no" after another kind of question is another key | `AiCacheKey.reading`, `JdbcAiCache.hit` | `waypoint_ai_cache_total{purpose,result}` | `AiCacheKeyTest`, `IntelligenceIntegrationTest.theSameWordsAreReadAndDraftedOnceAndARepeatCostsNoCallNorCountsAgainstTheCap` |
 | ML-80 | The prompt or the model changes while answers are kept | Every kept answer is under another key and is never served; the new ones are asked afresh | `AiCacheKey` | `waypoint_ai_cache_total{result=miss}` rises | `AiCacheKeyTest.otherWordsAnotherContextAnotherPromptOrModelOrWriterIsAnotherKey` |
+| ML-81 | A store said Yes, then No (tapped, recorded or written in the chat) | "Tell the driver it will receive" is no longer offered; a Yes after the No brings it back | `replies` (newest answer per store), `refusedSinceYes` | none | `frontend/tests/reply-templates.test.ts`, `frontend/tests/dispatcher-answers.test.ts` |
 
 ## 7d. Messaging
 

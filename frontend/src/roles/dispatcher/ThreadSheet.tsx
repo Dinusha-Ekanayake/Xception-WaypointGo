@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import type { DecisionView, MessageView, ReplyRankingView, RunSheetView, ThreadView } from "@shared/domain/types";
-import { dispatcherAnswers, dispatcherChips, newestToAnswer, rankReplies, replies } from "@shared/messaging/templates";
+import { dispatcherAnswers, dispatcherChips, newestToAnswer, rankReplies, refusedSinceYes, replies } from "@shared/messaging/templates";
 import { rankingNote } from "./data/replyRanking.ts";
 import { TripThread, useOverlay } from "@shared/ui";
 import { dayLabel } from "@shared/wording";
@@ -192,7 +192,9 @@ function ThreadSheetPanel({
           replies={(_thread: unknown, messages: MessageView[]) => {
             // The answer to the newest word first, then the trip's own replies; at most four, none twice.
             const last = newestToAnswer(messages);
-            return dispatcherChips(dispatcherAnswers(last, ordered), problem ? [] : ordered, last?.aboutOutletId ?? null);
+            const decided = (answers.data ?? []).filter((d) => d.tripId === head?.subjectId);
+            return dispatcherChips(dispatcherAnswers(last, ordered), problem ? [] : ordered, last?.aboutOutletId ?? null,
+              refusedSinceYes(messages, decided));
           }}
           {...(!problem ? { repliesNote: rankingNote(ranking.data ?? null, ranking.error != null) } : {})}
           draftReply={DRAFTS}

@@ -57,3 +57,17 @@ test("an off-topic message changes nothing: the chips keep answering the last re
   assert.equal(newestToAnswer([junk]), null);
   assert.deepEqual(ids(dispatcherAnswers(newestToAnswer([real, junk]))), ["answer.next_day", "answer.driver_skip"]);
 });
+
+test("a store that said No in the chat after its Yes loses its \"will receive\" chip; a Yes tapped after stands (R-ML-45)", async () => {
+  const { refusedSinceYes } = await import("../src/shared/messaging/templates.ts");
+  const yes = { outletId: "OUT005", answer: "yes" as const, answeredAt: "2027-03-01T10:00:00Z" };
+  const msg = (body: string, at: string, understood: string | null = null) =>
+    ({ mine: false, authorRole: "store_manager" as const, aboutOutletId: "OUT005", understood, body, createdAt: at });
+  assert.deepEqual(refusedSinceYes([msg("nope", "2027-03-01T10:05:00Z", "SAYS_NO"), msg("can the driver bring crates?", "2027-03-01T10:06:00Z")], [yes]), ["OUT005"]);
+  assert.deepEqual(refusedSinceYes([msg("no", "2027-03-01T09:55:00Z", "SAYS_NO")], [yes]), [], "said before the Yes");
+  assert.deepEqual(refusedSinceYes([msg("no", "2027-03-01T10:05:00Z", "SAYS_NO"), msg("ok fine, come", "2027-03-01T10:07:00Z", "SAYS_YES")], [yes]), [], "changed back");
+  assert.deepEqual(refusedSinceYes([msg("ba, heta enna", "2027-03-01T10:05:00Z")], [yes]), ["OUT005"], "plain words when Jev was not sure");
+  const state: Reply[] = [{ id: "driver.store_will_receive", version: 1, label: "Tell the driver OUT005 will receive", to: "driver", outletId: null, body: "..." }];
+  assert.deepEqual(dispatcherChips([], state, null, ["OUT005"]), []);
+  assert.deepEqual(ids(dispatcherChips([], state, null, [])), ["driver.store_will_receive"]);
+});

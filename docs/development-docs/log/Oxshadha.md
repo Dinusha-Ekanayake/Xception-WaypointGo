@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-22 - fix: a store's older Yes no longer tells the driver it will receive
+
+`dev` · @Oxshadha
+
+- Found on the local check: after OUT005 said No, the chips still offered "Tell the driver OUT005 will receive". The chip took the newest Yes of any store, even with a newer No from that store, and ignored a No written in the chat. Now only a store's newest answer counts, and its words since the Yes count too (ML-81).
+
+---
+
 ## 2026-10-22 - feat: chat read in its conversation, written answers heard, drafted replies, private by default
 
 `dev` · @Oxshadha

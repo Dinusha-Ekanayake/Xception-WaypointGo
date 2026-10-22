@@ -75,8 +75,12 @@ const pending = (s: RunSheetStopView) => s.outcome === "PENDING" || s.outcome ==
 export function replies(state: TripState): Reply[] {
   const out: Reply[] = [];
   const next = [...state.stops].filter(pending).sort((a, b) => a.sequence - b.sequence)[0] ?? null;
+  // A store's Yes counts only while it is that store's newest answer: a No recorded after it replaces it.
+  const newest = (d: DecisionView) => !state.decisions.some(
+    (o) => o.outletId === d.outletId && o.kind === d.kind && o.answer !== null && (o.answeredAt ?? "") > (d.answeredAt ?? ""));
   const yes = (kind: DecisionView["kind"]) =>
-    state.decisions.filter((d) => d.kind === kind && d.answer === "yes").sort((a, b) => (b.answeredAt ?? "").localeCompare(a.answeredAt ?? ""))[0];
+    state.decisions.filter((d) => d.kind === kind && d.answer === "yes" && newest(d))
+      .sort((a, b) => (b.answeredAt ?? "").localeCompare(a.answeredAt ?? ""))[0];
 
   const receive = yes("receive_late");
   if (receive?.receiveAt) {
@@ -177,12 +181,35 @@ export function newestToAnswer<M extends Pick<MessageView, "understood">>(messag
  * a trip reply about that store (an earlier "it will receive") is out of date
  * and steps aside, so the chips never say skip it and keep it at once.
  */
-export function dispatcherChips(answers: Reply[], stateReplies: Reply[], aboutOutletId: string | null): Reply[] {
-  const refused = aboutOutletId && answers.some((a) => a.id === "answer.driver_skip") ? aboutOutletId : null;
-  const rest = stateReplies.filter(
-    (r) => !answers.some((a) => a.id === r.id) && !(refused && (r.outletId === refused || r.label.includes(refused))),
-  );
+export function dispatcherChips(answers: Reply[], stateReplies: Reply[], aboutOutletId: string | null, alsoRefused: string[] = []): Reply[] {
+  const refused = new Set(alsoRefused);
+  if (aboutOutletId && answers.some((a) => a.id === "answer.driver_skip")) refused.add(aboutOutletId);
+  const about = (r: Reply) => [...refused].some((o) => r.outletId === o || r.label.includes(o));
+  const rest = stateReplies.filter((r) => !answers.some((a) => a.id === r.id) && !about(r));
   return [...answers, ...rest].slice(0, 4);
+}
+
+/**
+ * The stores whose words since their last recorded Yes say No: their newest
+ * message that reads as a yes or a no (Jev's sure reading, else the plain
+ * words) came after the Yes and refuses. A Yes tapped after those words is
+ * newer and stands. Their "will receive" chips are out of date (R-ML-45).
+ */
+export function refusedSinceYes(
+  messages: Pick<MessageView, "mine" | "authorRole" | "aboutOutletId" | "understood" | "body" | "createdAt">[],
+  decisions: Pick<DecisionView, "outletId" | "answer" | "answeredAt">[],
+): string[] {
+  const out: string[] = [];
+  for (const d of decisions) {
+    if (d.answer !== "yes" || !d.answeredAt || out.includes(d.outletId)) continue;
+    const said = messages
+      .filter((m) => !m.mine && m.authorRole === "store_manager" && m.aboutOutletId === d.outletId && m.createdAt > d.answeredAt!)
+      .map((m) => m.understood ?? wordsAct(m.body))
+      .filter((act) => act === "SAYS_YES" || act === "CAN_RECEIVE_LATER" || act === "SAYS_NO" || act === "DELIVER_NEXT_DAY");
+    const last = said[said.length - 1];
+    if (last === "SAYS_NO" || last === "DELIVER_NEXT_DAY") out.push(d.outletId);
+  }
+  return out;
 }
 
 /**

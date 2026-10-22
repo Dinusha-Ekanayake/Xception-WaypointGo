@@ -36,3 +36,10 @@ test("a store's Yes and a stop not delivered become replies to the driver, fille
   assert.equal(r[1]!.body, "OUT004 agreed: unload the goods for OUT003 at their dock to reach theirs, then reload them.");
   assert.equal(r[3]!.outletId, "OUT003");
 });
+
+test("a store's Yes is not told to the driver once a No from that store was recorded after it", () => {
+  const no = yes({ requestId: "r2", answer: "no", answeredAt: "2027-03-01T02:10:00Z" });
+  const ids = (decisions: DecisionView[]) => replies({ stops: [stop(4)], decisions, channelOpen: false, serviceDate: DAY }).map((x) => x.id);
+  assert.ok(!ids([yes({}), no]).includes("driver.store_will_receive"), "the newer No replaces the Yes");
+  assert.ok(ids([no, yes({ requestId: "r3", answeredAt: "2027-03-01T02:30:00Z" })]).includes("driver.store_will_receive"), "a Yes after the No stands");
+});
