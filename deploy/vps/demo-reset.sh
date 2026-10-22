@@ -81,7 +81,15 @@ drop_db() {
 build() {
   [[ "$1" == "$DEMO" || "$1" == "$SPARE" ]] || return 1
   sql postgres -c "CREATE DATABASE $1 OWNER waypoint" || return 1
-  DB_NAME="$1" "${compose[@]}" run --rm -T init || return 1
+  # Demo accounts are made with the demo sign-in password when there is one, so
+  # every account in the demo, the ones only the demo has included, opens with it.
+  local password
+  password="$(env_value DEMO_SIGN_IN_PASSWORD)"
+  if [[ -n "$password" ]]; then
+    DB_NAME="$1" SEED_PASSWORD="$password" "${compose[@]}" run --rm -T init || return 1
+  else
+    DB_NAME="$1" "${compose[@]}" run --rm -T init || return 1
+  fi
   DB_NAME="$1" "${compose[@]}" run --rm --no-deps -T seed || return 1
   sql "$1" -c "UPDATE demo.settings SET enabled = true, clock_offset_seconds = 0, row_version = row_version + 1, updated_at = now()" || return 1
 }

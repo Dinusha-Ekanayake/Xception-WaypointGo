@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-22 - feat: three more demo store managers, for OUT002, OUT003 and OUT008
+
+`dev` · @jv-ransika
+
+Testing several stores on one demo day needed an account per outlet. `scripts/demo-accounts.csv` adds `out002@`, `out003@` and `out008@waypoint.local` (store managers, `SEED_PASSWORD`), and `scripts/seed-demo.sql` gives each its outlet, so every fresh install and demo reset has them. A demo database now makes its accounts with `DEMO_SIGN_IN_PASSWORD` when set (`deploy/vps/demo-reset.sh`), so accounts only the demo has open with the demo password too.
+Verified: a preview demo reset, each signing in and seeing its outlet.
+
 ## 2026-10-20 - feat: deciding a deferred order shows matching trips and whom to call; times carry their day
 
 `claude/demo-day-plan` · @jv-ransika

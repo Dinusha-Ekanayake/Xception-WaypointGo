@@ -13,6 +13,14 @@ FROM iam.users u
 WHERE u.email = 'ransikaj@waypoint.local'
 ON CONFLICT DO NOTHING;
 
+-- One store manager each for three more seeded Colombo outlets, so a test can
+-- sign in as several stores of the same day (outNNN@waypoint.local for OUTNNN).
+INSERT INTO iam.user_outlet_access (user_id, outlet_id)
+SELECT u.user_id, upper(split_part(u.email, '@', 1))
+FROM iam.users u
+WHERE u.email IN ('out002@waypoint.local', 'out003@waypoint.local', 'out008@waypoint.local')
+ON CONFLICT DO NOTHING;
+
 -- The named driver drives the seeded day's vehicles. A vehicle has one driver a
 -- day, so the assignments move from driver@waypoint.local, who keeps none.
 UPDATE iam.vehicle_driver_assignments a
