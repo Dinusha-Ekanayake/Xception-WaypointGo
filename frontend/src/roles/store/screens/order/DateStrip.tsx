@@ -190,7 +190,10 @@ export default function DateStrip({
         </ul>
       )}
 
-      <SharedDayNote shared={booked.data ?? null} error={booked.error !== null} date={date} brand={brand} district={district} temperature={temperature} />
+      {/* On a day at risk the order may move, so "likely to share a trip" would say the opposite. */}
+      {!(chosen && chosen.status === "AT_RISK") && (
+        <SharedDayNote shared={booked.data ?? null} error={booked.error !== null} date={date} brand={brand} district={district} temperature={temperature} />
+      )}
 
       {chosen && needsWarning(chosen) && (
         <Notice tone="warning" live title={t(chosen.status === "AT_RISK" ? "{day} is at risk: your order may move a day." : "{day} is busy: your order may move a day.", { day: dayLabel(date) })}>

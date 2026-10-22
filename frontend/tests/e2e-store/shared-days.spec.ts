@@ -66,3 +66,13 @@ test("with the counts down the strip still works and says so", async ({ page }) 
   await strip.getByRole("button").nth(3).click();
   await expect(strip.getByRole("button").nth(3)).toHaveAttribute("aria-pressed", "true");
 });
+
+test("a day at risk does not also say the order is likely to share a trip", async ({ page }) => {
+  await mockStore(page, { sharedDays: [{ date: shift(4), otherStores: 2, ownOrder: true }], outlook: { [shift(4)]: "AT_RISK" } });
+  await page.goto("/");
+  await page.getByRole("button", { name: /Place order for/ }).click();
+  const strip = page.getByRole("group", { name: "Delivery day" });
+  await strip.getByRole("button", { name: tile(4) }).click();
+  await expect(page.getByText(/is at risk: your order may move a day/)).toBeVisible();
+  await expect(page.getByRole("region", { name: "Likely to share a trip" })).toHaveCount(0);
+});

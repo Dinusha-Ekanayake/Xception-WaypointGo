@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-22 - fix: a day at risk no longer also says the order is likely to share a trip
+
+`dev` · @jv-ransika
+
+On the store's Place order screen a day at risk showed both "Likely to share a trip" and "your order may move a day", which contradict each other. The share note is left off a day at risk; a busy day still shows it, as it can still share a trip (R-ORD-17).
+Verified: store browser suites `shared-days` (with a new case), `outlook`, `ride-along`; typecheck, build.
+
 ## 2026-10-22 - feat: three more demo store managers, for OUT002, OUT003 and OUT008
 
 `dev` · @jv-ransika
