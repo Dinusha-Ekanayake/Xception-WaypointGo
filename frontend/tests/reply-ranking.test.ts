@@ -30,6 +30,6 @@ test("one time in ten the second and third swap, and the list says so", () => {
 test("the screen says which order is in charge", () => {
   const base = { unavailable: false, minPosts: 200, topAcceptance: 0, scores: {}, placeEffect: [], from: "", to: "" };
   assert.equal(rankingNote({ ...base, trained: true, posts: 340 }, false), "Order learned from 340 replies");
-  assert.equal(rankingNote({ ...base, trained: false, posts: 12 }, false), "Suggestions: rules only");
-  assert.equal(rankingNote(null, true), "Suggestions: rules only (learning unavailable)");
+  assert.equal(rankingNote({ ...base, trained: false, posts: 12 }, false), undefined, "the usual order needs no note");
+  assert.equal(rankingNote(null, true), "Usual order · learning unavailable");
 });

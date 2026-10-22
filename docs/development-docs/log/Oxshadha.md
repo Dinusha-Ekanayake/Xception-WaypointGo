@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-23 - feat: one Next step card while a problem is open on a trip
+
+`dev` · @Oxshadha
+
+- The trip's chat offered decisions at the top and ready replies at the bottom, two rows that looked alike. While a problem is open there is now one "Next step" card: decide, then the same card offers the word to send. End trip and Skip already tell the stores, so the card only says they were told ([PLAN](../../issues/decision-suggestions/PLAN.md) part 2).
+- The ready replies and the header's End trip return when the trip is quiet; their "Suggestions: rules only" note is gone until an order is learned.
+
+---
+
 ## 2026-10-23 - fix: a breakdown is said on the trip the van is driving, not its next one
 
 `dev` · @Oxshadha

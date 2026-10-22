@@ -12,7 +12,7 @@ import { useDispatcherInbox, type OpenThread } from "./inbox.tsx";
 import { EndTripButton, SkipStopButton, skippable } from "./screens/LiveTripSkip.tsx";
 import ReportSuggestions from "./screens/ReportSuggestions.tsx";
 import TellEachStore from "./screens/TellEachStore.tsx";
-import TripOutlookChips, { useTripOutlook } from "./screens/TripOutlookChips.tsx";
+import TripOutlookChips, { problemOpen, useTripOutlook } from "./screens/TripOutlookChips.tsx";
 
 // A trip's thread in a sheet on the right (issue #136), over whichever screen
 // opened it: a warning sign on the timeline, the trip page, a notification.
@@ -100,6 +100,9 @@ function ThreadSheetPanel({
   // fallback while the outlook cannot be read, so the same decision is never offered twice.
   const outlook = useTripOutlook(head?.subjectId ?? null, head?.depotCode ?? null, online);
   const covered = new Set((outlook?.signals ?? []).map((x) => x.messageId));
+  // While a problem is open, its Next step card is the one place to decide or send: the header's
+  // End trip and Tell each store, and the ready replies, step aside until the trip is quiet again.
+  const problem = problemOpen(outlook);
   const reportActions = (m: MessageView) => {
     const named = tripStops.find((s) => s.outletId === m.aboutOutletId);
     const wholeTrip = !named && m.reportType !== null && VEHICLE_REPORTS.has(m.reportType);
@@ -149,15 +152,17 @@ function ThreadSheetPanel({
             Close
           </button>
         </header>
-        {head && openStops.length > 0 && (
+        {head && openStops.length > 0 && !problem && (
           <div className="flex flex-col gap-2">
             <EndTripButton tripId={head.subjectId} open={openStops} online={online} inline />
             {date && <TellEachStore threadId={open.threadId} stops={tripStops} serviceDate={date} online={online} />}
           </div>
         )}
-        {head && openStops.length > 0 && (
+        {/* Mounted while the chat is open, so its "Done" stays once the last stop is decided. */}
+        {head && (
           <TripOutlookChips
             view={outlook}
+            threadId={open.threadId}
             tripId={head.subjectId}
             vehicleId={head.vehicleId}
             stops={tripStops}
@@ -179,7 +184,7 @@ function ThreadSheetPanel({
           variant="desk"
           focusMessageId={open.messageId ?? null}
           {...(open.draft ? { draft: open.draft } : {})}
-          {...(ordered.length > 0 ? { replies: ordered, repliesNote: rankingNote(ranking.data ?? null, ranking.error != null) } : {})}
+          {...(ordered.length > 0 && !problem ? { replies: ordered, repliesNote: rankingNote(ranking.data ?? null, ranking.error != null) } : {})}
           reportActions={reportActions}
         />
       </section>

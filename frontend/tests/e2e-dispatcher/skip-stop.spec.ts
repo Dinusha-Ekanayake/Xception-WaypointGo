@@ -204,7 +204,7 @@ test("a report about the vehicle gets its chips too, asked about the next stop, 
   await expect(chat.getByRole("radio", { name: "Everyone on the trip" })).toHaveAttribute("aria-checked", "true");
 });
 
-test("the chat's top says what is likely for the whole trip and each store waiting, and a tap opens the decision (R-ML-34)", async ({ page }) => {
+test("while a problem is open, one Next step card decides and then offers the word to send (R-ML-34)", async ({ page }) => {
   await page.clock.install({ time: new Date(LIVE_NOW) });
   const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
     said("r1", "2027-03-01T10:05:00Z", { kind: "report", reportType: "vehicle_fault", authorName: "Dilan R.", authorRole: "driver", audience: "dispatch", body: "Engine light" }),
@@ -236,28 +236,40 @@ test("the chat's top says what is likely for the whole trip and each store waiti
   await page.getByRole("region", { name: "Timeline" }).getByTestId("report-sign").first().click();
 
   const chat = page.getByRole("dialog", { name: "Trip messages" });
-  const likely = chat.getByRole("region", { name: "Likely decisions" });
-  await expect(likely.getByRole("group", { name: "VEH020 · Breakdown" }).getByRole("button")).toHaveText(["End trip · 50%", "Wait · 40%", "Carry on · 10%"]);
-  const store = likely.getByRole("group", { name: "OUT063 · Breakdown" });
+  const card = chat.getByRole("region", { name: "Next step" });
+  await expect(card).toContainText("Next step · VEH020 broke down");
+  await expect(card.getByRole("group", { name: "VEH020 · the trip" }).getByRole("button")).toHaveText(["End trip · 50%", "Wait · 40%", "Carry on · 10%"]);
+  const store = card.getByRole("group", { name: "OUT063 · Breakdown" });
   await expect(store.getByRole("button")).toHaveText(["Skip to next day · 60%", "Deliver as planned · 30%", "Ask to receive later · 10%"]);
   await expect(store).toContainText("skipped twice in a row");
   expect(asked[0]).toBe("t-VEH020");
-  // The report it covers offers no second set of chips; its Skip stays.
+  // One place to decide: no chips beside the report, no End trip in the header, no ready replies.
   await expect(chat.locator("#message-r1").getByRole("group", { name: "Suggested decisions" })).toHaveCount(0);
+  await expect(chat.getByRole("button", { name: "End trip", exact: true })).toHaveCount(0);
+  await expect(chat.getByRole("group", { name: "Suggested replies" })).toHaveCount(0);
   if (process.env.SHOTS_DIR) {
     await page.waitForTimeout(600);
-    await page.screenshot({ path: `${process.env.SHOTS_DIR}/19-trip-outlook-chips.png` });
+    await page.screenshot({ path: `${process.env.SHOTS_DIR}/21-next-step-card.png` });
   }
 
-  // Asking the store puts the question to that store in the composer.
-  await store.getByRole("button", { name: /Ask to receive later/ }).click();
-  await expect(chat.getByRole("textbox").last()).toHaveValue(/VEH020 is held up on the way to you/);
+  // Wait: the card offers the word for everyone on the trip, sent from here.
+  await card.getByRole("button", { name: /^Wait/ }).click();
+  await expect(card).toContainText("Waiting. Tell everyone on the trip?");
+  await expect(card).toContainText("VEH020 broke down. We will tell you the new time as soon as we know.");
+  if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/22-next-step-after.png` });
+  await card.getByRole("button", { name: "Send to everyone on the trip" }).click();
+  await expect.poll(() => desk.commands.find((c) => c.kind === "message:Post")?.payload).toMatchObject({
+    to: "all", body: "VEH020 broke down. We will tell you the new time as soon as we know.",
+  });
 
-  // Skip opens the skip already set to the next day, in place; the dispatcher still confirms with a reason.
-  await chat.getByRole("region", { name: "Likely decisions" }).getByRole("group", { name: "OUT063 · Breakdown" }).getByRole("button", { name: /Skip to next day/ }).click();
+  // Skip: confirmed in place; the store is told by the skip itself, so no second word is offered.
+  await chat.getByRole("region", { name: "Next step" }).getByRole("group", { name: "OUT063 · Breakdown" }).getByRole("button", { name: /Skip to next day/ }).click();
   const form = chat.getByRole("group", { name: "Skip OUT063" });
   await expect(form.getByRole("radio", { name: "Next day" })).toHaveAttribute("aria-checked", "true");
   await form.getByRole("textbox", { name: "Why" }).fill("Broken down, cannot reach it today");
   await form.getByRole("button", { name: "Skip to next day" }).click();
   await expect.poll(() => desk.commands.find((c) => c.kind === "delivery:SkipStop")?.payload).toMatchObject({ deliveryId: "d-VEH020-2", then: "NEXT_DAY" });
+  const done = chat.getByRole("region", { name: "Next step" });
+  await expect(done).toContainText("Done: OUT063 moves to the next delivery day. The store was told.");
+  await expect(done.getByRole("button", { name: /^Send to/ })).toHaveCount(0);
 });

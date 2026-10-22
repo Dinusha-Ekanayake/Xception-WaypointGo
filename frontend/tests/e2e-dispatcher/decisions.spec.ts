@@ -63,8 +63,9 @@ test("the trip's thread offers ready replies filled from the run sheet, and a ta
   // AI-J5: and which replies were on screen beside it, for the ranker.
   const post = desk.commands.find((c) => c.kind === "message:Post")?.payload as { templateShown?: string; templateRank?: number };
   expect(post.templateShown?.split(",")[post.templateRank! - 1]).toBe("store.running_late");
-  // Nothing learned in this mock: the screen says the rules order the replies.
-  await expect(ready).toContainText("Suggestions: rules only");
+  // Nothing learned in this mock: the usual order needs no note.
+  await expect(ready).not.toContainText("Suggestions");
+  await expect(ready).not.toContainText("learned");
 });
 
 test("a learned order puts the reply dispatchers take most first, among the ones the rules offer", async ({ page }) => {
