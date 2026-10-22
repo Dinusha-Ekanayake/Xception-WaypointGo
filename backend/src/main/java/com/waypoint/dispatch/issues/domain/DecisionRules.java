@@ -79,7 +79,9 @@ public final class DecisionRules {
 
   public enum Via {
     APP,
-    PHONE;
+    PHONE,
+    /** Written by the store in the trip's chat, recorded by the dispatcher (R-ML-45). */
+    CHAT;
 
     public String code() {
       return name().toLowerCase(Locale.ROOT);

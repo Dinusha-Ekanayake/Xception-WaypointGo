@@ -6,7 +6,9 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -90,6 +92,47 @@ public final class ProblemRoom {
   public record Target(UUID deliveryId, String outletId, Optional<Instant> receiveAt, long rowVersion) {}
 
   public record Room(Situation situation, List<Row> rows, Step next) {}
+
+  /** What a store's chat message was surely read as (R-ML-43), with its masked words. */
+  public record Said(UUID messageId, String outletId, String act, String words, Instant at) {}
+
+  /** How a store's words answer its open question. */
+  public enum Reads { YES, NO, LATER }
+
+  /** A store's chat words that read as the answer to its open question, for the dispatcher to record (R-ML-45). */
+  public record Heard(UUID requestId, String outletId, UUID messageId, String words, Reads reads, Instant at) {}
+
+  /**
+   * For each open question, the newest words its store wrote in the chat after it
+   * was asked that read as an answer: yes, no, or a later time. Nothing is
+   * recorded from them; the dispatcher records it with one tap or says it is not
+   * an answer (rule 8: a decision has a person, a reason and a time).
+   */
+  public static List<Heard> heard(List<Ask> asks, List<Stop> stops, List<Said> said) {
+    Map<UUID, String> outletOf = new HashMap<>();
+    stops.forEach(s -> outletOf.put(s.deliveryId(), s.outletId()));
+    List<Heard> out = new ArrayList<>();
+    for (Ask a : asks) {
+      if (!a.open() || !outletOf.containsKey(a.deliveryId())) continue;
+      String outlet = outletOf.get(a.deliveryId());
+      said.stream()
+          .filter(m -> m.outletId().equals(outlet) && m.at().isAfter(a.askedAt()))
+          .filter(m -> reads(m.act(), a.kind()).isPresent())
+          .max(Comparator.comparing(Said::at))
+          .ifPresent(m -> out.add(new Heard(a.requestId(), outlet, m.messageId(), m.words(), reads(m.act(), a.kind()).get(), m.at())));
+    }
+    return out;
+  }
+
+  private static Optional<Reads> reads(String act, String kind) {
+    return switch (act) {
+      case "SAYS_YES", "STORE_OPEN_NOW", "DOCK_CLEAR" -> Optional.of(Reads.YES);
+      case "SAYS_NO", "DELIVER_NEXT_DAY" -> Optional.of(Reads.NO);
+      // A later time answers a question about receiving late, not one about a dock.
+      case "CAN_RECEIVE_LATER" -> "receive_late".equals(kind) ? Optional.of(Reads.LATER) : Optional.empty();
+      default -> Optional.empty();
+    };
+  }
 
   private ProblemRoom() {}
 

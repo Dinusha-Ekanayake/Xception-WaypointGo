@@ -48,3 +48,12 @@ test("after a store says no, the trip's older word that it will receive steps as
   assert.deepEqual(ids(dispatcherChips(answers, state, "OUT005")), ["answer.next_day", "answer.driver_skip", "store.OUT009"]);
   assert.equal(dispatcherChips(dispatcherAnswers(store("THANKS")), state, "OUT005").length, 2, "nothing refused: the trip's replies stay");
 });
+
+test("an off-topic message changes nothing: the chips keep answering the last real word", async () => {
+  const { newestToAnswer } = await import("../src/shared/messaging/templates.ts");
+  const real = store(null, "ba, ada ganna ba. heta enna");
+  const junk = store("OFF_TOPIC", "<script>alert(1)</script>");
+  assert.equal(newestToAnswer([real, junk, junk]), real);
+  assert.equal(newestToAnswer([junk]), null);
+  assert.deepEqual(ids(dispatcherAnswers(newestToAnswer([real, junk]))), ["answer.next_day", "answer.driver_skip"]);
+});

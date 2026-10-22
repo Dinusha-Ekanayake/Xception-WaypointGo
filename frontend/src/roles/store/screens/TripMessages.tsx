@@ -6,7 +6,7 @@ import { useTripThread } from "@shared/messaging/useThread";
 import { SecondaryButton, Sheet, SkeletonRows, TripThread } from "@shared/ui";
 import { useT } from "../i18n.tsx";
 import type { DeliveryRecordView } from "@shared/domain/types";
-import { storeReplies } from "@shared/messaging/templates";
+import { newestToAnswer, storeReplies } from "@shared/messaging/templates";
 
 // A trip's thread for the store (issue #136): what the dispatcher or the driver
 // wrote to this store or to everyone on the trip, and the store's own replies
@@ -68,7 +68,7 @@ export default function TripMessages({
               storeReplies(
                 deliveries.find((d) => d.tripId === thread.subjectId) ?? null,
                 (english) => t(english),
-                messages[messages.length - 1] ?? null,
+                newestToAnswer(messages),
               )
             }
           />

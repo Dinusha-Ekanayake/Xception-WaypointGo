@@ -52,19 +52,34 @@ public class OpenAiCompatibleModel implements LanguageModel {
 
   @Override
   public Optional<String> complete(String instruction, String facts) {
+    return call(instruction, facts, 320, false);
+  }
+
+  /** A one-line answer: no thinking on OpenRouter, whose reasoning models would spend the budget on it and say nothing. */
+  @Override
+  public Optional<String> completeShort(String instruction, String facts) {
+    return call(instruction, facts, 120, true);
+  }
+
+  private Optional<String> call(String instruction, String facts, int maxTokens, boolean quick) {
     if (!properties.enabled() || !circuit.allow(clock.now())) {
       return Optional.empty();
     }
     long started = System.nanoTime();
     String status = "failed";
     try {
-      String body = json.writeValueAsString(Map.of(
+      Map<String, Object> payload = new java.util.LinkedHashMap<>(Map.of(
           "model", properties.pinnedModel(),
           "temperature", 0.2,
-          "max_tokens", 320,
+          "max_tokens", maxTokens,
           "messages", List.of(
               Map.of("role", "system", "content", instruction),
               Map.of("role", "user", "content", "Facts:\n" + facts))));
+      if (AiProperties.OPENROUTER.equals(properties.provider())) {
+        payload.put("provider", AiProperties.PRIVATE_ROUTING);
+        if (quick) payload.put("reasoning", Map.of("enabled", false));
+      }
+      String body = json.writeValueAsString(payload);
       HttpRequest request = HttpRequest.newBuilder(URI.create(properties.baseUrl() + "/chat/completions"))
           .timeout(properties.timeout())
           .header("authorization", "Bearer " + properties.key())
@@ -80,7 +95,7 @@ public class OpenAiCompatibleModel implements LanguageModel {
       JsonNode answer = json.readTree(response.body()).path("choices").path(0).path("message").path("content");
       circuit.onSuccess();
       status = "ok";
-      return answer.isTextual() ? Optional.of(answer.asText()) : Optional.empty();
+      return answer.isTextual() ? Optional.of(answer.asText().strip()) : Optional.empty();
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       circuit.onFailure(clock.now());

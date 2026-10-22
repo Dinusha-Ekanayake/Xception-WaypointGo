@@ -37,7 +37,9 @@ public final class IssueCommands {
    * FF-09: the store answers (R-ISS-14): {@code {"requestId": uuid, "answer":
    * "yes" | "no", "reason": "optional, up to 500", "voiceNoteId": uuid (optional,
    * a voice reason posted on the trip's thread), "byPhone": true (the dispatcher
-   * recording what the store said on a call)}}.
+   * recording what the store said on a call), "inChat": true (the dispatcher
+   * recording what the store wrote in the trip's chat, its words the reason;
+   * R-ML-45)}}.
    */
   public static final String ANSWER_DECISION = "issue:AnswerDecision";
 

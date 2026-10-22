@@ -119,8 +119,16 @@ public class TripOutlookQuery {
     Map<java.util.UUID, String> authors = new HashMap<>();
     int unread = ai.jevLive() ? read.unread(tripId, now.minusSeconds(60)) : 0;
     List<com.waypoint.dispatch.intelligence.contract.PlaybookViews.ReviewView> toReview = new ArrayList<>();
+    // R-ML-45: what stores wrote that was surely read as an act, for answers to the room's questions.
+    List<com.waypoint.dispatch.intelligence.domain.ProblemRoom.Said> said = new ArrayList<>();
     if (ai.jevLive()) {
       for (var m : read.forTrip(tripId)) {
+        if ("store_manager".equals(m.authorRole()) && m.outletId().isPresent()
+            && com.waypoint.dispatch.intelligence.domain.MessageTriage.steering(
+                m.situation(), m.confidence(), ai.jevLiveMinConfidence(), m.unclear()).isPresent()) {
+          said.add(new com.waypoint.dispatch.intelligence.domain.ProblemRoom.Said(
+              m.messageId(), m.outletId().get(), m.situation(), m.maskedText(), m.at()));
+        }
         // The dispatcher's own words steer the stores' replies; they never open a problem.
         if ("dispatcher".equals(m.authorRole())) continue;
         var reading = com.waypoint.dispatch.intelligence.domain.MessageTriage.reading(
@@ -162,7 +170,7 @@ public class TripOutlookQuery {
             .toList(),
         ai.jevLive(),
         unread,
-        room(tripId, trip, onTrip, signals, now, extraMinutes),
+        room(tripId, trip, onTrip, signals, said, now, extraMinutes),
         toReview);
   }
 
@@ -172,8 +180,8 @@ public class TripOutlookQuery {
    * to unload; a goods problem waits for the day's end and opens none.
    */
   private Optional<com.waypoint.dispatch.intelligence.contract.PlaybookViews.RoomView> room(
-      String tripId, TripReports trip, List<RunSheetStopView> onTrip, List<Signal> signals, Instant now,
-      Optional<Integer> extraMinutes) {
+      String tripId, TripReports trip, List<RunSheetStopView> onTrip, List<Signal> signals,
+      List<com.waypoint.dispatch.intelligence.domain.ProblemRoom.Said> said, Instant now, Optional<Integer> extraMinutes) {
     if (onTrip.isEmpty() || trip.serviceDate().isEmpty()) {
       return Optional.empty();
     }
@@ -224,7 +232,11 @@ public class TripOutlookQuery {
             n.extra().isPresent()
                 ? com.waypoint.dispatch.intelligence.domain.ProblemRoom.EXTRAS.stream().map(d -> (int) d.toMinutes()).toList()
                 : List.of(),
-            n.endTripToo())));
+            n.endTripToo()),
+        com.waypoint.dispatch.intelligence.domain.ProblemRoom.heard(asks, stops, said).stream()
+            .map(h -> new com.waypoint.dispatch.intelligence.contract.PlaybookViews.HeardView(
+                h.requestId().toString(), h.outletId(), h.messageId().toString(), h.words(), h.reads().name(), h.at()))
+            .toList()));
   }
 
   private static com.waypoint.dispatch.intelligence.contract.PlaybookViews.TargetView target(

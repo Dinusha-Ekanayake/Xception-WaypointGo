@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-10-22 - feat: chat read in its conversation, written answers heard, drafted replies, private by default
+
+`dev` · @Oxshadha
+
+- Asked by @Oxshadha after the first chat build: a short reply ("no") meant nothing alone, a store's typed answer never reached the problem room, junk replaced the chips, and nothing said what leaves for the AI providers.
+- Found on the way: chat shorter than eight characters ("no", "ok", "after 2") was never read live; the report minimum applied to chat. Fixed (ML-73).
+- Jev now reads each message with the last three masked lines of its chat; on 98 English conversations 85 right alone, 93 with context, no injection obeyed (R-ML-44, P-41). Off-topic lines are skipped for context and for the chips.
+- Every OpenRouter call asks for a provider that keeps nothing and trains on nothing (Jev 1.13 and Qwen both have one). Calls straight to Groq and voice audio to Gemini are outside it; both are said in R-ML-44.
+- A store's written answer to the room's question shows in the room; the dispatcher records it in one tap (`answered_via = chat`, R-ML-45).
+- The same words asked the same way are answered from a cache keyed by a hash of the normalised masked words, prompt, model, scope and what came before; never "similar" words. A hit costs no call and does not count against the cap (R-ML-47).
+- A message no ready reply fits gets a reply drafted by the language model, checked and labelled, one call per message within the cap (R-ML-46). Measured on 12 messages: 10 drafted on OpenRouter, 8 on Groq, injections refused, one draft still named a place the lines did not hold.
+
+---
+
 ## 2026-10-22 - feat: no planning before the 16:00 order cutoff
 
 `dev` · @Oxshadha

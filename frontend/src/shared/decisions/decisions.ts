@@ -42,7 +42,7 @@ export function latestFor(decisions: DecisionView[], deliveryId: string, kind: D
 export function standing(d: DecisionView, now: Date = new Date()): { text: string; tone: "waiting" | "yes" | "no" | "call" | "neutral" } {
   if (d.state === "withdrawn") return { text: "Asked again", tone: "neutral" };
   if (d.answer !== null) {
-    const how = d.answeredVia === "phone" ? " by phone" : "";
+    const how = d.answeredVia === "phone" ? " by phone" : d.answeredVia === "chat" ? " in the chat" : "";
     const late = d.answeredLate ? " · after the deadline" : "";
     return d.answer === "yes"
       ? { text: `${d.outletId} said Yes${how} · ${clock(d.answeredAt)}${late}`, tone: "yes" }
@@ -105,7 +105,7 @@ export function caseSummary(stop: RunSheetStopView, decisions: DecisionView[], s
     const what = d.kind === "receive_late" ? `receive at about ${clock(d.receiveAt)}?` : `help at the dock with ${d.aboutOutletId ?? "the goods"}?`;
     lines.push({ at: d.askedAt, text: `${d.askedBySystem ? "Waypoint" : "Dispatcher"} asked ${d.outletId}: ${what}` });
     if (d.answer !== null) {
-      const notes = [d.reason, d.answeredVia === "phone" ? "by phone" : null, d.answeredLate ? "after the deadline" : null].filter(Boolean);
+      const notes = [d.reason, d.answeredVia === "phone" ? "by phone" : d.answeredVia === "chat" ? "in the chat" : null, d.answeredLate ? "after the deadline" : null].filter(Boolean);
       lines.push({ at: d.answeredAt, text: `${d.outletId}: ${d.answer === "yes" ? "Yes" : "No"}${notes.length ? ` · ${notes.join(" · ")}` : ""}` });
     } else if (d.state === "expired") {
       lines.push({ at: d.deadline, text: `No answer from ${d.outletId} by ${clock(d.deadline)}` });

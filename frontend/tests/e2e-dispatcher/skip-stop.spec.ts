@@ -319,6 +319,49 @@ test("a store with no answer by the deadline is called, and its answer recorded 
   });
 });
 
+test("a store that answers by writing in the chat is heard in the room, and the dispatcher records it in one tap (R-ML-45)", async ({ page }) => {
+  const asked = {
+    requestId: "q-2", kind: "receive_late", depotCode: "KDY", serviceDate: "2027-03-01", tripId: "t-VEH020", vehicleId: "VEH020",
+    deliveryId: "d-VEH020-2", outletId: "OUT063", aboutDeliveryId: null, aboutOutletId: null, aboutUnits: null,
+    receiveAt: "2027-03-01T12:40:00Z", arrivalAt: null, deadline: "2027-03-01T10:40:00Z", state: "sent", answer: null,
+    answeredVia: null, answeredAt: null, answeredLate: false, reason: null, voiceNoteId: null, askedAt: "2027-03-01T10:06:00Z",
+    rowVersion: 2, askedBySystem: false,
+  };
+  const { desk } = await openRoom(page, {
+    situation: "BREAKDOWN",
+    rows: [ROWS[0], { ...ROWS[1], state: "ASKED", at: "2027-03-01T10:40:00Z" }],
+    next: { kind: "WAIT", why: "Waiting for OUT063's answer.", stops: [], about: null, extraMinutes: null, extras: [], endTripToo: true },
+    heard: [{ requestId: "q-2", outletId: "OUT063", messageId: "m-9", words: "ba, ada ganna ba. heta enna", reads: "NO", at: "2027-03-01T10:09:00Z" }],
+  }, { decisions: [asked] as never });
+  const answers = page.getByRole("dialog", { name: "Trip messages" }).getByRole("list", { name: "Answers written in the chat" });
+  await expect(answers).toContainText('OUT063 wrote "ba, ada ganna ba. heta enna"');
+  await expect(answers).toContainText("reads as No, read automatically");
+  await answers.getByRole("button", { name: "Record as No" }).click();
+  await expect.poll(() => desk.commands.find((c) => c.kind === "issue:AnswerDecision")).toMatchObject({
+    payload: { requestId: "q-2", answer: "no", inChat: true, reason: '"ba, ada ganna ba. heta enna"' }, expectedVersion: 2,
+  });
+});
+
+test("words the dispatcher says are not an answer leave the room without recording anything (R-ML-45)", async ({ page }) => {
+  const asked = {
+    requestId: "q-3", kind: "receive_late", depotCode: "KDY", serviceDate: "2027-03-01", tripId: "t-VEH020", vehicleId: "VEH020",
+    deliveryId: "d-VEH020-2", outletId: "OUT063", aboutDeliveryId: null, aboutOutletId: null, aboutUnits: null,
+    receiveAt: "2027-03-01T12:40:00Z", arrivalAt: null, deadline: "2027-03-01T10:40:00Z", state: "sent", answer: null,
+    answeredVia: null, answeredAt: null, answeredLate: false, reason: null, voiceNoteId: null, askedAt: "2027-03-01T10:06:00Z",
+    rowVersion: 2, askedBySystem: false,
+  };
+  const { desk } = await openRoom(page, {
+    situation: "BREAKDOWN",
+    rows: [ROWS[0], { ...ROWS[1], state: "ASKED", at: "2027-03-01T10:40:00Z" }],
+    next: { kind: "WAIT", why: "Waiting for OUT063's answer.", stops: [], about: null, extraMinutes: null, extras: [], endTripToo: true },
+    heard: [{ requestId: "q-3", outletId: "OUT063", messageId: "m-8", words: "ok", reads: "YES", at: "2027-03-01T10:09:00Z" }],
+  }, { decisions: [asked] as never });
+  const answers = page.getByRole("dialog", { name: "Trip messages" }).getByRole("list", { name: "Answers written in the chat" });
+  await answers.getByRole("button", { name: "Not an answer" }).click();
+  await expect(answers).toHaveCount(0);
+  expect(desk.commands.filter((c) => c.kind === "issue:AnswerDecision")).toHaveLength(0);
+});
+
 test("a skipped store's goods in the way ask the next store's dock, and a refusal tells the driver (R-ML-36)", async ({ page }) => {
   const dock = {
     situation: "BREAKDOWN",
@@ -453,5 +496,31 @@ test("a store's answer gets the dispatcher's chips: thanks back to it, or its wo
   await chat.getByRole("button", { name: "Send", exact: true }).click();
   await expect.poll(() => desk.commands.find((c) => c.kind === "message:Post")?.payload).toMatchObject({
     to: "driver", body: "OUT063: We are open now and can receive. Please send the driver back.",
+  });
+});
+
+test("a store's message no ready reply fits gets a reply written automatically, first among the chips, sent only by the dispatcher (R-ML-46)", async ({ page }) => {
+  const { desk } = await openRoom(page, null);
+  const asked: string[] = [];
+  await page.route("**/api/ml/reply-draft**", (route) => {
+    asked.push(new URL(route.request().url()).searchParams.get("messageId")!);
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ state: "drafted", draft: "Yes, I will ask the driver to bring the empty crates back." }) });
+  });
+  const thread = desk.threads![0]!;
+  thread.messages.push({ ...said("s2", "2027-03-01T10:12:00Z", { authorName: "OUT063 manager", authorRole: "store_manager", audience: "dispatch",
+    body: "Can the driver bring the empty crates back?", aboutOutletId: "OUT063" }), threadId: thread.thread.threadId });
+  await page.reload();
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("region", { name: "Timeline" }).getByTestId("report-sign").first().click();
+  const chat = page.getByRole("dialog", { name: "Trip messages" });
+  const chips = chat.getByRole("group", { name: "Suggested replies" });
+  await expect(chips.getByRole("button").first()).toHaveText("Written automatically: Yes, I will ask the driver to bring the empty cr…");
+  expect(asked).toContain("s2");
+  await chips.getByRole("button").first().click();
+  await expect(chat.getByRole("textbox", { name: "Message" })).toHaveValue("Yes, I will ask the driver to bring the empty crates back.");
+  expect(desk.commands.filter((c) => c.kind === "message:Post")).toHaveLength(0);
+  await chat.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.poll(() => desk.commands.find((c) => c.kind === "message:Post")?.payload).toMatchObject({
+    to: "outlet", outletId: "OUT063", templateId: "answer.drafted",
   });
 });

@@ -162,6 +162,16 @@ export function dispatcherAnswers(
 }
 
 /**
+ * The message the chips answer: the newest one not read as off topic. Spam,
+ * abuse or an unrelated line changes nothing, so the chips keep answering the
+ * last real word in the conversation (R-ML-43).
+ */
+export function newestToAnswer<M extends Pick<MessageView, "understood">>(messages: M[]): M | null {
+  for (let i = messages.length - 1; i >= 0; i--) if (messages[i]!.understood !== "OFF_TOPIC") return messages[i]!;
+  return null;
+}
+
+/**
  * The dispatcher's chips: the answer to the newest word first, then the trip's
  * own replies, at most four and none twice. Once a store says it cannot receive,
  * a trip reply about that store (an earlier "it will receive") is out of date

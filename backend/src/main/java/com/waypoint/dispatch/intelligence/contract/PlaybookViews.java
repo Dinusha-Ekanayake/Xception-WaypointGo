@@ -69,8 +69,38 @@ public final class PlaybookViews {
   /** R-ML-37: a message waiting to be checked, on the depot's "Needs you". */
   public record MessageCheckView(String tripId, ReviewView message) {}
 
-  /** R-ML-36: the problem, each store's row and the one next step. */
-  public record RoomView(String situation, List<RowView> rows, StepView next) {}
+  /**
+   * A reply drafted for the dispatcher (R-ML-46): {@code off} while the gateway or
+   * Jev live is off, {@code none} when no draft fits or passed the checks.
+   */
+  public record ReplyDraftView(String state, Optional<String> draft) {
+    public static ReplyDraftView off() {
+      return new ReplyDraftView("off", Optional.empty());
+    }
+
+    public static ReplyDraftView none() {
+      return new ReplyDraftView("none", Optional.empty());
+    }
+
+    public static ReplyDraftView drafted(String text) {
+      return new ReplyDraftView("drafted", Optional.of(text));
+    }
+  }
+
+  /**
+   * R-ML-36: the problem, each store's row and the one next step; and (R-ML-45)
+   * what stores wrote in the chat that reads as the answer to their open question.
+   */
+  public record RoomView(String situation, List<RowView> rows, StepView next, List<HeardView> heard) {}
+
+  /**
+   * A store's chat words read as its answer, waiting for the dispatcher to record or wave off.
+   *
+   * @param words the store's words as the reader saw them, names and numbers masked
+   * @param reads YES, NO or LATER
+   */
+  public record HeardView(String requestId, String outletId, String messageId, String words, String reads,
+      java.time.Instant at) {}
 
   /**
    * @param state NOT_ASKED, MALL_CANNOT_WAIT, IN_WINDOW, ASKED, YES, NO, NO_ANSWER, DOCK_ASKED, DOCK_YES, DOCK_NO, SKIPPED, DELIVERED

@@ -148,7 +148,7 @@ final class IntelligenceConsumers {
               e.outletId() + " can receive at about "
                   + java.time.LocalTime.ofInstant(e.receiveAt().orElseThrow(), Clock.OPERATING_ZONE)
                       .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
-                  + ("phone".equals(e.via()) ? " (by phone)" : ""),
+                  + ("phone".equals(e.via()) ? " (by phone)" : "chat".equals(e.via()) ? " (in the chat)" : ""),
               clock.now(), s.rowVersion()));
     }
   }

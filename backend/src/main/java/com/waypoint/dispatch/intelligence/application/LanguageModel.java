@@ -15,4 +15,9 @@ public interface LanguageModel {
 
   /** One answer to a fixed instruction and the masked facts; empty on any failure. */
   Optional<String> complete(String instruction, String facts);
+
+  /** A short answer of a sentence or two (R-ML-46), quicker where the provider allows; the same otherwise. */
+  default Optional<String> completeShort(String instruction, String facts) {
+    return complete(instruction, facts);
+  }
 }

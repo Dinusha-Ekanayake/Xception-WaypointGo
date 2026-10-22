@@ -193,7 +193,7 @@ public final class IssueEvents {
    * item is settled.
    *
    * @param answer yes or no
-   * @param via app or phone
+   * @param via app, phone, or chat (written in the trip's chat and recorded by the dispatcher)
    * @param late given after the deadline
    * @param driverNote what the driver is told of a Yes, written by the system
    */

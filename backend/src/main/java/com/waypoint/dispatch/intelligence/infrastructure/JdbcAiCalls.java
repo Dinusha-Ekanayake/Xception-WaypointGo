@@ -26,6 +26,13 @@ public class JdbcAiCalls {
     return row == null ? Optional.empty() : Optional.ofNullable((String) row.get("answer"));
   }
 
+  /** Whether this key was already asked under this prompt, whatever came back: a failed draft is not asked again. */
+  public boolean asked(String cacheKey, String promptVersion) {
+    return database.queryOne(
+            "SELECT 1 FROM ml.ai_calls WHERE cache_key = ? AND prompt_version = ? AND outcome <> 'capped' LIMIT 1",
+            cacheKey, promptVersion) != null;
+  }
+
   /** Calls made since a time, every outcome but the capped ones: what the daily cap counts. */
   public long callsSince(Instant since) {
     return ((Number) database.queryOne(

@@ -18,11 +18,14 @@ public class JdbcMessageSituations {
     this.database = database;
   }
 
-  public record Pending(UUID messageId, String maskedText, List<String> optionOrder, int attempts) {}
+  public record Pending(UUID messageId, String maskedText, List<String> optionOrder, int attempts, String authorRole) {}
+
+  /** An earlier line of the same chat, for reading the next one in context (R-ML-44). */
+  public record Earlier(UUID messageId, String authorRole, String maskedText, Optional<String> readAs) {}
 
   /** A message read for the trip's card. */
   public record Read(UUID messageId, String situation, double confidence, String authorRole, Optional<String> outletId,
-      String source, Instant at, boolean unclear, Optional<String> confirmed) {}
+      String source, Instant at, boolean unclear, Optional<String> confirmed, String maskedText) {}
 
   /** Queued once; a retried event changes nothing. */
   public void queue(UUID messageId, String tripId, String depotCode, String authorRole, Optional<String> outletId,
@@ -63,18 +66,63 @@ public class JdbcMessageSituations {
 
   public List<Pending> pending(int limit) {
     return database.query(
-            "SELECT message_id, masked_text, option_order, attempts FROM ml.message_situations"
+            "SELECT message_id, masked_text, option_order, attempts, author_role FROM ml.message_situations"
                 + " WHERE status = 'pending' ORDER BY created_at LIMIT ?",
             limit)
         .stream()
         .map(r -> new Pending((UUID) r.get("message_id"), (String) r.get("masked_text"),
-            JdbcJevShadow.strings(r.get("option_order")), ((Number) r.get("attempts")).intValue()))
+            JdbcJevShadow.strings(r.get("option_order")), ((Number) r.get("attempts")).intValue(), (String) r.get("author_role")))
         .toList();
+  }
+
+  /**
+   * The lines before a message in its chat, oldest first: at most {@code limit},
+   * written within {@code window} of it. Words heard unclearly are left out; a
+   * line's reading comes with it, so one read off topic can be left out too.
+   */
+  public List<Earlier> earlier(UUID messageId, java.time.Duration window, int limit) {
+    List<Earlier> rows = database.query(
+            "SELECT e.message_id, e.author_role, e.masked_text, e.situation FROM ml.message_situations m"
+                + " JOIN ml.message_situations e ON e.thread_id = m.thread_id AND e.created_at < m.created_at"
+                + " AND e.created_at >= m.created_at - make_interval(secs => ?) AND NOT e.unclear"
+                + " WHERE m.message_id = ? AND m.thread_id IS NOT NULL ORDER BY e.created_at DESC LIMIT ?",
+            (double) window.toSeconds(), messageId, limit)
+        .stream()
+        .map(r -> new Earlier((UUID) r.get("message_id"), (String) r.get("author_role"), (String) r.get("masked_text"),
+            Optional.ofNullable((String) r.get("situation"))))
+        .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+    java.util.Collections.reverse(rows);
+    return rows;
+  }
+
+  /** A message as read, for drafting a reply to it (R-ML-46); row-level security keeps it to the reader's depots. */
+  public record AsRead(UUID messageId, String authorRole, String situation, double confidence, boolean unclear,
+      String maskedText, String depotCode) {}
+
+  public Optional<AsRead> asRead(UUID messageId) {
+    return Optional.ofNullable(database.queryOne(
+            "SELECT message_id, author_role, situation, confidence, unclear, masked_text, depot_code FROM ml.message_situations"
+                + " WHERE message_id = ? AND status = 'answered' AND dismissed_at IS NULL",
+            messageId))
+        .map(r -> new AsRead((UUID) r.get("message_id"), (String) r.get("author_role"), (String) r.get("situation"),
+            ((Number) r.get("confidence")).doubleValue(), Boolean.TRUE.equals(r.get("unclear")), (String) r.get("masked_text"),
+            (String) r.get("depot_code")));
+  }
+
+  /** A reading served from the cache: no call was made, so the daily cap does not count it (R-ML-47). */
+  public void servedFromCache(UUID messageId) {
+    database.update("UPDATE ml.message_situations SET cached = true WHERE message_id = ?", messageId);
+  }
+
+  /** Which earlier lines went with a message to Jev, for showing what left (R-ML-44). */
+  public void sentWith(UUID messageId, List<UUID> contextIds) {
+    database.update("UPDATE ml.message_situations SET context_ids = ?::uuid[] WHERE message_id = ?",
+        "{" + String.join(",", contextIds.stream().map(UUID::toString).toList()) + "}", messageId);
   }
 
   public long answeredSince(Instant since) {
     return ((Number) database.queryOne(
-            "SELECT count(*) AS n FROM ml.message_situations WHERE answered_at >= ?", Timestamp.from(since))
+            "SELECT count(*) AS n FROM ml.message_situations WHERE answered_at >= ? AND NOT cached", Timestamp.from(since))
         .get("n")).longValue();
   }
 
@@ -95,7 +143,8 @@ public class JdbcMessageSituations {
   /** A trip's messages Jev has read and nobody dismissed, oldest first; row-level security keeps it to the reader's depots. */
   public List<Read> forTrip(String tripId) {
     return database.query(
-            "SELECT message_id, situation, confidence, author_role, outlet_id, source, created_at, unclear, reviewed_situation"
+            "SELECT message_id, situation, confidence, author_role, outlet_id, source, created_at, unclear, reviewed_situation,"
+                + " masked_text"
                 + " FROM ml.message_situations WHERE trip_id = ? AND status = 'answered' AND dismissed_at IS NULL"
                 + " ORDER BY created_at, message_id",
             tripId)
@@ -104,7 +153,7 @@ public class JdbcMessageSituations {
             ((Number) r.get("confidence")).doubleValue(), (String) r.get("author_role"),
             Optional.ofNullable((String) r.get("outlet_id")), (String) r.get("source"),
             ((Timestamp) r.get("created_at")).toInstant(), Boolean.TRUE.equals(r.get("unclear")),
-            Optional.ofNullable((String) r.get("reviewed_situation"))))
+            Optional.ofNullable((String) r.get("reviewed_situation")), (String) r.get("masked_text")))
         .toList();
   }
 

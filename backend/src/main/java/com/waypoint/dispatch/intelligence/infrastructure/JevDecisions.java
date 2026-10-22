@@ -65,7 +65,8 @@ public class JevDecisions implements DecisionPort {
       question.put("instructions", instructions);
       question.put("criteria", options);
       String body = json.writeValueAsString(Map.of(
-          "model", properties.jevModel(), "state", state, "questions", Map.of(QUESTION, question)));
+          "model", properties.jevModel(), "state", state, "questions", Map.of(QUESTION, question),
+          "provider", AiProperties.PRIVATE_ROUTING));
       HttpRequest request = HttpRequest.newBuilder(url)
           .timeout(properties.timeout())
           .header("authorization", "Bearer " + properties.openrouterKey())

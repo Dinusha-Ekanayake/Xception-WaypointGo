@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useResource } from "../api/useResource.ts";
+import { TEMPLATE_VERSION, type Reply } from "../messaging/templates.ts";
 import { ApiError } from "../api/problem.ts";
 import { redirectMessage, resolveIssueReport, resolveReport, useThread, useWaiting } from "../messaging/useThread.ts";
 import { audienceLabel, plain, type Translate } from "../messaging/thread.ts";
@@ -30,6 +32,7 @@ export function TripThread({
   draft,
   replies,
   repliesNote,
+  draftReply,
   playAll = false,
   reportActions,
   tr = plain,
@@ -50,6 +53,8 @@ export function TripThread({
     | ((thread: import("../domain/messaging.ts").ThreadView, messages: import("../domain/messaging.ts").MessageView[]) => import("../messaging/templates.ts").Reply[]);
   /** AI-J5: how the ready replies are ordered. */
   repliesNote?: string;
+  /** R-ML-46: a reply drafted for the newest message no ready reply fits, offered first among the chips. */
+  draftReply?: DraftReply;
   /** A "Play messages" bar for the messages not heard yet (the driver's, when stopped). */
   playAll?: boolean;
   /** The dispatcher's decisions beside a report (R-EXE-31). */
@@ -58,6 +63,12 @@ export function TripThread({
   tr?: Translate;
 }): React.JSX.Element {
   const t = useThread(threadId, accountId);
+  const wanted = draftReply?.of(t.messages) ?? null;
+  const drafted = useResource(
+    wanted && draftReply ? (signal: AbortSignal) => draftReply.load(wanted.messageId, signal) : null,
+    `reply-draft|${wanted?.messageId ?? ""}`,
+  );
+  const draftChips: Reply[] = wanted && drafted.data ? [draftedReply(wanted, drafted.data)] : [];
   const [note, setNote] = useState<string | null>(null);
   const [sentCount, setSentCount] = useState(0);
   // R-MSG-11: a driver's phone keeps the audio of the newest messages while there is signal.
@@ -144,7 +155,9 @@ export function TripThread({
           role={thread.memberRole}
           members={members}
           myOutlets={thread.myOutlets}
-          {...(replies ? { replies: typeof replies === "function" ? replies(thread, t.messages) : replies } : {})}
+          {...(replies || draftChips.length > 0
+            ? { replies: [...draftChips, ...(typeof replies === "function" ? replies(thread, t.messages) : (replies ?? []))].slice(0, draftChips.length > 0 ? 4 : undefined) }
+            : {})}
           {...(repliesNote ? { repliesNote } : {})}
           online={online}
           keepsOffline={keepsOffline}
@@ -160,4 +173,22 @@ export function TripThread({
       ) : null}
     </div>
   );
+}
+
+/** Where a drafted reply goes and the message it answers (R-ML-46). */
+export type DraftTarget = { messageId: string; to: Reply["to"]; outletId: string | null };
+
+export type DraftReply = {
+  /** The message a draft would answer, or null when a ready reply fits or none is wanted. */
+  of: (messages: import("../domain/messaging.ts").MessageView[]) => DraftTarget | null;
+  /** The draft, or null when none passed the checks. */
+  load: (messageId: string, signal: AbortSignal) => Promise<string | null>;
+};
+
+const LABEL_WORDS = 48;
+
+/** The chip says it was written automatically; a tap fills the draft, which the writer may change before sending. */
+function draftedReply(target: DraftTarget, text: string): Reply {
+  const short = text.length > LABEL_WORDS ? `${text.slice(0, LABEL_WORDS)}…` : text;
+  return { id: "answer.drafted", version: TEMPLATE_VERSION, label: `Written automatically: ${short}`, to: target.to, outletId: target.outletId, body: text };
 }

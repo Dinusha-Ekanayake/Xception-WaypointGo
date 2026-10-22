@@ -206,4 +206,27 @@ class ProblemRoomTest {
     assertEquals(at(25), ProblemRoom.roundUp(at(21), NOW));
     assertEquals(at(240), ProblemRoom.roundUp(at(600), NOW));
   }
+
+  /** R-ML-45: a store's chat words after its open question that read as an answer are heard; nothing else is. */
+  @Test
+  void aStoresWordsAfterItsOpenQuestionAreHeardAsItsAnswer() {
+    Ask open = ask(A, "receive_late", "sent", null, 30);
+    Ask answered = ask(B, "receive_late", "answered", "yes", 30);
+    Ask dock = ask(B, "dock_help", "sent", null, 30);
+    Instant after = NOW.plusSeconds(30);
+    var said = List.of(
+        new ProblemRoom.Said(UUID.randomUUID(), "OUT001", "SAYS_YES", "ok", NOW.minusSeconds(120)),   // before the question
+        new ProblemRoom.Said(UUID.randomUUID(), "OUT001", "THANKS", "thanks", after),                 // not an answer
+        new ProblemRoom.Said(UUID.randomUUID(), "OUT001", "SAYS_NO", "ba, ada ganna ba", after),
+        new ProblemRoom.Said(UUID.randomUUID(), "OUT002", "CAN_RECEIVE_LATER", "after 2", after));    // a dock is not a time
+    List<ProblemRoom.Heard> heard = ProblemRoom.heard(List.of(open, answered, dock), List.of(A, B), said);
+    assertEquals(1, heard.size(), heard.toString());
+    assertEquals(open.requestId(), heard.get(0).requestId());
+    assertEquals(ProblemRoom.Reads.NO, heard.get(0).reads());
+    assertEquals("ba, ada ganna ba", heard.get(0).words());
+
+    var later = List.of(new ProblemRoom.Said(UUID.randomUUID(), "OUT001", "CAN_RECEIVE_LATER", "after 2", after),
+        new ProblemRoom.Said(UUID.randomUUID(), "OUT001", "SAYS_YES", "yes ok", after.plusSeconds(60)));
+    assertEquals(ProblemRoom.Reads.YES, ProblemRoom.heard(List.of(open), List.of(A), later).get(0).reads(), "the newest words count");
+  }
 }

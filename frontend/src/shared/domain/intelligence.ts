@@ -476,7 +476,12 @@ export type RoomView = {
     /** A breakdown also offers "the driver can't go on: end trip". */
     endTripToo: boolean;
   };
+  /** R-ML-45: what stores wrote in the chat that reads as the answer to their open question. Absent from older servers. */
+  heard?: HeardView[];
 };
+
+/** A store's chat words read as its answer, for the dispatcher to record or wave off. Names and numbers masked. */
+export type HeardView = { requestId: string; outletId: string; messageId: string; words: string; reads: "YES" | "NO" | "LATER"; at: string };
 
 export const SuggestionCommandKind = {
   /** The suggestions shown beside a stop and the one taken, or none. */

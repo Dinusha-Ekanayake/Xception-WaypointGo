@@ -50,6 +50,15 @@ public record AiProperties(
   public static final String GROQ = "groq";
   public static final String OPENROUTER = "openrouter";
 
+  /**
+   * What every OpenRouter call asks of the provider that serves it (R-ML-44): one
+   * that keeps nothing (zero data retention) and never stores or trains on what it
+   * is sent. With no such provider for the model, the call fails and the screens
+   * fall back to the rules; it is never routed anywhere else.
+   */
+  public static final java.util.Map<String, Object> PRIVATE_ROUTING =
+      java.util.Map.of("zdr", true, "data_collection", "deny", "allow_fallbacks", false);
+
   public String baseUrl() {
     return OPENROUTER.equals(provider) ? "https://openrouter.ai/api/v1" : "https://api.groq.com/openai/v1";
   }

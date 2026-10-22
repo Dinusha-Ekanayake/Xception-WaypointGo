@@ -10,6 +10,7 @@ import { clockOn } from "@shared/wording";
 import { cx } from "@shared/ui";
 import { useCommand } from "../data/useCommand.ts";
 import { useStoreContacts } from "../data/storeContacts.ts";
+import HeardAnswers from "./HeardAnswers.tsx";
 import { EndTripForm, SkipStopForm } from "./LiveTripSkip.tsx";
 
 // Decision suggestions part 3 (R-ML-36, docs/issues/decision-suggestions/PLAN.md):
@@ -162,6 +163,7 @@ export default function ProblemRoom({
           </li>
         ))}
       </ul>
+      <HeardAnswers heard={room.heard ?? []} decisions={decisions} online={online} onRecorded={changed} />
 
       <div role="group" aria-label="Next step" className="flex flex-col gap-2 rounded-xl bg-go-card px-3 py-2.5">
         <p className="text-[12px] text-go-secondary">{next.why}</p>

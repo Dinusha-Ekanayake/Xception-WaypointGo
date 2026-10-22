@@ -1,9 +1,11 @@
 package com.waypoint.dispatch.intelligence.application;
 
+import com.waypoint.dispatch.intelligence.domain.AiCacheKey;
 import com.waypoint.dispatch.intelligence.domain.IssueTriage;
 import com.waypoint.dispatch.intelligence.domain.MessageTriage;
 import com.waypoint.dispatch.intelligence.domain.PromptNames;
 import com.waypoint.dispatch.intelligence.domain.ReportTriage;
+import com.waypoint.dispatch.intelligence.infrastructure.JdbcAiCache;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcJevShadow;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcMessageSituations;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcMessageSituations.Pending;
@@ -41,6 +43,10 @@ final class MessageSituations {
       com.waypoint.dispatch.intelligence.domain.PromptFacts.version(
           MessageTriage.INSTRUCTIONS + "\n" + new java.util.TreeMap<>(MessageTriage.OPTIONS));
 
+  static final String PROMPT_VERSION_IN_CONTEXT =
+      com.waypoint.dispatch.intelligence.domain.PromptFacts.version(
+          MessageTriage.INSTRUCTIONS_IN_CONTEXT + "\n" + new java.util.TreeMap<>(MessageTriage.OPTIONS));
+
   /**
    * Who is read: the people on the road and at the store, and the dispatcher too, whose question steers
    * the store's replies (R-ML-43). Only drivers' and stores' words can open a problem on the room.
@@ -59,7 +65,7 @@ final class MessageSituations {
   static void queue(JdbcMessageSituations store, KnownNames knownNames, UUID messageId, UUID threadId, String tripId,
       String depot, String authorRole, Optional<String> outletId, String source, String excerpt, Instant at, boolean unclear,
       List<String> reached) {
-    Optional<String> words = IssueTriage.state(excerpt);
+    Optional<String> words = "report".equals(source) ? IssueTriage.state(excerpt) : MessageTriage.words(excerpt);
     if (words.isEmpty()) return;
     PromptNames names = knownNames.current()
         .orElseThrow(() -> new IllegalStateException("account names not read yet; retried"));
@@ -164,10 +170,15 @@ final class MessageSituations {
     private final Metrics metrics;
     private final Clock clock;
     private final com.waypoint.dispatch.platform.messaging.EventPublisher events;
+    private final JdbcAiCache cache;
+    private final com.fasterxml.jackson.databind.ObjectMapper json;
 
     Job(AiProperties properties, DecisionPort jev, JdbcMessageSituations store, JdbcJevShadow shadow, Database database,
-        Metrics metrics, Clock clock, com.waypoint.dispatch.platform.messaging.EventPublisher events) {
+        Metrics metrics, Clock clock, com.waypoint.dispatch.platform.messaging.EventPublisher events, JdbcAiCache cache,
+        com.fasterxml.jackson.databind.ObjectMapper json) {
       this.events = events;
+      this.cache = cache;
+      this.json = json;
       this.properties = properties;
       this.jev = jev;
       this.store = store;
@@ -216,12 +227,39 @@ final class MessageSituations {
         Map<String, String> options = new LinkedHashMap<>();
         // An order queued before the acts existed names only problems; every key is still an option.
         p.optionOrder().stream().filter(MessageTriage.OPTIONS::containsKey).forEach(k -> options.put(k, MessageTriage.OPTIONS.get(k)));
+        // R-ML-44: the earlier lines of the same chat, already masked, so a short reply is read as the answer it is.
+        // A line read off topic is left out; twice the lines are read so that leaving some out still leaves enough.
+        List<JdbcMessageSituations.Earlier> rows = database.asSystem(ModuleRole.ML,
+            () -> store.earlier(p.messageId(), MessageTriage.CONTEXT_WINDOW, 2 * MessageTriage.CONTEXT_TURNS));
+        List<MessageTriage.Turn> earlier = rows.stream()
+            .map(e -> new MessageTriage.Turn(e.authorRole(), e.maskedText(), e.readAs())).toList();
+        List<JdbcMessageSituations.Earlier> kept = rows.stream()
+            .filter(e -> !e.readAs().map(MessageTriage.OFF_TOPIC::equals).orElse(false)).toList();
+        kept = kept.subList(Math.max(0, kept.size() - MessageTriage.CONTEXT_TURNS), kept.size());
+        List<UUID> context = kept.stream().map(JdbcMessageSituations.Earlier::messageId).toList();
+        String instructions = MessageTriage.instructionsFor(earlier);
+        String version = context.isEmpty() ? PROMPT_VERSION : PROMPT_VERSION_IN_CONTEXT;
+        // R-ML-47: the same words, from the same kind of writer, answering a line read the same way, are read once.
+        String key = AiCacheKey.reading(version, properties.jevModel(), p.authorRole(), p.maskedText(),
+            kept.isEmpty() ? List.of() : List.of(kept.get(kept.size() - 1).readAs().orElse("?")));
+        Optional<DecisionPort.Choice> served = database.asSystem(ModuleRole.ML, () -> cache.hit(key, clock.now())).flatMap(this::choiceOf);
+        boolean fromCache = served.isPresent();
+        metrics.increment("waypoint.ai.cache", "purpose", "reading", "result", fromCache ? "hit" : "miss");
         // No transaction is open here: a slow provider never holds a connection.
-        Optional<DecisionPort.Choice> choice = jev.choose(p.maskedText(), MessageTriage.INSTRUCTIONS, options);
+        Optional<DecisionPort.Choice> choice = fromCache ? served
+            : jev.choose(MessageTriage.inContext(earlier, p.authorRole(), p.maskedText()), instructions, options);
+        if (!fromCache) {
+          choice.ifPresent(c -> database.asSystem(ModuleRole.ML, () -> {
+            cache.keep(key, "reading", version, properties.jevModel(), null, answerOf(c), clock.now(), AiCacheKey.READING);
+            return null;
+          }));
+        }
         if (choice.isPresent()) {
           DecisionPort.Choice c = choice.get();
           database.asSystem(ModuleRole.ML, () -> {
-            store.answered(p.messageId(), c.option(), c.confidence(), c.model(), PROMPT_VERSION, clock.now());
+            store.answered(p.messageId(), c.option(), c.confidence(), c.model(), version, clock.now());
+            store.sentWith(p.messageId(), context);
+            if (fromCache) store.servedFromCache(p.messageId());
             // R-ML-43: Messaging keeps what the message does, so its readers' suggested replies follow it.
             store.forEvent(p.messageId()).ifPresent(f -> events.publish(com.waypoint.dispatch.shared.domain.Actor.SYSTEM,
                 new com.waypoint.dispatch.intelligence.contract.ChatEvents.MessageUnderstood(
@@ -239,6 +277,25 @@ final class MessageSituations {
         }
       }
       return answered;
+    }
+
+    private Optional<DecisionPort.Choice> choiceOf(String json) {
+      try {
+        var n = this.json.readTree(json);
+        if (!n.path("option").isTextual() || !MessageTriage.OPTIONS.containsKey(n.path("option").asText())) return Optional.empty();
+        return Optional.of(new DecisionPort.Choice(n.path("option").asText(), n.path("confidence").asDouble(), Map.of(),
+            n.path("model").asText(properties.jevModel())));
+      } catch (Exception e) {
+        return Optional.empty();
+      }
+    }
+
+    private String answerOf(DecisionPort.Choice c) {
+      try {
+        return json.writeValueAsString(Map.of("option", c.option(), "confidence", c.confidence(), "model", c.model()));
+      } catch (Exception e) {
+        throw new IllegalStateException(e);
+      }
     }
   }
 }

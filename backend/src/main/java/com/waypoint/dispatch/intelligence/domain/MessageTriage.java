@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.intelligence.domain;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -18,6 +19,61 @@ public final class MessageTriage {
   public static final String INSTRUCTIONS =
       "A driver, a store manager or the dispatcher wrote this on a delivery trip's chat. Pick what it does."
           + " If it reports a problem on the road or at a store, pick the problem.";
+
+  /** The same question when earlier lines of the chat come with the new message (R-ML-44). */
+  public static final String INSTRUCTIONS_IN_CONTEXT =
+      "These are lines from a delivery trip's chat between a driver, store managers and the dispatcher."
+          + " The earlier lines are only there to understand the last one: pick what the last message does."
+          + " If it reports a problem on the road or at a store, pick the problem.";
+
+  /** How many earlier lines go with a message, and how far back they may be (R-ML-44). */
+  public static final int CONTEXT_TURNS = 3;
+  public static final java.time.Duration CONTEXT_WINDOW = java.time.Duration.ofHours(3);
+
+  /** An earlier line of the chat, already masked when it was queued; its reading when there is one. */
+  public record Turn(String authorRole, String maskedText, Optional<String> readAs) {}
+
+  /**
+   * What Jev reads: the message alone, or with the earlier lines that help to
+   * understand it, oldest first, each named by who wrote it. A line read as off
+   * topic is left out, so spam or an instruction hidden in an earlier line never
+   * steers the next reading; only the last {@link #CONTEXT_TURNS} lines go.
+   */
+  public static String inContext(List<Turn> earlier, String authorRole, String maskedText) {
+    List<Turn> kept = earlier.stream().filter(t -> !t.readAs().map(OFF_TOPIC::equals).orElse(false)).toList();
+    kept = kept.subList(Math.max(0, kept.size() - CONTEXT_TURNS), kept.size());
+    if (kept.isEmpty()) return maskedText;
+    StringBuilder text = new StringBuilder();
+    for (Turn t : kept) text.append(who(t.authorRole())).append(": ").append(t.maskedText()).append('\n');
+    return text.append("Last message, from the ").append(who(authorRole).toLowerCase(java.util.Locale.ROOT)).append(": ")
+        .append(maskedText).toString();
+  }
+
+  /**
+   * The words of a chat message worth reading, masked: any with a letter or a
+   * digit, however short. A report needs a sentence ({@link IssueTriage#state}),
+   * but in a chat "no", "ok" and "after 2" are whole answers (R-ML-44).
+   */
+  public static Optional<String> words(String text) {
+    if (text == null) return Optional.empty();
+    String t = text.strip();
+    if (t.isEmpty() || t.codePoints().noneMatch(Character::isLetterOrDigit)) return Optional.empty();
+    return Optional.of(PromptFacts.mask(t));
+  }
+
+  /** Which instructions go with {@link #inContext}'s text. */
+  public static String instructionsFor(List<Turn> earlier) {
+    return earlier.stream().anyMatch(t -> !t.readAs().map(OFF_TOPIC::equals).orElse(false)) ? INSTRUCTIONS_IN_CONTEXT : INSTRUCTIONS;
+  }
+
+  private static String who(String role) {
+    return switch (role) {
+      case "driver" -> "Driver";
+      case "store_manager" -> "Store";
+      case "dispatcher" -> "Dispatcher";
+      default -> "Someone";
+    };
+  }
 
   /** The answer that reports nothing this list names. */
   public static final String NONE = "OTHER";

@@ -4,11 +4,12 @@ import { useRef, useState } from "react";
 import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import type { DecisionView, MessageView, ReplyRankingView, RunSheetView, ThreadView } from "@shared/domain/types";
-import { dispatcherAnswers, dispatcherChips, rankReplies, replies } from "@shared/messaging/templates";
+import { dispatcherAnswers, dispatcherChips, newestToAnswer, rankReplies, replies } from "@shared/messaging/templates";
 import { rankingNote } from "./data/replyRanking.ts";
 import { TripThread, useOverlay } from "@shared/ui";
 import { dayLabel } from "@shared/wording";
 import { useDispatcherInbox, type OpenThread } from "./inbox.tsx";
+import { DRAFTS } from "./data/replyDrafts.ts";
 import { EndTripButton, SkipStopButton, skippable } from "./screens/LiveTripSkip.tsx";
 import ReportSuggestions from "./screens/ReportSuggestions.tsx";
 import TellEachStore from "./screens/TellEachStore.tsx";
@@ -190,10 +191,11 @@ function ThreadSheetPanel({
           // step aside while the room asks for a decision.
           replies={(_thread: unknown, messages: MessageView[]) => {
             // The answer to the newest word first, then the trip's own replies; at most four, none twice.
-            const last = messages[messages.length - 1] ?? null;
+            const last = newestToAnswer(messages);
             return dispatcherChips(dispatcherAnswers(last, ordered), problem ? [] : ordered, last?.aboutOutletId ?? null);
           }}
           {...(!problem ? { repliesNote: rankingNote(ranking.data ?? null, ranking.error != null) } : {})}
+          draftReply={DRAFTS}
           reportActions={reportActions}
         />
       </section>

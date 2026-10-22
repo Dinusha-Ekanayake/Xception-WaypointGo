@@ -54,6 +54,7 @@ public class IntelligenceController {
   private final com.waypoint.dispatch.intelligence.application.AiExplainer explainer;
   private final com.waypoint.dispatch.intelligence.application.PlaybookQuery playbooks;
   private final com.waypoint.dispatch.intelligence.application.TripOutlookQuery tripOutlook;
+  private final com.waypoint.dispatch.intelligence.application.ReplyDraftQuery replyDrafts;
   private final com.waypoint.dispatch.intelligence.application.MessageChecksQuery messageChecks;
   private final com.waypoint.dispatch.intelligence.application.AiHealthQuery aiHealth;
 
@@ -69,12 +70,14 @@ public class IntelligenceController {
       com.waypoint.dispatch.intelligence.application.AiExplainer explainer,
       com.waypoint.dispatch.intelligence.application.PlaybookQuery playbooks,
       com.waypoint.dispatch.intelligence.application.TripOutlookQuery tripOutlook,
+      com.waypoint.dispatch.intelligence.application.ReplyDraftQuery replyDrafts,
       com.waypoint.dispatch.intelligence.application.MessageChecksQuery messageChecks,
       com.waypoint.dispatch.intelligence.application.AiHealthQuery aiHealth) {
     this.aiHealth = aiHealth;
     this.explainer = explainer;
     this.playbooks = playbooks;
     this.tripOutlook = tripOutlook;
+    this.replyDrafts = replyDrafts;
     this.messageChecks = messageChecks;
     this.intelligence = intelligence;
     this.outlook = outlook;
@@ -346,6 +349,16 @@ public class IntelligenceController {
           com.waypoint.dispatch.shared.error.ErrorCode.VALIDATION_FAILED, "extraMinutes is 0 to 60: a store is never asked to wait longer");
     }
     return tripOutlook.forTrip(read(request, "wpt:ml:trip:" + tripId), tripId, java.util.Optional.ofNullable(extraMinutes));
+  }
+
+  /**
+   * A reply drafted by the language model for a driver's or a store's message no
+   * ready reply fits (R-ML-46); the dispatcher reads, edits and sends it.
+   */
+  @GetMapping("/reply-draft")
+  public com.waypoint.dispatch.intelligence.contract.PlaybookViews.ReplyDraftView replyDraft(
+      @org.springframework.web.bind.annotation.RequestParam java.util.UUID messageId, HttpServletRequest request) {
+    return replyDrafts.draft(read(request, "wpt:ml:message:" + messageId), messageId);
   }
 
   private Actor read(HttpServletRequest request, String resource) {

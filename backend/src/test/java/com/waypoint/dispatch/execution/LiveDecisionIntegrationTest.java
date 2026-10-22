@@ -290,6 +290,22 @@ class LiveDecisionIntegrationTest {
     assertFalse(driverThreadSays(OUTLET + " will receive at about 08:30."), "a No is the dispatcher's to act on");
   }
 
+  @Test
+  void whatAStoreWroteInTheChatIsRecordedByTheDispatcherWithItsWordsAsTheReason() throws Exception {
+    // R-ML-45: the store answered by writing in the chat; the dispatcher records it, the store's words the reason.
+    at("07:10");
+    UUID requestId = UUID.fromString(json(ask(dispatcher, "{\"kind\":\"receive_late\",\"deliveryId\":\"" + stopOne
+        + "\",\"receiveAt\":\"" + instant("08:30") + "\"}", 200)).get("result").get("requestId").asText());
+    answer(storeOne, requestId, 1, "{\"answer\":\"no\",\"inChat\":true,\"reason\":\"ba, ada ganna ba\"}", 403);
+    answer(dispatcher, requestId, 1, "{\"answer\":\"no\",\"inChat\":true}", 422);
+    answer(dispatcher, requestId, 1, "{\"answer\":\"no\",\"inChat\":true,\"byPhone\":true,\"reason\":\"x\"}", 422);
+    answer(dispatcher, requestId, 1, "{\"answer\":\"no\",\"inChat\":true,\"reason\":\"\\\"ba, ada ganna ba\\\"\"}", 200);
+    JsonNode seen = decision(dispatcher, requestId);
+    assertEquals("chat", seen.get("answeredVia").asText());
+    assertEquals("no", seen.get("answer").asText());
+    assertEquals("\"ba, ada ganna ba\"", seen.get("reason").asText());
+  }
+
   // ---- the system asks by itself (R-ISS-15) ----
 
   @Test

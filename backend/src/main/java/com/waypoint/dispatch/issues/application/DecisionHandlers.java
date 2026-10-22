@@ -238,6 +238,14 @@ final class DecisionHandlers {
       Optional<String> reason = DecisionRules.reason(p.text("reason"));
       Optional<UUID> voiceNoteId = Optional.ofNullable(p.optionalUuid("voiceNoteId"));
       boolean byPhone = "true".equalsIgnoreCase(String.valueOf(p.text("byPhone")));
+      // R-ML-45: what the store wrote in the trip's chat, recorded by the dispatcher with the words as the reason.
+      boolean inChat = "true".equalsIgnoreCase(String.valueOf(p.text("inChat")));
+      if (byPhone && inChat) {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, "an answer is given by phone or in the chat, not both");
+      }
+      if (inChat && reason.isEmpty()) {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, "an answer from the chat carries the store's words as its reason");
+      }
       if (command.expectedVersion() == null) {
         throw new DomainException(ErrorCode.VALIDATION_FAILED, "expectedVersion is required");
       }
@@ -245,9 +253,9 @@ final class DecisionHandlers {
       DecisionView request = decisions.find(requestId).orElseThrow(() -> outside(requestId));
       // The store answers its own question; the dispatcher only records a phone answer.
       Via via;
-      if (byPhone) {
+      if (byPhone || inChat) {
         if (!decisions.oversees(request.depotCode())) throw outside(requestId);
-        via = Via.PHONE;
+        via = byPhone ? Via.PHONE : Via.CHAT;
       } else {
         if (!decisions.answersFor(request.outletId())) throw outside(requestId);
         via = Via.APP;

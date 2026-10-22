@@ -108,7 +108,7 @@ export type DecisionView = {
   deadline: IsoInstant;
   state: DecisionState;
   answer: "yes" | "no" | null;
-  answeredVia: "app" | "phone" | null;
+  answeredVia: "app" | "phone" | "chat" | null;
   answeredAt: IsoInstant | null;
   /** Given after the deadline. */
   answeredLate: boolean;
