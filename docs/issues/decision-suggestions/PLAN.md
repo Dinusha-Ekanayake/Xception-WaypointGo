@@ -112,3 +112,69 @@ Jev classifies driver and store typed messages, voice transcripts and reports se
 
 1. **Data processing.** Live classification sends masked driver and store text to the model gateway on every message. He agreed to shadow only; production stays in shadow (`JEV_LIVE` off) until he agrees.
 2. **The priors for a trip situation's effect on each stop** (for example, how much a breakdown raises Skip to next day for a store whose window will be missed). Until he sets them, the first numbers are ours, recorded in `Playbooks` and the assumption register.
+
+## Part 3: one problem, handled in the trip's chat (planned 2026-10-23)
+
+Written after @Oxshadha tried part 2 on preview (VEH037, road blocked, four stores). Part 2's card is replaced by this; nothing of part 3 is built yet.
+
+### What part 2 got wrong
+
+1. **A table of guesses, not a next step.** Every waiting store showed the same "Deliver 68% / Skip 28%": the road-blocked priors copied onto each stop. It told the dispatcher nothing they did not know.
+2. **It ignored the conversation.** The dispatcher asked the stores "deliver may be 30 min late, is it ok"; OUT001 answered "we can't accept at that time", another "it's fine". The card did not move: it read reports only, Jev was off on preview, and "can't accept" is an answer to a question, not a problem type.
+3. **It asked for a decision too early.** With the road blocked nobody can choose Skip or Deliver yet; the next step is to ask the stores, then decide each store by its answer.
+4. **The store got nothing to tap.** The store manager typed every answer.
+5. **Skipping a store was treated as one store's business.** The van is loaded last stop first, so a skipped store's goods stay in front of the next stores' goods: the next store may have to let the crew unload them at its dock (`dock_help`, R-ISS-12). That needs the other store managers, in the open chat.
+
+### What we take from practice
+
+- **One action, not a menu, under pressure.** Experts under time pressure act on the first workable option they recognise and check it by imagining its result; aids should help them see the situation, not weigh options ([Klein's RPD model](https://thinkinsights.net/leadership/recognition-primed-decision-rpd-model)). So the card shows one next step and what it will do.
+- **One tap, not typing.** Short suggested replies sent with one tap carried about 10% of Gmail's mobile replies ([Kannan et al. 2016](https://arxiv.org/abs/1606.04870)); in one user study over 80% used them instead of typing ([IAFOR](https://papers.iafor.org/?p=67478)). Every step and every answer here is prewritten and editable.
+- **Ask early, then decide.** Delivery operations triage first ("can we still complete this stop today?"), tell the receiver as soon as an exception occurs, and confirm the receiver's availability before rescheduling ([Cleverence](https://www.cleverence.com/articles/3pl-business/managing-delivery-exceptions-failed-deliveries-re-deliveries-3846), [Bringg](https://www.bringg.com/blog/delivery/delivery-exception/)). These are vendor guides: directional, not measured.
+
+### The problem room
+
+While a problem is open on a trip, the top of the chat holds one row per store still waiting, each with its state, and **one** next step for the whole trip. The building blocks exist: the store's Yes/No question with a deadline (`issue:AskDecision`, `receive_late` and `dock_help`, R-ISS-12 to R-ISS-15), Skip and End trip (R-EXE-31), the store's contacts (R-IAM-41). They are not in the chat today: questions live in "Needs you" and on the store's Home.
+
+**The dispatcher's next step**, decided by code from facts, never by a guess:
+
+| What has happened | Store row | The one next step |
+| --- | --- | --- |
+| A problem is reported (report, or a driver's words Jev read, R-ML-35) | waiting | **Ask the N stores still waiting if they can receive at about T** (T = the new expected arrival, rounded up to 5 minutes, as R-ISS-15). One tap sends one `receive_late` question per store. A mall store is not asked (its window is fixed); its row says so |
+| A store answers **Yes** | receives at T | none for it; the driver is told (R-ISS-14) |
+| A store answers **No** | can't receive | **Skip OUTx to next day**, reason filled in ("Can't receive at T") |
+| A skipped store's goods sit in front of a later store's (lower sequence, LIFO) | for the later store: asked about the dock | **Ask OUTy if the crew may unload OUTx's goods at its dock** (`dock_help`) |
+| No answer by the deadline (R-ISS-13) | no answer | **Call OUTx**, with the manager's name and phone |
+| Most stores say No, or the vehicle cannot move | | **End trip** (every waiting store to the next day, told by itself) |
+| Every row is settled | | the room closes with one line: what was decided for each store |
+
+The step is a button with its result in words ("Sends 3 questions, answers due 05:20"). Nothing goes to a store without the dispatcher's tap (decided 2026-10-23). The chances of part 2 are not shown; they only order the first step when two fit (ask the stores, or end the trip at once), and they keep learning from what dispatchers choose.
+
+**The store's side.** A question to the store appears in its chat as a question with answer chips: "Yes, at 05:30", "No, deliver tomorrow", and for `dock_help` "Yes, use our dock" or "No". One tap answers it (`issue:AnswerDecision`). A plain question the dispatcher typed ("is 30 min late ok?") gets "Yes, that's fine" and "No, not today" chips. Typing stays possible everywhere.
+
+**Jev's job, narrower and measurable.**
+1. A store's typed or spoken reply while a question is open ("we can't accept at that time") is read as yes, no, or not an answer: three options, against the open question. Shown as "Looks like a No · Confirm"; the dispatcher's tap records it as the store's answer (`byPhone`-style, attributed).
+2. A driver's own words into a problem situation (part 2, R-ML-35), which opens the room.
+Both stay off in production until @jv-ransika agrees; on preview they can be switched on to be tried.
+
+### Edge cases to decide or test
+
+- A mall stop late: never asked; its row offers Skip only (R-PLN-14, EXE-20).
+- A store says No, then Yes before the van leaves: the later answer wins only if the question is still open; otherwise a new question.
+- A later store refuses the dock: **open, for @jv-ransika** (skip that store too, deliver out of order, or end the trip).
+- Two problems on one trip (a closed store, then a breakdown): one room; the breakdown's question replaces nothing already answered.
+- A store with no manager or no phone: "Call" shows the store's own phone, or skip.
+- The driver has no signal: answers still reach the dispatcher; the driver hears on reconnect (existing).
+- Chilled goods and a long wait: the row warns before "receives at T" is accepted.
+
+### Pull requests
+
+1. `NextStep` in `intelligence/domain` (pure): problem, stops, questions and answers, now → each store's state and the one next step, with every edge case above as a test. A query over the existing contracts (run sheet, decisions, contacts, open reports).
+2. The dispatcher's problem room in place of part 2's card: store rows, the one step, "Ask all" sending one question per store.
+3. The store's chat: questions with answer chips, and chips for the dispatcher's plain questions.
+4. Jev reading a store's reply against the open question, in shadow first, scored against the answer the store or dispatcher then confirms.
+5. The log of steps shown and taken (part 2's PR 3, folded in).
+
+### Open, for @jv-ransika
+
+1. The later store that refuses its dock (above).
+2. Whether preview may run Jev live for trying (driver and store words, masked, to OpenRouter).
