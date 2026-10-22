@@ -39,32 +39,32 @@ final class MessageSituations {
   /** R-ML-27: the instruction and the options are the prompt; a change to either is a new version. */
   static final String PROMPT_VERSION =
       com.waypoint.dispatch.intelligence.domain.PromptFacts.version(
-          MessageTriage.INSTRUCTIONS + "\n" + new java.util.TreeMap<>(ReportTriage.OPTIONS));
+          MessageTriage.INSTRUCTIONS + "\n" + new java.util.TreeMap<>(MessageTriage.OPTIONS));
 
-  /** Who is read: the people on the road and at the store, never the dispatcher deciding. */
-  static final Set<String> READ = Set.of("driver", "store_manager");
+  /**
+   * Who is read: the people on the road and at the store, and the dispatcher too, whose question steers
+   * the store's replies (R-ML-43). Only drivers' and stores' words can open a problem on the room.
+   */
+  static final Set<String> READ = Set.of("driver", "store_manager", "dispatcher");
 
   private MessageSituations() {}
 
   /** What is worth asking about a post: its own words, unless a report already names its situation. */
   static boolean worthReading(String authorRole, String kind, Optional<String> reportType) {
     if (!READ.contains(authorRole)) return false;
+    if ("dispatcher".equals(authorRole)) return "message".equals(kind);
     return "message".equals(kind) || ("report".equals(kind) && "OTHER".equals(reportType.map(ReportTriage::label).orElse("OTHER")));
   }
 
-  static void queue(JdbcMessageSituations store, KnownNames knownNames, UUID messageId, String tripId, String depot,
-      String authorRole, Optional<String> outletId, String source, String excerpt, Instant at) {
-    queue(store, knownNames, messageId, tripId, depot, authorRole, outletId, source, excerpt, at, false);
-  }
-
-  static void queue(JdbcMessageSituations store, KnownNames knownNames, UUID messageId, String tripId, String depot,
-      String authorRole, Optional<String> outletId, String source, String excerpt, Instant at, boolean unclear) {
+  static void queue(JdbcMessageSituations store, KnownNames knownNames, UUID messageId, UUID threadId, String tripId,
+      String depot, String authorRole, Optional<String> outletId, String source, String excerpt, Instant at, boolean unclear,
+      List<String> reached) {
     Optional<String> words = IssueTriage.state(excerpt);
     if (words.isEmpty()) return;
     PromptNames names = knownNames.current()
         .orElseThrow(() -> new IllegalStateException("account names not read yet; retried"));
-    store.queue(messageId, tripId, depot, authorRole, outletId, source, names.session().mask(words.get()),
-        List.copyOf(MessageTriage.shuffled(messageId.getMostSignificantBits()).keySet()), at, unclear);
+    store.queue(messageId, threadId, tripId, depot, authorRole, outletId, source, names.session().mask(words.get()),
+        List.copyOf(MessageTriage.shuffled(messageId.getMostSignificantBits()).keySet()), at, unclear, reached);
   }
 
   /** A typed post; a voice note waits for its words ({@link OnTranscribed}). */
@@ -104,8 +104,8 @@ final class MessageSituations {
           || !worthReading(e.authorRole(), e.kind(), e.reportType())) {
         return;
       }
-      queue(store, knownNames, e.messageId(), e.subjectId(), e.depotCode(), e.authorRole(), e.aboutOutletId(),
-          "report".equals(e.kind()) ? "report" : "message", e.excerpt(), clock.now());
+      queue(store, knownNames, e.messageId(), e.threadId(), e.subjectId(), e.depotCode(), e.authorRole(), e.aboutOutletId(),
+          "report".equals(e.kind()) ? "report" : "message", e.excerpt(), clock.now(), false, e.outletIds());
     }
   }
 
@@ -145,8 +145,8 @@ final class MessageSituations {
       if (!properties.jevLive() || !"trip".equals(e.subjectType()) || !worthReading(e.authorRole(), e.kind(), e.reportType())) {
         return;
       }
-      queue(store, knownNames, e.messageId(), e.subjectId(), e.depotCode(), e.authorRole(), e.aboutOutletId(),
-          "voice", e.excerpt(), clock.now(), e.unclear());
+      queue(store, knownNames, e.messageId(), e.threadId(), e.subjectId(), e.depotCode(), e.authorRole(), e.aboutOutletId(),
+          "voice", e.excerpt(), clock.now(), e.unclear(), List.of());
     }
   }
 
@@ -163,9 +163,11 @@ final class MessageSituations {
     private final Database database;
     private final Metrics metrics;
     private final Clock clock;
+    private final com.waypoint.dispatch.platform.messaging.EventPublisher events;
 
     Job(AiProperties properties, DecisionPort jev, JdbcMessageSituations store, JdbcJevShadow shadow, Database database,
-        Metrics metrics, Clock clock) {
+        Metrics metrics, Clock clock, com.waypoint.dispatch.platform.messaging.EventPublisher events) {
+      this.events = events;
       this.properties = properties;
       this.jev = jev;
       this.store = store;
@@ -212,13 +214,22 @@ final class MessageSituations {
       int answered = 0;
       for (Pending p : queued) {
         Map<String, String> options = new LinkedHashMap<>();
-        p.optionOrder().forEach(k -> options.put(k, ReportTriage.OPTIONS.get(k)));
+        // An order queued before the acts existed names only problems; every key is still an option.
+        p.optionOrder().stream().filter(MessageTriage.OPTIONS::containsKey).forEach(k -> options.put(k, MessageTriage.OPTIONS.get(k)));
         // No transaction is open here: a slow provider never holds a connection.
         Optional<DecisionPort.Choice> choice = jev.choose(p.maskedText(), MessageTriage.INSTRUCTIONS, options);
         if (choice.isPresent()) {
           DecisionPort.Choice c = choice.get();
-          database.asSystem(ModuleRole.ML, () -> store.answered(
-              p.messageId(), c.option(), c.confidence(), c.model(), PROMPT_VERSION, clock.now()));
+          database.asSystem(ModuleRole.ML, () -> {
+            store.answered(p.messageId(), c.option(), c.confidence(), c.model(), PROMPT_VERSION, clock.now());
+            // R-ML-43: Messaging keeps what the message does, so its readers' suggested replies follow it.
+            store.forEvent(p.messageId()).ifPresent(f -> events.publish(com.waypoint.dispatch.shared.domain.Actor.SYSTEM,
+                new com.waypoint.dispatch.intelligence.contract.ChatEvents.MessageUnderstood(
+                    f.threadId(), p.messageId(), f.depotCode(), f.reached(), c.option(),
+                    MessageTriage.steering(c.option(), c.confidence(), properties.jevLiveMinConfidence(), f.unclear()).isPresent(),
+                    clock.now())));
+            return null;
+          });
           boolean counts = MessageTriage.signal(c.option(), c.confidence(), properties.jevLiveMinConfidence()).isPresent();
           metrics.increment("waypoint.ai.jev_live", "counts", String.valueOf(counts));
           answered++;

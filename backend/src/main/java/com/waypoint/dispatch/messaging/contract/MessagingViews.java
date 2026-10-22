@@ -91,7 +91,13 @@ public final class MessagingViews {
        * dispatcher can act on that stop beside the report (R-EXE-31); empty for a
        * message, or a report about no stop.
        */
-      Optional<String> aboutOutletId) {
+      Optional<String> aboutOutletId,
+      /**
+       * What the message does, as read sure enough to steer the suggested replies
+       * (R-ML-43): a problem, an act such as ASKS_CAN_WAIT or SAYS_NO, or OFF_TOPIC;
+       * empty while unread, unsure, or Jev is off.
+       */
+      Optional<String> understood) {
     public MessageView {
       voicePeaks = List.copyOf(voicePeaks);
     }

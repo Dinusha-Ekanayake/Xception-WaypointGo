@@ -35,9 +35,15 @@ export function useTripOutlook(
   return read.data && read.data.tripId === tripId ? read.data : null;
 }
 
-/** A problem is open on the trip: its room is up, and the chat offers nothing else to decide or send. */
+/** The steps that are a decision: while one is up, the chat offers nothing else to decide or send. */
+const DECIDING = ["ASK", "END_TRIP", "SKIP", "CALL", "ASK_DOCK", "TELL_DRIVER_DOCK"];
+
+/**
+ * The room asks the dispatcher to decide something now. Waiting for answers, or
+ * done, is not: then the ready replies and the header's buttons are back.
+ */
 export function problemOpen(view: TripOutlookView | null): boolean {
-  return view?.room != null;
+  return view?.room != null && DECIDING.includes(view.room.next.kind);
 }
 
 export default function TripOutlookChips({

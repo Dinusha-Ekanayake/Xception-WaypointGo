@@ -870,6 +870,28 @@ class MessagingIntegrationTest {
 
   /** The driver's Start on the first stop, after loading released the trip. */
   @Test
+  void whatAMessageWasReadAsIsKeptOnItAndShownToItsReadersOnlyWhenSure() throws Exception {
+    // R-ML-43: Intelligence read the store's words; the dispatcher's chips follow them.
+    JsonNode sent = json(say(manager, "{\"to\":\"dispatch\",\"body\":\"we cannt acept at hat time\"}", 200)).get("result");
+    UUID messageId = UUID.fromString(sent.get("messageId").asText());
+    JsonNode unread = json(read(dispatcher, "/api/threads/" + threadId + "/messages", 200)).get("items").get(0);
+    assertTrue(unread.get("understood").isNull(), "not read yet");
+
+    publish(ModuleRole.ML, new com.waypoint.dispatch.intelligence.contract.ChatEvents.MessageUnderstood(
+        threadId, messageId, depot, List.of(OUTLET), "SAYS_NO", true, clock.now()));
+    drain();
+    assertEquals("SAYS_NO", json(read(dispatcher, "/api/threads/" + threadId + "/messages", 200)).get("items").get(0).get("understood").asText());
+    assertEquals("SAYS_NO", json(read(manager, "/api/threads/" + threadId + "/messages", 200)).get("items").get(0).get("understood").asText(),
+        "its writer reads it too");
+
+    // Read again, unsure: it steers nothing.
+    publish(ModuleRole.ML, new com.waypoint.dispatch.intelligence.contract.ChatEvents.MessageUnderstood(
+        threadId, messageId, depot, List.of(OUTLET), "SAYS_YES", false, clock.now()));
+    drain();
+    assertTrue(json(read(dispatcher, "/api/threads/" + threadId + "/messages", 200)).get("items").get(0).get("understood").isNull());
+  }
+
+  @Test
   void aBreakdownIsSaidOnTheTripTheVanIsDrivingNotItsNextOne() throws Exception {
     // A vehicle with two trips the same day: both threads open with the plan, and the later one has
     // not started. The notice belongs to the trip on the road, whichever thread was opened last.

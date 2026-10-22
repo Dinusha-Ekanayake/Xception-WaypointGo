@@ -58,7 +58,12 @@ export function ThreadComposer({
   const [body, setBody] = useState(draft?.body ?? "");
   // FF-08: the ready reply tapped, so the post says which one and whether its words were changed.
   const [picked, setPicked] = useState<{ reply: Reply; rank: number } | null>(null);
-  const offered = replies.filter((r) => members.some((m) => sameAddress({ to: m.to, outletId: m.outletId }, { to: r.to, outletId: r.outletId })));
+  // A reply goes to whom it names; when that one cannot be written to here (a channel not open yet),
+  // it goes to the dispatcher instead of vanishing, and is offered only when nobody fits at all.
+  const can = (to: string, outletId: string | null) => members.some((m) => sameAddress({ to: m.to, outletId: m.outletId }, { to: to as Reply["to"], outletId }));
+  const offered = replies
+    .map((r) => (can(r.to, r.outletId) ? r : can("dispatch", null) ? { ...r, to: "dispatch" as const, outletId: null } : null))
+    .filter((r): r is Reply => r !== null);
   // Emptied and written afresh: no longer that reply.
   if (picked && body.trim() === "") setPicked(null);
   const [report, setReport] = useState<ReportType | null>(draft?.report && reports.length > 0 ? reports[0]! : null);

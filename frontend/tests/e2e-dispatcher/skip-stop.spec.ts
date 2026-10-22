@@ -427,3 +427,31 @@ test("a message waiting to be checked is a card in Needs you, and Check it opens
   await card.getByRole("button", { name: "Check it" }).click();
   await expect(page.getByRole("dialog", { name: "Trip messages" })).toBeVisible();
 });
+
+test("a store's answer gets the dispatcher's chips: thanks back to it, or its words to the driver, even while the room decides", async ({ page }) => {
+  const { desk } = await openRoom(page, {
+    situation: "STORE_CLOSED",
+    rows: [ROWS[0], ROWS[1]],
+    next: {
+      kind: "ASK", why: "OUT063 is the store the driver is at.",
+      stops: [{ deliveryId: "d-VEH020-2", outletId: "OUT063", receiveAt: "2027-03-01T10:25:00Z", rowVersion: 1 }],
+      about: null, extraMinutes: null, extras: [], endTripToo: false,
+    },
+  });
+  // The store wrote after the report: the dispatcher answers it without typing.
+  const thread = desk.threads![0]!;
+  thread.messages.push({ ...said("s1", "2027-03-01T10:12:00Z", { authorName: "OUT063 manager", authorRole: "store_manager", audience: "dispatch",
+    body: "We are open now and can receive. Please send the driver back.", aboutOutletId: "OUT063" }), threadId: thread.thread.threadId });
+  await page.reload();
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("region", { name: "Timeline" }).getByTestId("report-sign").first().click();
+  const chat = page.getByRole("dialog", { name: "Trip messages" });
+  const chips = chat.getByRole("group", { name: "Suggested replies" });
+  // "We are open now" is read from its words even with Jev off, so the driver is told first.
+  await expect(chips.getByRole("button")).toHaveText(["Tell the driver what OUT063 said", "Thanks, noted (OUT063)"]);
+  await chips.getByRole("button", { name: "Tell the driver what OUT063 said" }).click();
+  await chat.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.poll(() => desk.commands.find((c) => c.kind === "message:Post")?.payload).toMatchObject({
+    to: "driver", body: "OUT063: We are open now and can receive. Please send the driver back.",
+  });
+});

@@ -38,8 +38,11 @@ class ProblemRoomTest {
         state, Optional.ofNullable(answer), NOW.minusSeconds(60));
   }
 
+  /** Reported an hour ago, before every question in these tests was asked. */
+  private static final Instant REPORTED = NOW.minus(Duration.ofHours(1));
+
   private static Room room(Situation s, List<Stop> stops, List<Ask> asks) {
-    return ProblemRoom.of(new Problem(s, Optional.empty(), NOW), stops, asks, NOW, Optional.empty());
+    return ProblemRoom.of(new Problem(s, Optional.empty(), REPORTED), stops, asks, NOW, Optional.empty());
   }
 
   private static State state(Room r, String outlet) {
@@ -185,6 +188,16 @@ class ProblemRoomTest {
     Room r = ProblemRoom.of(new Problem(Situation.BREAKDOWN, Optional.empty(), NOW), List.of(A), List.of(), NOW, Optional.of(Duration.ofHours(2)));
     assertEquals(Optional.of(at(80)), r.next().stops().get(0).receiveAt(), "two hours asked is an hour");
     assertEquals(List.of(Duration.ofMinutes(15), Duration.ofMinutes(30), Duration.ofHours(1)), ProblemRoom.EXTRAS);
+  }
+
+  @Test
+  void anAnswerToAQuestionAskedBeforeThisProblemDecidesNothingHere() {
+    // The store said Yes to a late delivery; then the driver found it closed: it is asked again.
+    Stop reached = stop("OUT001", 1, Outcome.REACHED, false, 0, 40);
+    Ask earlier = new Ask(UUID.randomUUID(), "receive_late", reached.deliveryId(), Optional.empty(), Optional.empty(), at(5), "answered",
+        Optional.of("yes"), NOW.minusSeconds(600));
+    Room r = ProblemRoom.of(new Problem(Situation.STORE_CLOSED, Optional.of("OUT001"), NOW.minusSeconds(60)), List.of(reached), List.of(earlier), NOW, Optional.empty());
+    assertEquals(Kind.ASK, r.next().kind(), r.toString());
   }
 
   @Test

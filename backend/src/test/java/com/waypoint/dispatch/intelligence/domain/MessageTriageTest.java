@@ -25,7 +25,9 @@ class MessageTriageTest {
 
   @Test
   void theOptionsAreTheReportsSoAClassMeansWhatAReportTypeMeans() {
-    assertEquals(ReportTriage.OPTIONS.keySet(), MessageTriage.shuffled(7).keySet());
+    assertTrue(MessageTriage.shuffled(7).keySet().containsAll(ReportTriage.OPTIONS.keySet()));
+    assertTrue(MessageTriage.shuffled(7).keySet().containsAll(MessageTriage.ACTS.keySet()));
+    assertTrue(MessageTriage.shuffled(7).containsKey(MessageTriage.OFF_TOPIC), "the off-topic guard is an answer");
     assertEquals(MessageTriage.shuffled(7).keySet().stream().toList(), MessageTriage.shuffled(7).keySet().stream().toList(), "a retry asks the same question");
   }
 
@@ -45,5 +47,19 @@ class MessageTriageTest {
     assertEquals(MessageTriage.Reading.NOTHING, MessageTriage.reading("BREAKDOWN", 0.99, 0.5, false, Optional.of(MessageTriage.NONE)),
         "what the dispatcher confirmed decides");
     assertEquals(MessageTriage.Reading.NOTHING, MessageTriage.reading(null, 0, 0.5, true, Optional.empty()));
+  }
+
+  @Test
+  void anActReadSureFromClearWordsSteersTheRepliesAndNeverOpensAProblem() {
+    // R-ML-43.
+    assertEquals(Optional.of("ASKS_CAN_WAIT"), MessageTriage.steering("ASKS_CAN_WAIT", 0.8, 0.5, false));
+    assertEquals(Optional.of("OFF_TOPIC"), MessageTriage.steering("OFF_TOPIC", 0.9, 0.5, false), "off topic asks for no reply");
+    assertTrue(MessageTriage.steering("SAYS_NO", 0.4, 0.5, false).isEmpty(), "unsure: the rules steer");
+    assertTrue(MessageTriage.steering("OFF_TOPIC", 0.6, 0.5, false).isEmpty(), "off topic needs more certainty: the rules steer");
+    assertTrue(MessageTriage.steering("SAYS_NO", 0.9, 0.5, true).isEmpty(), "heard unclearly: the rules steer");
+    assertTrue(MessageTriage.steering(MessageTriage.NONE, 0.99, 0.5, false).isEmpty());
+    assertEquals(MessageTriage.Reading.NOTHING, MessageTriage.reading("SAYS_NO", 0.99, 0.5, false, Optional.empty()));
+    assertEquals(MessageTriage.Reading.NOTHING, MessageTriage.reading("OFF_TOPIC", 0.99, 0.5, false, Optional.empty()));
+    assertTrue(MessageTriage.signal("ASKS_CAN_WAIT", 0.99, 0.5).isEmpty(), "an act is never a problem on the room");
   }
 }

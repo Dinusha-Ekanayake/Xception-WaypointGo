@@ -156,6 +156,38 @@ final class MessagingConsumers {
    * the dispatcher's to act on. Once per event: the event id is kept on the
    * message. The driver's bell is rung by Notification from the same event.
    */
+  /** R-ML-43: what Intelligence read a message as, kept on the message for its readers' suggested replies. */
+  @Component
+  static class OnMessageUnderstood
+      implements EventSubscriber<com.waypoint.dispatch.intelligence.contract.ChatEvents.MessageUnderstood> {
+    private final JdbcThreadRepository threads;
+
+    OnMessageUnderstood(JdbcThreadRepository threads) {
+      this.threads = threads;
+    }
+
+    @Override
+    public String consumerName() {
+      return "messaging.on-message-understood";
+    }
+
+    @Override
+    public Class<com.waypoint.dispatch.intelligence.contract.ChatEvents.MessageUnderstood> eventType() {
+      return com.waypoint.dispatch.intelligence.contract.ChatEvents.MessageUnderstood.class;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.MESSAGING;
+    }
+
+    @Override
+    public void on(EventEnvelope<com.waypoint.dispatch.intelligence.contract.ChatEvents.MessageUnderstood> envelope) {
+      var e = envelope.payload();
+      threads.understood(e.messageId(), e.act(), e.sure());
+    }
+  }
+
   @Component
   static class OnDecisionAnswered implements EventSubscriber<DecisionAnswered> {
     private final JdbcThreadRepository threads;

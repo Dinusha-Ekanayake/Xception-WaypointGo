@@ -121,6 +121,8 @@ public class TripOutlookQuery {
     List<com.waypoint.dispatch.intelligence.contract.PlaybookViews.ReviewView> toReview = new ArrayList<>();
     if (ai.jevLive()) {
       for (var m : read.forTrip(tripId)) {
+        // The dispatcher's own words steer the stores' replies; they never open a problem.
+        if ("dispatcher".equals(m.authorRole())) continue;
         var reading = com.waypoint.dispatch.intelligence.domain.MessageTriage.reading(
             m.situation(), m.confidence(), ai.jevLiveMinConfidence(), m.unclear(), m.confirmed());
         // R-ML-37: what the dispatcher confirmed counts as sure; an unsure or unclear reading waits for them.
@@ -176,12 +178,19 @@ public class TripOutlookQuery {
       return Optional.empty();
     }
     java.util.Comparator<Signal> first = java.util.Comparator.comparing(Signal::at);
-    Optional<Signal> problem = java.util.stream.Stream.of(Situation.BREAKDOWN, Situation.ROAD_BLOCKED, Situation.RUNNING_LATE)
-        .flatMap(s -> signals.stream().filter(x -> x.situation() == s).sorted(first).limit(1))
-        .findFirst()
-        .or(() -> signals.stream()
-            .filter(x -> x.situation() == Situation.STORE_CLOSED || x.situation() == Situation.CANNOT_UNLOAD)
-            .min(first));
+    java.util.function.Predicate<Signal> atADoor =
+        x -> x.situation() == Situation.STORE_CLOSED || x.situation() == Situation.CANNOT_UNLOAD;
+    // The driver standing at a closed store, or one that cannot unload, comes first: they wait on the dispatcher now.
+    // Then the most serious problem on the road; then a door problem at a store not reached yet.
+    Optional<Signal> problem = signals.stream()
+        .filter(atADoor)
+        .filter(x -> onTrip.stream().anyMatch(s -> s.outcome() == DeliveryOutcome.ARRIVED
+            && x.outletId().map(o -> o.equals(s.outletId())).orElse(true)))
+        .min(first)
+        .or(() -> java.util.stream.Stream.of(Situation.BREAKDOWN, Situation.ROAD_BLOCKED, Situation.RUNNING_LATE)
+            .flatMap(s -> signals.stream().filter(x -> x.situation() == s).sorted(first).limit(1))
+            .findFirst())
+        .or(() -> signals.stream().filter(atADoor).min(first));
     if (problem.isEmpty()) {
       return Optional.empty();
     }

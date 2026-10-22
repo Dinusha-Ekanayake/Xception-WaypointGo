@@ -183,6 +183,11 @@ class IntelligenceIntegrationTest {
         .min(Comparator.comparing(OutletView::outletId))
         .orElseThrow();
     serviceDate = TestDates.unusedDay(reference::nextOperatingDay);
+    // A run is planned once its ordering has closed (R-PLN-49).
+    database.asSystem(ModuleRole.ORDERING, () -> {
+      orders.close(depot, serviceDate, null, 0, Instant.now());
+      return null;
+    });
     run = UUID.randomUUID().toString().substring(0, 8);
     dispatcherId = account("mld-" + run, "dispatcher", true);
     dispatcher = session("mld-" + run);
@@ -1772,17 +1777,28 @@ class IntelligenceIntegrationTest {
     List<Map<String, Object>> rows = database.asSystem(ModuleRole.ML, () -> database.query(
         "SELECT message_id, source, status, situation, masked_text, prompt_version, author_role FROM ml.message_situations"
             + " WHERE message_id IN (?, ?, ?, ?, ?) ORDER BY source", typed, other, picked, dispatcherOwn, spoken));
-    assertEquals(3, rows.size(), "the typed message, the report sent as other and the voice note: " + rows);
-    assertEquals(List.of("message", "report", "voice"), rows.stream().map(r -> (String) r.get("source")).toList());
+    // R-ML-43: the dispatcher's own message is read too, for the store's replies; a report with its type is not.
+    assertEquals(4, rows.size(), "the typed messages, the report sent as other and the voice note: " + rows);
+    assertEquals(List.of("message", "message", "report", "voice"), rows.stream().map(r -> (String) r.get("source")).toList());
+    assertTrue(rows.stream().anyMatch(r -> "dispatcher".equals(r.get("author_role"))));
     for (Map<String, Object> r : rows) {
       assertEquals("answered", r.get("status"));
       assertEquals("BREAKDOWN", r.get("situation"));
       assertEquals(MessageSituations.PROMPT_VERSION, r.get("prompt_version"));
     }
+    // R-ML-43: each reading is told to Messaging, sure (0.9 from clear words) or not (a voice note heard unclearly is not sure).
+    List<Map<String, Object>> told = database.asSystem(ModuleRole.INTEGRATION, () -> database.query(
+        "SELECT payload FROM integration.outbox_events WHERE event_type = 'message.understood' AND payload::text LIKE ?",
+        "%" + typed + "%"));
+    assertEquals(1, told.size(), told.toString());
+    String payload = String.valueOf(told.get(0).get("payload"));
+    assertTrue(payload.contains("\"act\": \"BREAKDOWN\"") || payload.contains("\"act\":\"BREAKDOWN\""), payload);
+    assertTrue(payload.contains("\"sure\": true") || payload.contains("\"sure\":true"), payload);
+    assertFalse(payload.contains("Engine light"), "no words travel with it");
     String masked = (String) rows.get(0).get("masked_text");
     assertFalse(masked.contains("mld-" + run), masked);
     assertTrue(masked.contains("[phone]"), masked);
-    assertEquals("store_manager", rows.get(1).get("author_role"));
+    assertEquals("store_manager", rows.stream().filter(r -> "report".equals(r.get("source"))).findFirst().orElseThrow().get("author_role"));
   }
 
   private com.waypoint.dispatch.messaging.contract.MessagingEvents.MessagePosted chat(

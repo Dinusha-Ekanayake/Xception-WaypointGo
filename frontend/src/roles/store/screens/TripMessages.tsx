@@ -24,6 +24,7 @@ export default function TripMessages({
   onQueued,
   onClose,
   deliveries = [],
+  questions,
 }: {
   accountId: string;
   open: OpenThread;
@@ -32,6 +33,8 @@ export default function TripMessages({
   onClose: () => void;
   /** The store's deliveries, so the ready replies follow the delivery on this thread's trip, however it was opened. */
   deliveries?: DeliveryRecordView[];
+  /** The dispatcher's open questions to this store (FF-09), answered here with a tap as on Home. */
+  questions?: React.ReactNode;
 }): React.JSX.Element {
   const t = useT();
   const byTrip = useTripThread("tripId" in open ? open.tripId : null, accountId);
@@ -49,6 +52,8 @@ export default function TripMessages({
           {t("Close")}
         </button>
       </header>
+      {/* The dispatcher's question to this store sits above the messages, answered with one tap. */}
+      {questions}
       <div className="flex h-[62dvh] min-h-0 flex-col">
         {threadId ? (
           <TripThread

@@ -120,6 +120,58 @@ class AiLiveEvaluation {
     write("jev.json");
   }
 
+  static List<Row> chatRows() throws Exception {
+    List<Row> rows = new ArrayList<>();
+    try (BufferedReader in = new BufferedReader(new InputStreamReader(
+        AiLiveEvaluation.class.getResourceAsStream("/ai-eval/chat.tsv"), StandardCharsets.UTF_8))) {
+      in.readLine();
+      for (String line; (line = in.readLine()) != null; ) {
+        String[] f = line.split("\t", 4);
+        if (f.length == 4) rows.add(new Row(f[0], f[1], f[2], f[3]));
+      }
+    }
+    return rows;
+  }
+
+  /**
+   * R-ML-43: Jev on chat messages, written by us in English, Sinhala, Tamil and
+   * Singlish, with off-topic, spam, abuse, markup and instruction attempts. What
+   * counts is the accuracy of the readings sure enough to steer the replies.
+   */
+  @Test
+  void jevOnChat() throws Exception {
+    DecisionPort jev = new JevDecisions(properties("openrouter", ""), json, metrics, Clock.system());
+    List<Map<String, Object>> results = new ArrayList<>();
+    int answered = 0, correct = 0, sure = 0, sureCorrect = 0;
+    long seed = 1;
+    for (Row r : chatRows()) {
+      String masked = NAMES.session().mask(IssueTriage.state(r.text()).orElse(r.text()));
+      Map<String, String> options = com.waypoint.dispatch.intelligence.domain.MessageTriage.shuffled(seed++);
+      Optional<DecisionPort.Choice> c = jev.choose(masked, com.waypoint.dispatch.intelligence.domain.MessageTriage.INSTRUCTIONS, options);
+      Map<String, Object> row = new LinkedHashMap<>();
+      row.put("label", r.label());
+      row.put("lang", r.lang());
+      row.put("kind", r.kind());
+      if (c.isPresent()) {
+        answered++;
+        boolean ok = c.get().option().equals(r.label());
+        boolean steers = c.get().confidence() >= 0.5;
+        correct += ok ? 1 : 0;
+        sure += steers ? 1 : 0;
+        sureCorrect += steers && ok ? 1 : 0;
+        row.put("choice", c.get().option());
+        row.put("confidence", c.get().confidence());
+        row.put("correct", ok);
+      }
+      results.add(row);
+      System.out.printf("%-18s %-9s %-10s -> %-18s %s%n", r.label(), r.lang(), r.kind(), row.get("choice"), row.get("confidence"));
+    }
+    System.out.printf("chat: %d answered, %d right; %d sure, %d of those right%n", answered, correct, sure, sureCorrect);
+    out.put("chat", Map.of("total", results.size(), "answered", answered, "correct", correct, "sure", sure,
+        "sureCorrect", sureCorrect, "rows", results));
+    write("chat.json");
+  }
+
   record Scenario(String name, List<WatchReview.Item> rulesOrder, String expectedFirstOutlet) {}
 
   static WatchReview.Item item(String kind, String severity, Integer minutes, String outlet, String vehicle) {

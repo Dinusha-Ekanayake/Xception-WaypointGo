@@ -96,8 +96,10 @@ public final class ProblemRoom {
   /**
    * @param extra the extra time the dispatcher picked for a trip-wide problem; empty takes {@link #firstExtra}
    */
-  public static Room of(Problem p, List<Stop> stops, List<Ask> asks, Instant now, Optional<Duration> extra) {
+  public static Room of(Problem p, List<Stop> stops, List<Ask> allAsks, Instant now, Optional<Duration> extra) {
     List<Stop> trip = stops.stream().sorted(Comparator.comparingInt(Stop::sequence)).toList();
+    // A question asked before this problem was reported answered an earlier one: it decides nothing here.
+    List<Ask> asks = allAsks.stream().filter(a -> !a.askedAt().isBefore(p.reportedAt())).toList();
     Duration picked = extra.orElse(firstExtra(p.situation()));
     Duration added = picked.compareTo(MOST_EXTRA) > 0 ? MOST_EXTRA : picked;
     List<Row> rows = new ArrayList<>();

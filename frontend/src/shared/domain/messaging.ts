@@ -83,6 +83,12 @@ export type MessageView = {
   issueId?: Uuid | null;
   /** The stop a report is about, so the dispatcher can act on it beside the report (R-EXE-31). Absent from an older server. */
   aboutOutletId?: string | null;
+  /**
+   * R-ML-43: what the message does, as Jev read it sure enough to steer the suggested replies: a problem
+   * (BREAKDOWN, STORE_CLOSED...), an act (ASKS_CAN_WAIT, SAYS_NO...), OFF_TOPIC or OTHER. Absent while it is
+   * unread, unsure, heard unclearly, or Jev is off: the conversation's rules choose the replies then.
+   */
+  understood?: string | null;
 };
 
 /** Newest first; nextCursor reads older messages. */

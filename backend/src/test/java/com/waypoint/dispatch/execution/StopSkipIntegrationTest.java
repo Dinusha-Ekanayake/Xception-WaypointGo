@@ -405,6 +405,8 @@ class StopSkipIntegrationTest {
     JsonNode o = json(read(dispatcher, path, 200));
     assertEquals("BREAKDOWN", o.get("situation").asText(), o.toString());
     assertEquals("END_TRIP", o.get("trip").get(0).get("action").asText());
+    // R-ML-36: the driver is standing at the closed store: that is the room's problem before the breakdown.
+    assertEquals("STORE_CLOSED", o.get("room").get("situation").asText(), o.get("room").toString());
     assertEquals(3, o.get("stops").size(), "every stop still waiting");
     JsonNode first = o.get("stops").get(0);
     assertEquals(stopOne.toString(), first.get("deliveryId").asText());

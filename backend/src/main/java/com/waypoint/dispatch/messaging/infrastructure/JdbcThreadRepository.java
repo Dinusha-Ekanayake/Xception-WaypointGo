@@ -83,7 +83,9 @@ public class JdbcThreadRepository {
       /** The issue a report was made from (R-MSG-05); empty for a person's own message. */
       Optional<UUID> sourceIssueId,
       /** The stop a report is about, when known. */
-      Optional<String> aboutOutlet) {}
+      Optional<String> aboutOutlet,
+      /** What the message does, as Jev read it sure enough to steer the replies (R-ML-43); empty otherwise. */
+      Optional<String> understood) {}
 
   /** A stored voice note, without its bytes. */
   public record VoiceNote(
@@ -528,7 +530,13 @@ public class JdbcThreadRepository {
         Optional.ofNullable((Timestamp) row.get("redirected_at")).map(Timestamp::toInstant),
         Optional.ofNullable((String) row.get("redirect_reason")),
         Optional.ofNullable((UUID) row.get("source_issue_id")),
-        Optional.ofNullable((String) row.get("about_outlet")));
+        Optional.ofNullable((String) row.get("about_outlet")),
+        Boolean.TRUE.equals(row.get("understood_sure")) ? Optional.ofNullable((String) row.get("understood_act")) : Optional.empty());
+  }
+
+  /** R-ML-43: what a message was read as; applying it twice is harmless. */
+  public void understood(UUID messageId, String act, boolean sure) {
+    database.update("UPDATE messaging.messages SET understood_act = ?, understood_sure = ? WHERE message_id = ?", act, sure, messageId);
   }
 
   // ---- reports ------------------------------------------------------------------

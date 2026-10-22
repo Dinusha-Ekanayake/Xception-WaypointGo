@@ -189,6 +189,18 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
       setThread({ threadId: n.subjectId });
       return;
     }
+    // A breakdown, a blocked road, or the driver finding the store closed: the notice says the
+    // dispatcher tells the store in the trip's messages, so that is where its tap goes.
+    const onTrip = (n.subjectType === "vehicle" && n.subjectId) || n.eventType === "delivery.problem_reported"
+      ? (deliveries.data ?? [])
+          .filter((d) => (n.subjectType === "vehicle" ? d.vehicleId === n.subjectId : d.deliveryId === n.subjectId))
+          .sort((a, b) => Number(b.outcome === "PENDING" || b.outcome === "ARRIVED") - Number(a.outcome === "PENDING" || a.outcome === "ARRIVED"))[0]
+      : undefined;
+    if (onTrip) {
+      setInboxOpen(false);
+      setThread({ tripId: onTrip.tripId, vehicleId: onTrip.vehicleId });
+      return;
+    }
     setView({ kind: "tabs" });
     if (n.subjectType === "order" && n.subjectId) {
       setTab("orders");
@@ -388,6 +400,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
           onQueued={queued}
           onClose={() => setThread(null)}
           deliveries={deliveries.data ?? []}
+          questions={<Decisions decisions={decisions.data ?? []} accountId={userId} sender={decisionSender} online={online} onAnswer={answerDecision} />}
         />
       )}
       {inboxOpen && <NotificationsDrawer inbox={inbox} onSubject={openSubject} onClose={() => setInboxOpen(false)} />}

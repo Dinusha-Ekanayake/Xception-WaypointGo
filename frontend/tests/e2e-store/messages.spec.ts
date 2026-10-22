@@ -138,3 +138,31 @@ test("a delay notice opened from a notification offers the store's answers: late
   await sheet.getByRole("button", { name: "Send", exact: true }).click();
   await expect.poll(() => sent.find((c) => c.kind === "message:Post")?.payload).toMatchObject({ to: "dispatch", templateId: "storereply.later_today" });
 });
+
+test("a question the dispatcher asks the stores still waiting gets Yes or No, answered back to them, never the driver", async ({ page }) => {
+  const asked = tripThread("trip-1", "VEH043", ["OUT085"], "store_manager", [
+    said("m1", new Date(Date.now() - 2 * 60_000).toISOString(), { body: "Can you wait 30 minutes more?", audience: "channel" }),
+  ]);
+  // As the server gives a store while its delivery is on the way and the channel is open (R-MSG-16, R-MSG-08).
+  asked.members = [
+    { to: "dispatch", outletId: null, label: "Dispatcher" },
+    { to: "driver", outletId: null, label: "Your driver" },
+    { to: "channel", outletId: null, label: "Dispatcher and stores still waiting" },
+  ];
+  const { sent } = await mockStore(page, { threads: [asked] });
+  const { DELIVERY } = await import("./mocks.ts");
+  await page.route("**/api/execution/deliveries**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ ...DELIVERY, outcome: "PENDING", startedAt: new Date().toISOString() }]) }));
+  await page.goto("/");
+  await page.getByRole("button", { name: /^Deliveries/ }).click();
+  await page.getByRole("region", { name: "Today" }).getByRole("article", { name: "VEH043" }).getByRole("button", { name: "Message" }).click();
+
+  const sheet = page.getByRole("dialog", { name: "Messages · VEH043" });
+  const chips = sheet.getByRole("group", { name: "Suggested replies" });
+  await expect(chips.getByRole("button")).toHaveText(["Yes, we can wait", "No, deliver tomorrow"]);
+  await chips.getByRole("button", { name: "No, deliver tomorrow" }).click();
+  await expect(sheet.getByRole("textbox", { name: "Message" })).toHaveValue("No, we can't. Please deliver on the next delivery day.");
+  await expect(sheet.getByRole("radio", { name: "Dispatcher and stores still waiting" })).toHaveAttribute("aria-checked", "true");
+  await sheet.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.poll(() => sent.find((c) => c.kind === "message:Post")?.payload).toMatchObject({ to: "channel", templateId: "storereply.no" });
+});

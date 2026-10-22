@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import type { DecisionView, MessageView, ReplyRankingView, RunSheetView, ThreadView } from "@shared/domain/types";
-import { rankReplies, replies } from "@shared/messaging/templates";
+import { dispatcherAnswers, dispatcherChips, rankReplies, replies } from "@shared/messaging/templates";
 import { rankingNote } from "./data/replyRanking.ts";
 import { TripThread, useOverlay } from "@shared/ui";
 import { dayLabel } from "@shared/wording";
@@ -101,8 +101,8 @@ function ThreadSheetPanel({
   const [extra, setExtra] = useState<number | null>(null);
   const outlook = useTripOutlook(head?.subjectId ?? null, head?.depotCode ?? null, online, extra);
   const covered = new Set((outlook?.signals ?? []).map((x) => x.messageId));
-  // While a problem is open, its problem room is the one place to decide or send: the header's
-  // End trip and Tell each store, and the ready replies, step aside until the trip is quiet again.
+  // While the problem room asks for a decision it is the one place to decide or send: the header's
+  // End trip and Tell each store, and the ready replies, step aside until it waits or is done.
   const problem = problemOpen(outlook);
   const reportActions = (m: MessageView) => {
     const named = tripStops.find((s) => s.outletId === m.aboutOutletId);
@@ -185,7 +185,15 @@ function ThreadSheetPanel({
           variant="desk"
           focusMessageId={open.messageId ?? null}
           {...(open.draft ? { draft: open.draft } : {})}
-          {...(ordered.length > 0 && !problem ? { replies: ordered, repliesNote: rankingNote(ranking.data ?? null, ranking.error != null) } : {})}
+          // The answer to the newest word from a store is always offered: a store that writes "we are open
+          // now" while the room decides still needs telling the driver. The replies for the trip's state
+          // step aside while the room asks for a decision.
+          replies={(_thread: unknown, messages: MessageView[]) => {
+            // The answer to the newest word first, then the trip's own replies; at most four, none twice.
+            const last = messages[messages.length - 1] ?? null;
+            return dispatcherChips(dispatcherAnswers(last, ordered), problem ? [] : ordered, last?.aboutOutletId ?? null);
+          }}
+          {...(!problem ? { repliesNote: rankingNote(ranking.data ?? null, ranking.error != null) } : {})}
           reportActions={reportActions}
         />
       </section>

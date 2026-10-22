@@ -630,6 +630,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `catalogue.synced` | Warehouse | Ordering |
 | `reference.version_published`, `vehicle.status_changed`, `calendar.overridden` | Reference | Planning, Notification |
 | `message.posted` | Messaging | Notification; Intelligence (a worker's typed report, for Jev in shadow, R-ML-33; a driver's or store's own words, for the trip's Next step card, R-ML-35) |
+| `message.understood` | Intelligence | Messaging (what a chat message does, as Jev read it, kept on the message to steer its readers' suggested replies, R-ML-43) |
 | `message.transcribed` | Messaging | Intelligence (what a driver or store said in a voice note, its first line, for the trip's Next step card, R-ML-35) |
 | `demo.driver_notifications_requested` | Demo | Notification |
 | `order.outlook_changed` | Intelligence | Notification |

@@ -33,11 +33,32 @@ public class JdbcMessageSituations {
   /** @param unclear a voice note the engine heard unclearly (R-ML-37) */
   public void queue(UUID messageId, String tripId, String depotCode, String authorRole, Optional<String> outletId,
       String source, String maskedText, List<String> optionOrder, Instant at, boolean unclear) {
+    queue(messageId, null, tripId, depotCode, authorRole, outletId, source, maskedText, optionOrder, at, unclear, List.of());
+  }
+
+  /**
+   * @param threadId the message's thread, for telling Messaging what it was read as (R-ML-43)
+   * @param reached the stores the message reached, so their open chats hear the reading
+   */
+  public void queue(UUID messageId, UUID threadId, String tripId, String depotCode, String authorRole, Optional<String> outletId,
+      String source, String maskedText, List<String> optionOrder, Instant at, boolean unclear, List<String> reached) {
     database.update(
-        "INSERT INTO ml.message_situations (message_id, trip_id, depot_code, author_role, outlet_id, source, masked_text,"
-            + " option_order, created_at, unclear) VALUES (?, ?, ?, ?, ?, ?, ?, ?::text[], ?, ?) ON CONFLICT (message_id) DO NOTHING",
-        messageId, tripId, depotCode, authorRole, outletId.orElse(null), source, maskedText,
-        "{" + String.join(",", optionOrder) + "}", Timestamp.from(at), unclear);
+        "INSERT INTO ml.message_situations (message_id, thread_id, trip_id, depot_code, author_role, outlet_id, source, masked_text,"
+            + " option_order, created_at, unclear, reached) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::text[], ?, ?, ?::text[])"
+            + " ON CONFLICT (message_id) DO NOTHING",
+        messageId, threadId, tripId, depotCode, authorRole, outletId.orElse(null), source, maskedText,
+        "{" + String.join(",", optionOrder) + "}", Timestamp.from(at), unclear, "{" + String.join(",", reached) + "}");
+  }
+
+  /** What a reading's event needs: its thread, depot, the stores reached and whether the words were clear. */
+  public record ForEvent(UUID threadId, String depotCode, List<String> reached, boolean unclear) {}
+
+  public Optional<ForEvent> forEvent(UUID messageId) {
+    return Optional.ofNullable(database.queryOne(
+            "SELECT thread_id, depot_code, reached, unclear FROM ml.message_situations WHERE message_id = ? AND thread_id IS NOT NULL",
+            messageId))
+        .map(r -> new ForEvent((UUID) r.get("thread_id"), (String) r.get("depot_code"), JdbcJevShadow.strings(r.get("reached")),
+            Boolean.TRUE.equals(r.get("unclear"))));
   }
 
   public List<Pending> pending(int limit) {

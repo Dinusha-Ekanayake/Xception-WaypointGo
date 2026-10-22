@@ -49,6 +49,7 @@ public class MessageChecksQuery {
       Instant from = day.atStartOfDay(Clock.OPERATING_ZONE).toInstant();
       Instant to = day.plusDays(1).atStartOfDay(Clock.OPERATING_ZONE).toInstant();
       return read.unconfirmed(depotCode, from, to).stream()
+          .filter(r -> !"dispatcher".equals(r.get("author_role")))
           .filter(r -> MessageTriage.reading((String) r.get("situation"), ((Number) r.get("confidence")).doubleValue(),
               ai.jevLiveMinConfidence(), Boolean.TRUE.equals(r.get("unclear")), Optional.empty()) == MessageTriage.Reading.REVIEW)
           .map(r -> new MessageCheckView((String) r.get("trip_id"), new ReviewView(

@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-10-22 - feat: no planning before the 16:00 order cutoff
+
+`dev` · @Oxshadha
+
+- A dispatcher could generate tomorrow's plan in the morning, while stores were still ordering for it. Generate is now refused until Ordering has closed the day (by itself at 16:00 the day before, or the dispatcher's Close after it), and the Plan screen says when stores stop ordering instead of offering Generate (R-PLN-49, PLN-53).
+
+---
+
+## 2026-10-23 - feat: the suggested replies follow what each message does, read by Jev
+
+`dev` · @Oxshadha
+
+- Measured on 49 labelled chat lines (`ai-eval/chat.tsv`, English, Sinhala, Tamil, Singlish, spam, abuse, markup, injection) with the real Jev: 42 right; 43 sure enough to steer, 41 of those right. Every miss is Singlish and nearly all are unsure, so an unsure reading falls to the rules' own reading of plain words (`words.ts`); off topic hides the chips only at 0.8 or more (P-40).
+- Checked live with Jev on: a Singlish "can you wait" from the dispatcher gave the store "Yes, we can wait" / "No, deliver tomorrow"; the store's Singlish "no, tomorrow" gave the dispatcher the next delivery day and the skip, with the older "it will receive" chip gone; a script tag was shown as text and read off topic.
+- Fixed on the way: Messaging could not write the reading (missing column grant and policy in the unmerged migration).
+
+- The chips were chosen by who wrote last and the trip's state, blind to the words. Now Jev reads every typed or spoken chat message, the dispatcher's too, into a problem, an act (can you wait, when, yes, no, open now, dock clear, thanks) or off topic; Messaging keeps the reading on the message and each reader's chips answer it from the approved set. Rules remain the fallback; off topic gets nothing (R-ML-43).
+- A reply whose recipient is not open here (a channel not open yet) goes to the dispatcher instead of vanishing.
+
+---
+
+## 2026-10-23 - fix: a live problem is settled in the chat on both sides, checked end to end
+
+`dev` · @Oxshadha
+
+- Found on preview by @Oxshadha: the dispatcher had no reply chips while the problem room was open, the store got "We are ready" (to the driver) in answer to the dispatcher's "can u wait", and a delay notification opened nothing.
+- Now: the store's chips answer the newest word from the dispatcher, back the way it came (Yes / No to "the dispatcher and stores still waiting" when asked there); a closed store or blocked dock keeps its own chips first. The dispatcher always gets an answer to the store's last word ("Thanks, noted", "Tell the driver what the store said"); the trip's own ready replies step aside only while the room asks for a decision. The room's question to a store sits at the top of the store's chat, answered with a tap. A breakdown or blocked-road notification opens the trip's chat. The driver standing at a closed store leads the room before a delay, and an answer to a question asked before the problem decides nothing about it.
+- Checked on the local stack with a dispatcher and a store manager of OUT005 in real browsers: road blocked (ask, Yes, room settled), a free question (No back to the stores' channel, the dispatcher's answer chips), store closed at the door (room asks again, "We are open now" passed to the driver). Not yet: a store's typed reply to a free question changes nothing in the room unless Jev reads it (not built).
+
+---
+
 ## 2026-10-23 - feat: the driver's "My trips", the last 7 days of their own trips
 
 `dev` · @Oxshadha

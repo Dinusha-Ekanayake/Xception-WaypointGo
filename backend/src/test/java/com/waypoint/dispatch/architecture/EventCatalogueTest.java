@@ -71,6 +71,7 @@ class EventCatalogueTest {
           "calendar.overridden",
           "message.posted",
           "message.transcribed",
+          "message.understood",
           "demo.driver_notifications_requested",
           "order.outlook_changed",
           "stop.likely_late");

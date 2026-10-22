@@ -2,6 +2,7 @@ import type { DecisionView } from "../domain/issues.ts";
 import type { DeliveryRecordView, RunSheetStopView } from "../domain/execution.ts";
 import type { MessageAudience, MessageView } from "../domain/messaging.ts";
 import { clock } from "../wording/time.ts";
+import { wordsAct } from "./words.ts";
 
 // Ready replies for the dispatcher (roadmap FF-08, first version). Which ones
 // are offered is decided by code from the trip's state, and every name, time
@@ -112,6 +113,69 @@ export function replies(state: TripState): Reply[] {
 }
 
 /**
+ * The dispatcher's answer to the newest word from a store (decision suggestions
+ * part 3): thanks back to that store, or its words passed to the driver. Nothing
+ * when the newest word is the dispatcher's own, or the store is not known.
+ */
+export function dispatcherAnswers(
+  latest: Pick<MessageView, "mine" | "authorRole" | "body" | "aboutOutletId" | "understood"> | null,
+  stateReplies: Reply[] = [],
+): Reply[] {
+  if (!latest || latest.mine) return [];
+  // Jev's sure reading first, else the rules' own reading of a few plain words.
+  const act = latest.understood ?? wordsAct(latest.body);
+  // The off-topic guard: unrelated or abusive words, and thanks, ask for no reply.
+  if (act === "OFF_TOPIC" || act === "THANKS") return [];
+  const answer = (id: string, label: string, to: MessageAudience, outletId: string | null, body: string): Reply =>
+    ({ id: `answer.${id}`, version: TEMPLATE_VERSION, label, to, outletId, body });
+  if (latest.authorRole === "driver") {
+    if (act === "BREAKDOWN" || act === "ROAD_BLOCKED") return [answer("how_long", "Ask how long it takes", "driver", null, "Noted. How long until you can go on?")];
+    if (act === "STORE_CLOSED" || act === "CANNOT_UNLOAD") return [answer("wait_there", "Wait there, asking the store", "driver", null, "Wait there a few minutes, I am asking the store.")];
+    return [];
+  }
+  if (latest.authorRole !== "store_manager" || !latest.aboutOutletId) return [];
+  const store = latest.aboutOutletId;
+  const said = latest.body.trim();
+  const thanks = answer("thanks", `Thanks, noted (${store})`, "outlet", store, "Thank you, noted.");
+  const tell = said ? [answer("tell_driver", `Tell the driver what ${store} said`, "driver", null, `${store}: ${said}`)] : [];
+  switch (act) {
+    case "SAYS_NO":
+    case "DELIVER_NEXT_DAY":
+      return [
+        answer("next_day", `Next delivery day (${store})`, "outlet", store, "Understood. Your delivery goes on the next delivery day, first on the trip."),
+        answer("driver_skip", `Tell the driver to skip ${store}`, "driver", null, `${store} cannot receive today. Skip it; it goes on the next delivery day.`),
+      ];
+    case "STORE_OPEN_NOW":
+    case "DOCK_CLEAR":
+      return [...tell, thanks];
+    case "ASKS_WHEN": {
+      // The state's own reply already carries that store's expected time.
+      const time = stateReplies.find((r) => r.to === "outlet" && r.outletId === store);
+      return time ? [time] : [answer("soon", `We will tell you the time (${store})`, "outlet", store, "We will tell you the time as soon as we know.")];
+    }
+    case "ASKS_CAN_WAIT":
+      return [answer("can_wait", `Yes, please wait (${store})`, "outlet", store, "Yes, please wait. The driver is on the way.")];
+    default:
+      // A yes, a later time, a problem, or words not read: thanks, and the driver told.
+      return [thanks, ...tell];
+  }
+}
+
+/**
+ * The dispatcher's chips: the answer to the newest word first, then the trip's
+ * own replies, at most four and none twice. Once a store says it cannot receive,
+ * a trip reply about that store (an earlier "it will receive") is out of date
+ * and steps aside, so the chips never say skip it and keep it at once.
+ */
+export function dispatcherChips(answers: Reply[], stateReplies: Reply[], aboutOutletId: string | null): Reply[] {
+  const refused = aboutOutletId && answers.some((a) => a.id === "answer.driver_skip") ? aboutOutletId : null;
+  const rest = stateReplies.filter(
+    (r) => !answers.some((a) => a.id === r.id) && !(refused && (r.outletId === refused || r.label.includes(refused))),
+  );
+  return [...answers, ...rest].slice(0, 4);
+}
+
+/**
  * Ready replies for the store manager (decision suggestions, part 4): what a
  * store usually answers in its delivery's situation, to the dispatcher or to its
  * own driver (R-MSG-16). Chosen by code from the store's delivery; the store may
@@ -121,25 +185,64 @@ export function replies(state: TripState): Reply[] {
 export function storeReplies(
   delivery: DeliveryRecordView | null,
   tr: (english: string) => string = (s) => s,
-  latest: Pick<MessageView, "mine" | "authorRole" | "body"> | null = null,
+  latest: Pick<MessageView, "mine" | "authorRole" | "body" | "audience" | "understood"> | null = null,
 ): Reply[] {
   if (!delivery) return [];
   const open = delivery.outcome === "PENDING" || delivery.outcome === "ARRIVED";
   const out: Reply[] = [];
   const reply = (id: string, label: string, to: MessageAudience, body: string) =>
     out.push({ id: `storereply.${id}`, version: TEMPLATE_VERSION, label: tr(label), to, outletId: null, body: tr(body) });
-  // The newest word from someone else decides the answer first: a delay notice asks whether the store can still receive.
   const heard = latest && !latest.mine ? latest : null;
-  if (open && heard && isDelayNotice(heard.body)) {
-    reply("later_today", "We can receive later today", "dispatch", "We can still receive later today. Please come when you can.");
-    reply("next_day", "Deliver on the next day", "dispatch", "We cannot receive today. Please deliver on the next delivery day.");
-  } else if (open && delivery.reportedProblem === "STORE_CLOSED") {
+  // An answer goes back the way the question came: to the dispatcher, or to the dispatcher and the
+  // stores still waiting when that is where it was asked. Never to someone the store did not answer.
+  const back: MessageAudience = heard?.audience === "channel" ? "channel" : "dispatch";
+  // At the door the driver's report decides: the store answers what stops the delivery.
+  if (open && delivery.reportedProblem === "STORE_CLOSED") {
     reply("open_now", "We are open now", "dispatch", "We are open now and can receive. Please send the driver back.");
     reply("next_day", "Deliver on the next day", "dispatch", "We cannot receive today. Please deliver on the next delivery day.");
-  } else if (open && delivery.reportedProblem === "CANNOT_UNLOAD") {
+    return out;
+  }
+  if (open && delivery.reportedProblem === "CANNOT_UNLOAD") {
     reply("space_clear", "Space is clear now", "dispatch", "The unloading area is clear now. The driver can unload.");
     reply("next_day", "Deliver on the next day", "dispatch", "We cannot receive today. Please deliver on the next delivery day.");
-  } else if (delivery.outcome === "ARRIVED") {
+    return out;
+  }
+  const act = heard ? (heard.understood ?? wordsAct(heard.body)) : null;
+  // The off-topic guard: unrelated or abusive words, and thanks, ask for no reply.
+  if (heard && (act === "OFF_TOPIC" || act === "THANKS")) return out;
+  if (heard?.authorRole === "dispatcher" && open && act) {
+    // What the dispatcher's words do decides (R-ML-43); the rules below are the fallback.
+    if (act === "ASKS_CAN_WAIT" || act === "ASKS_WHEN") {
+      reply("yes_wait", "Yes, we can wait", back, "Yes, we can wait.");
+      reply("no", "No, deliver tomorrow", back, "No, we can't. Please deliver on the next delivery day.");
+      return out;
+    }
+    if (act === "BREAKDOWN" || act === "ROAD_BLOCKED" || act === "RUNNING_LATE") {
+      reply("later_today", "We can receive later today", back, "We can still receive later today. Please come when you can.");
+      reply("next_day", "Deliver on the next day", back, "We cannot receive today. Please deliver on the next delivery day.");
+      return out;
+    }
+    if (act === "SAYS_YES" || act === "SAYS_NO" || act === "DELIVER_NEXT_DAY" || act === "CAN_RECEIVE_LATER") {
+      reply("understood", "Understood", back, "Understood, thank you.");
+      return out;
+    }
+  }
+  if (heard?.authorRole === "dispatcher" && open) {
+    // Then the newest word from the dispatcher is what the store answers.
+    if (isDelayNotice(heard.body)) {
+      reply("later_today", "We can receive later today", back, "We can still receive later today. Please come when you can.");
+      reply("next_day", "Deliver on the next day", back, "We cannot receive today. Please deliver on the next delivery day.");
+    } else {
+      reply("yes", "Yes, that's fine", back, "Yes, that's fine for us.");
+      reply("no", "No, we can't", back, "No, we can't. Please deliver on the next delivery day.");
+    }
+    return out;
+  }
+  if (heard?.authorRole === "dispatcher") {
+    reply("understood", "Understood", back, "Understood, thank you.");
+    return out;
+  }
+  if (delivery.outcome === "ARRIVED") {
     reply("coming", "Coming to the door", "driver", "Coming to the door now.");
   } else if (delivery.outcome === "PENDING" && delivery.startedAt) {
     reply("ready", "We are ready", "driver", "We are ready to receive.");
@@ -147,10 +250,6 @@ export function storeReplies(
     reply("understood", "Understood", "dispatch", "Understood, thank you.");
   } else if (delivery.outcome === "FAILED") {
     reply("next_run", "Send it on the next run", "dispatch", "Please send our order on the next run.");
-  }
-  // Anything else the dispatcher wrote gets at least a plain acknowledgement.
-  if (out.length === 0 && heard?.authorRole === "dispatcher") {
-    reply("understood", "Understood", "dispatch", "Understood, thank you.");
   }
   return out;
 }
