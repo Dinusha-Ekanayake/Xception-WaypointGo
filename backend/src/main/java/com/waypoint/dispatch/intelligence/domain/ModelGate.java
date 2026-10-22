@@ -60,28 +60,37 @@ public final class ModelGate {
     if (served.unavailable().isPresent()) {
       return Decision.degrade("model serving is unavailable: " + served.unavailable().get());
     }
-    if (served.label().isEmpty()) {
+    if (served.labels().isEmpty()) {
       return Decision.degrade("model serving has no " + kind + " model loaded");
     }
-    if (!served.label().get().equals(activeLabel.get())) {
+    // Issue #12, R-ML-39: the service may hold several models of a kind; the active one must be among them.
+    if (!served.labels().contains(activeLabel.get())) {
       return Decision.degrade(
-          "model serving has " + served.label().get() + " but the active model is " + activeLabel.get());
+          "model serving has " + String.join(", ", served.labels()) + " but the active model is " + activeLabel.get());
     }
     return Decision.use();
   }
 
-  /** What the serving process said it has loaded for one kind. */
-  public record Served(Optional<String> label, Optional<String> unavailable) {
+  /** What the serving process said it has loaded for one kind: every label, the image's first. */
+  public record Served(java.util.List<String> labels, Optional<String> unavailable) {
+    public Served {
+      labels = java.util.List.copyOf(labels);
+    }
+
     public static Served loaded(String label) {
-      return new Served(Optional.of(label), Optional.empty());
+      return new Served(java.util.List.of(label), Optional.empty());
+    }
+
+    public static Served loaded(java.util.Collection<String> labels) {
+      return new Served(java.util.List.copyOf(new java.util.LinkedHashSet<>(labels)), Optional.empty());
     }
 
     public static Served none() {
-      return new Served(Optional.empty(), Optional.empty());
+      return new Served(java.util.List.of(), Optional.empty());
     }
 
     public static Served unavailable(String why) {
-      return new Served(Optional.empty(), Optional.of(why));
+      return new Served(java.util.List.of(), Optional.of(why));
     }
   }
 }

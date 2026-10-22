@@ -9,6 +9,7 @@ import pytest
 from app import registry, scoring
 from app.schemas import Route
 from tests.test_service import FIXTURES, ROOT, general, request_body
+from tests import reference_export
 from training import fetch, planning, retrain
 
 
@@ -217,13 +218,20 @@ def test_the_scheduled_run_trains_on_the_last_finished_weeks_of_every_depot(tmp_
 
     def opener(req):
         asked.append(req.full_url)
+        if '/api/ml/training/reference?' in req.full_url:
+            return Answer(reference_export.tables())
         half = len(lines) // 2
         return Answer({'items': lines[:half] if 'depot=A' in req.full_url else lines[half:], 'nextCursor': None})
 
     code, build = run.run('http://localhost:8080', ['A', 'B'], 26, tmp_path / 'builds', 'SESSION=x',
                           dt.date(2026, 10, 8), opener=opener)
     assert code == 0
-    assert len(asked) == 2 and 'from=2026-04-06' in asked[0] and 'to=2026-10-04' in asked[0]
+    # R-ML-38: the reference is the backend's, once, from before the window to a year ahead.
+    ref, *routes = asked
+    assert '/api/ml/training/reference?' in ref and 'depot=A&depot=B' in ref
+    assert 'from=2026-02-05' in ref and 'to=2027-10-13' in ref
+    assert (build / 'reference.json').exists()
+    assert len(routes) == 2 and 'from=2026-04-06' in routes[0] and 'to=2026-10-04' in routes[0]
     assert sum(1 for _ in open(build / 'export.jsonl')) == len(lines)
     entry = json.loads((build / 'manifest-entry.json').read_text())
     assert entry['version'] == '2026.10.08' and entry['pipeline'] == 'planning'

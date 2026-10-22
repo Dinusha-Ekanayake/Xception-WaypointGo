@@ -5,6 +5,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.intelligence.contract.ModelViews.ModelStatus;
 import com.waypoint.dispatch.intelligence.contract.ModelViews.ModelVersionView;
+import com.waypoint.dispatch.intelligence.contract.ModelViews.ShadowReviewView;
+import com.waypoint.dispatch.intelligence.contract.ModelViews.ShadowRole;
+import com.waypoint.dispatch.intelligence.domain.ModelRegistryPolicy;
+import com.waypoint.dispatch.intelligence.domain.ShadowReview;
 import com.waypoint.dispatch.platform.db.Database;
 import java.math.BigDecimal;
 import java.sql.Date;
@@ -12,6 +16,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,7 +47,8 @@ public class JdbcIntelligenceRepository {
 
   private static final String MODEL =
       "SELECT model_version_id, model_name, model_version, kind, status, metrics::text AS metrics, trained_from,"
-          + " trained_to, registered_at, activated_at, retired_reason, row_version FROM ml.model_versions";
+          + " trained_to, registered_at, activated_at, retired_reason, row_version, shadow_role, shadowed_at"
+          + " FROM ml.model_versions";
 
   public void insertModel(
       UUID id, String name, String version, String kind, Map<String, BigDecimal> metrics, LocalDate from,
@@ -70,25 +76,188 @@ public class JdbcIntelligenceRepository {
   }
 
   /** The kind's current active model goes back to registered: one active per kind. */
-  public int demoteActive(String kind, Instant at) {
-    return database.update(
-        "UPDATE ml.model_versions SET status = 'registered', row_version = row_version + 1, updated_at = ?"
-            + " WHERE kind = ? AND status = 'active'",
-        Timestamp.from(at), kind);
+  public Optional<ModelRow> shadowModel(String kind) {
+    return models(MODEL + " WHERE kind = ? AND status = 'shadow'", kind).stream().findFirst();
   }
 
-  public void activate(UUID id, long expectedVersion, UUID by, Instant at) {
-    database.updateExpectingOneRow(
-        "UPDATE ml.model_versions SET status = 'active', activated_by = ?, activated_at = ?,"
-            + " row_version = row_version + 1, updated_at = ? WHERE model_version_id = ? AND row_version = ?",
-        by, Timestamp.from(at), Timestamp.from(at), id, expectedVersion);
+  /** Every model of a kind that is not retired: what a registry move may change. */
+  public List<ModelRow> standingOf(String kind) {
+    return models(MODEL + " WHERE kind = ? AND status <> 'retired' ORDER BY registered_at", kind);
+  }
+
+  /**
+   * Leaves the active or shadow standing first (issue #12): one active and one
+   * shadow per kind are unique indexes checked per statement, so a promotion
+   * first returns both to registered, then sets each where it goes.
+   */
+  public void vacate(UUID id, Instant at) {
+    database.update(
+        "UPDATE ml.model_versions SET status = 'registered', shadow_role = NULL, row_version = row_version + 1,"
+            + " updated_at = ? WHERE model_version_id = ? AND status IN ('active', 'shadow')",
+        Timestamp.from(at), id);
+  }
+
+  /**
+   * One model to where a registry move puts it.
+   *
+   * @param expectedVersion the version the caller read, for the model the command names; empty for
+   *     the other models the move changes, which the same serializable transaction read
+   */
+  public void move(UUID id, ModelRegistryPolicy.Move move, Optional<Long> expectedVersion, UUID by, Instant at) {
+    String set = switch (move.to()) {
+      case ACTIVE -> "status = 'active', shadow_role = NULL, activated_by = ?, activated_at = ?";
+      case SHADOW -> "status = 'shadow', shadow_role = ?, shadowed_by = ?, shadowed_at = ?";
+      case REGISTERED -> "status = 'registered', shadow_role = NULL";
+      case RETIRED -> throw new IllegalArgumentException("retirement is its own command");
+    };
+    List<Object> params = new ArrayList<>();
+    switch (move.to()) {
+      case ACTIVE -> {
+        params.add(by);
+        params.add(Timestamp.from(at));
+      }
+      case SHADOW -> {
+        params.add(move.role().orElseThrow().name().toLowerCase(Locale.ROOT));
+        params.add(by);
+        params.add(Timestamp.from(at));
+      }
+      default -> { }
+    }
+    params.add(Timestamp.from(at));
+    params.add(id);
+    String sql = "UPDATE ml.model_versions SET " + set + ", row_version = row_version + 1, updated_at = ?"
+        + " WHERE model_version_id = ?";
+    if (expectedVersion.isPresent()) {
+      params.add(expectedVersion.get());
+      database.updateExpectingOneRow(sql + " AND row_version = ?", params.toArray());
+    } else {
+      database.update(sql, params.toArray());
+    }
   }
 
   public void retire(UUID id, long expectedVersion, UUID by, String reason, Instant at) {
     database.updateExpectingOneRow(
-        "UPDATE ml.model_versions SET status = 'retired', retired_by = ?, retired_at = ?, retired_reason = ?,"
-            + " row_version = row_version + 1, updated_at = ? WHERE model_version_id = ? AND row_version = ?",
+        "UPDATE ml.model_versions SET status = 'retired', shadow_role = NULL, retired_by = ?, retired_at = ?,"
+            + " retired_reason = ?, row_version = row_version + 1, updated_at = ?"
+            + " WHERE model_version_id = ? AND row_version = ?",
         by, Timestamp.from(at), reason, Timestamp.from(at), id, expectedVersion);
+  }
+
+  /** Rule 8: who changed a model's standing, why and when (issue #12). */
+  public void insertModelEvent(
+      UUID eventId, UUID modelId, String action, UUID actor, Optional<String> reason, Optional<UUID> reviewId,
+      Instant at) {
+    database.update(
+        """
+        INSERT INTO ml.model_events (event_id, model_version_id, action, actor_id, reason, review_id, occurred_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        eventId, modelId, action, actor, reason.orElse(null), reviewId.orElse(null), Timestamp.from(at));
+  }
+
+  // ---- shadow scoring and its review (issue #12, R-ML-40) ------------------------------
+
+  public boolean hasShadowPredictions(UUID planId, String label) {
+    return database.queryOne(
+            "SELECT 1 AS one FROM ml.shadow_predictions WHERE plan_id = ? AND model_label = ? LIMIT 1", planId, label)
+        != null;
+  }
+
+  public void insertShadowPrediction(
+      UUID id, UUID planId, UUID orderId, String depot, LocalDate serviceDate, UUID modelId, String label,
+      BigDecimal serviceMinutes, BigDecimal lateProbability, Instant at) {
+    database.update(
+        """
+        INSERT INTO ml.shadow_predictions
+            (shadow_prediction_id, plan_id, order_id, depot_code, service_date, model_version_id, model_label,
+             service_min, late_prob, generated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (plan_id, order_id, model_label) DO NOTHING
+        """,
+        id, planId, orderId, depot, Date.valueOf(serviceDate), modelId, label, serviceMinutes, lateProbability,
+        Timestamp.from(at));
+  }
+
+  /**
+   * Each labelled stop of the window that the shadow scored and the incumbent
+   * answered: the shadow's newest prediction for the order beside the one the
+   * outcome recorded as having answered.
+   */
+  public List<ShadowReview.Pair> shadowPairs(String shadowLabel, String incumbentLabel, LocalDate from, LocalDate to) {
+    return database.query(
+            """
+            SELECT DISTINCT ON (o.delivery_id) s.late_prob AS shadow, o.predicted_late_prob AS incumbent, o.late_label
+              FROM ml.delivery_outcomes o
+              JOIN ml.shadow_predictions s ON s.order_id = o.order_id AND s.model_label = ?
+             WHERE o.model_label = ? AND o.late_label IS NOT NULL AND o.predicted_late_prob IS NOT NULL
+               AND o.service_date BETWEEN ? AND ?
+             ORDER BY o.delivery_id, s.generated_at DESC
+            """,
+            shadowLabel, incumbentLabel, Date.valueOf(from), Date.valueOf(to))
+        .stream()
+        .map(r -> new ShadowReview.Pair(
+            ((Number) r.get("shadow")).doubleValue(), ((Number) r.get("incumbent")).doubleValue(),
+            (Boolean) r.get("late_label")))
+        .toList();
+  }
+
+  /** One review per shadow model and day; a rerun the same day replaces the figures. Returns its id. */
+  public UUID saveReview(
+      UUID newId, String kind, UUID modelId, String label, ShadowRole role, String incumbent, LocalDate on,
+      LocalDate from, LocalDate to, ShadowReview.Result r, Instant at) {
+    Map<String, Object> row = database.queryOne(
+        """
+        INSERT INTO ml.shadow_reviews
+            (review_id, kind, model_version_id, model_label, shadow_role, incumbent_label, reviewed_on, window_from,
+             window_to, stops, shadow_brier, shadow_log_loss, incumbent_brier, incumbent_log_loss, verdict, reviewed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (model_version_id, reviewed_on) DO UPDATE SET
+            incumbent_label = EXCLUDED.incumbent_label, window_from = EXCLUDED.window_from,
+            window_to = EXCLUDED.window_to, stops = EXCLUDED.stops, shadow_brier = EXCLUDED.shadow_brier,
+            shadow_log_loss = EXCLUDED.shadow_log_loss, incumbent_brier = EXCLUDED.incumbent_brier,
+            incumbent_log_loss = EXCLUDED.incumbent_log_loss, verdict = EXCLUDED.verdict,
+            reviewed_at = EXCLUDED.reviewed_at
+        RETURNING review_id
+        """,
+        newId, kind, modelId, label, role.name().toLowerCase(Locale.ROOT), incumbent, Date.valueOf(on),
+        Date.valueOf(from), Date.valueOf(to), r.stops(), figure(r.shadowBrier()), figure(r.shadowLogLoss()),
+        figure(r.incumbentBrier()), figure(r.incumbentLogLoss()), r.verdict().name(), Timestamp.from(at));
+    return (UUID) row.get("review_id");
+  }
+
+  public void markRolledBack(UUID reviewId) {
+    database.update("UPDATE ml.shadow_reviews SET action = 'rolled_back' WHERE review_id = ?", reviewId);
+  }
+
+  /** The newest reviews first, at most {@code limit}. */
+  public List<ShadowReviewView> reviews(int limit) {
+    return database.query(
+            """
+            SELECT kind, model_label, shadow_role, incumbent_label, reviewed_on, window_from, window_to, stops,
+                   shadow_brier, shadow_log_loss, incumbent_brier, incumbent_log_loss, verdict, action
+              FROM ml.shadow_reviews ORDER BY reviewed_on DESC, model_label LIMIT ?
+            """,
+            limit)
+        .stream()
+        .map(r -> new ShadowReviewView(
+            (String) r.get("kind"), (String) r.get("model_label"),
+            ShadowRole.valueOf(((String) r.get("shadow_role")).toUpperCase(Locale.ROOT)),
+            (String) r.get("incumbent_label"), ((Date) r.get("reviewed_on")).toLocalDate(),
+            ((Date) r.get("window_from")).toLocalDate(), ((Date) r.get("window_to")).toLocalDate(),
+            ((Number) r.get("stops")).intValue(), decimal(r.get("shadow_brier")), decimal(r.get("shadow_log_loss")),
+            decimal(r.get("incumbent_brier")), decimal(r.get("incumbent_log_loss")), (String) r.get("verdict"),
+            Optional.ofNullable((String) r.get("action"))))
+        .toList();
+  }
+
+  private static BigDecimal figure(Optional<Double> value) {
+    return value.filter(Double::isFinite)
+        .map(v -> BigDecimal.valueOf(v).setScale(6, java.math.RoundingMode.HALF_UP))
+        .orElse(null);
+  }
+
+  private static Optional<BigDecimal> decimal(Object value) {
+    return Optional.ofNullable((BigDecimal) value);
   }
 
   private List<ModelRow> models(String sql, Object... params) {
@@ -106,7 +275,10 @@ public class JdbcIntelligenceRepository {
                 instant(r.get("registered_at")),
                 Optional.ofNullable(r.get("activated_at")).map(JdbcIntelligenceRepository::instant),
                 Optional.ofNullable((String) r.get("retired_reason")),
-                ((Number) r.get("row_version")).longValue())))
+                ((Number) r.get("row_version")).longValue(),
+                Optional.ofNullable((String) r.get("shadow_role"))
+                    .map(role -> ShadowRole.valueOf(role.toUpperCase(Locale.ROOT))),
+                Optional.ofNullable(r.get("shadowed_at")).map(JdbcIntelligenceRepository::instant))))
         .toList();
   }
 

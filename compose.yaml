@@ -205,6 +205,11 @@ services:
     build:
       context: ./ml-server
     mem_limit: ${ML_MEM:-1536m}
+    environment:
+      # Issue #12: models retraining produced, beside the image's. Read only: only training.run writes it.
+      ML_STORE_DIR: /srv/store
+    volumes:
+      - ${ML_STORE_PATH:-./ml-store}:/srv/store:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]

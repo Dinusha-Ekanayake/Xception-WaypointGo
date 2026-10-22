@@ -89,6 +89,7 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
   private final Metrics metrics;
   private final Clock clock;
   private final com.waypoint.dispatch.platform.audit.AuditLog audit;
+  private final ReferencePayload payload;
 
   public IntelligenceDataQuery(
       Database database,
@@ -102,7 +103,9 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
       com.waypoint.dispatch.platform.audit.AuditLog audit,
       com.waypoint.dispatch.intelligence.infrastructure.JdbcModelQuality quality,
       com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes,
-      JdbcScoringInputs scoringInputs) {
+      JdbcScoringInputs scoringInputs,
+      ReferencePayload payload) {
+    this.payload = payload;
     this.outcomes = outcomes;
     this.scoringInputs = scoringInputs;
     this.quality = quality;
@@ -201,6 +204,15 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
     return read(actor.userId(), () -> repository.allModels().stream().map(ModelRow::view).toList());
   }
 
+  /** Issue #12, R-ML-40: the newest shadow reviews, what an administrator reads before promoting a model. */
+  public List<com.waypoint.dispatch.intelligence.contract.ModelViews.ShadowReviewView> shadowReviews(
+      Actor actor, int limit) {
+    if (limit < 1 || limit > 100) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "limit must be from 1 to 100");
+    }
+    return read(actor.userId(), () -> repository.reviews(limit));
+  }
+
   public PlanPredictionsView predictionsFor(Actor actor, UUID planId) {
     return read(actor.userId(), () -> predictions(planId))
         .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND,
@@ -244,6 +256,38 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
         .map(o -> new PredictionViews.TrainingOrderView(o.orderId(), o.placedDate(), o.outletId(), o.brandCode(),
             o.depotCode(), o.temperature(), o.volumeM3(), o.status().name().toLowerCase(java.util.Locale.ROOT)))
         .toList(), page.nextCursor());
+  }
+
+  /** Depots one reference export may name, and the longest calendar it may span. */
+  static final int TRAINING_REFERENCE_DEPOTS = 20;
+  static final int TRAINING_REFERENCE_DAYS = 2_000;
+
+  /**
+   * Issue #12, R-ML-38: the reference tables a retraining run reads, built as a
+   * scoring request builds them, so training and serving read the same days.
+   * Every depot named must be in the reader's scope; one outside it is refused
+   * and audited, never left out of the answer.
+   */
+  public Map<String, Object> trainingReference(Actor actor, List<String> depots, LocalDate from, LocalDate to) {
+    if (depots.isEmpty() || depots.size() > TRAINING_REFERENCE_DEPOTS) {
+      throw new DomainException(
+          ErrorCode.VALIDATION_FAILED, "name from 1 to " + TRAINING_REFERENCE_DEPOTS + " depots");
+    }
+    if (from.isAfter(to)) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "from is after to");
+    }
+    if (java.time.temporal.ChronoUnit.DAYS.between(from, to) >= TRAINING_REFERENCE_DAYS) {
+      throw new DomainException(
+          ErrorCode.VALIDATION_FAILED, "the calendar spans at most " + TRAINING_REFERENCE_DAYS + " days");
+    }
+    List<String> distinct = depots.stream().distinct().toList();
+    for (String depot : distinct) {
+      requireDepot(actor, depot, EXPORT, "wpt:ml:training:" + depot);
+    }
+    UUID version = reference.currentVersionId().orElseThrow(
+        () -> new DomainException(ErrorCode.DEPENDENCY_UNAVAILABLE, "No reference version is loaded"));
+    metrics.increment("waypoint.ml.training_reference_exported");
+    return payload.forTraining(distinct, from, to, version);
   }
 
   /**

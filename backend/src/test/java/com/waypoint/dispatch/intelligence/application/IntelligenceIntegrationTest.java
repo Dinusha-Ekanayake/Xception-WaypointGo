@@ -156,6 +156,7 @@ class IntelligenceIntegrationTest {
   @Autowired KnownNames knownNames;
   @Autowired WatchReviewJob watchReview;
   @Autowired ModelMetricsJob metricsJob;
+  @Autowired ShadowReviewJob shadowReviews;
   @Autowired FallbackTuningJob tuningJob;
   @Autowired ModelQualityJob qualityJob;
   @Autowired LateNoticeJob lateNotices;
@@ -831,18 +832,201 @@ class IntelligenceIntegrationTest {
   // ---- the registry ------------------------------------------------------------------------
 
   @Test
-  void activatingAModelReturnsTheKindsPreviousOneToRegistered() throws Exception {
+  void activatingAModelMakesTheOneItReplacesTheShadowAndTheShadowBeforeItRegistered() throws Exception {
+    // Issue #12, R-ML-42: the champion stays the challenger, so the system can put it back.
     String first = activate("delivery_risk");
     String second = activate("delivery_risk");
 
     JsonNode models = read(admin, "/api/ml/models", 200);
-    assertEquals("REGISTERED", status(models, first));
+    assertEquals("SHADOW", status(models, first));
+    assertEquals("REPLACED", model(models, first).get("shadowRole").asText());
     assertEquals("ACTIVE", status(models, second));
+
+    String third = activate("delivery_risk");
+    models = read(admin, "/api/ml/models", 200);
+    assertEquals("REGISTERED", status(models, first), "one shadow per kind");
+    assertEquals("SHADOW", status(models, second));
+    assertEquals("ACTIVE", status(models, third));
     long active = 0;
+    long shadow = 0;
     for (JsonNode m : models) {
-      active += "delivery_risk".equals(m.get("kind").asText()) && "ACTIVE".equals(m.get("status").asText()) ? 1 : 0;
+      boolean risk = "delivery_risk".equals(m.get("kind").asText());
+      active += risk && "ACTIVE".equals(m.get("status").asText()) ? 1 : 0;
+      shadow += risk && "SHADOW".equals(m.get("status").asText()) ? 1 : 0;
     }
     assertEquals(1, active, "R-ML-03: one active model per kind");
+    assertEquals(1, shadow, "R-ML-40: one shadow per kind");
+    assertEquals(List.of("activated", "shadowed", "demoted"), events(first));
+  }
+
+  @Test
+  void aCandidateIsMadeTheShadowByAnAdministratorAloneAndPromotedFromThere() throws Exception {
+    String champion = activate("delivery_risk");
+    String name = "candidate-" + run;
+    register(name, "1", "delivery_risk");
+    long before = denials(dispatcherId, "ml:ShadowModel");
+    send(dispatcher, envelope("ml:ShadowModel", 1L, "{\"name\":\"" + name + "\",\"version\":\"1\"}"), 403);
+    assertEquals(before + 1, denials(dispatcherId, "ml:ShadowModel"));
+
+    JsonNode shadowed = result(send(admin, envelope("ml:ShadowModel", 1L,
+        "{\"name\":\"" + name + "\",\"version\":\"1\"}"), 200));
+    assertEquals("SHADOW", shadowed.get("status").asText());
+    assertEquals(2, shadowed.get("rowVersion").asLong());
+    JsonNode models = read(admin, "/api/ml/models", 200);
+    assertEquals("CANDIDATE", model(models, name + "@1").get("shadowRole").asText());
+    assertEquals("ACTIVE", status(models, champion), "a shadow never answers");
+    send(admin, envelope("ml:ShadowModel", 2L, "{\"name\":\"" + name + "\",\"version\":\"1\"}"), 200);
+
+    JsonNode promoted = result(send(admin, envelope("ml:ActivateModel", 2L,
+        "{\"name\":\"" + name + "\",\"version\":\"1\"}"), 200));
+    assertEquals("ACTIVE", promoted.get("status").asText());
+    models = read(admin, "/api/ml/models", 200);
+    assertEquals("SHADOW", status(models, champion));
+    assertEquals("REPLACED", model(models, champion).get("shadowRole").asText());
+    assertEquals(List.of("shadowed", "activated"), events(name + "@1"));
+    send(admin, envelope("ml:ShadowModel", promoted.get("rowVersion").asLong(),
+        "{\"name\":\"" + name + "\",\"version\":\"1\"}"), 409);
+  }
+
+  @Test
+  void theShadowScoresEveryPublishedPlanApartAndNothingTheScreensReadChanges() throws Exception {
+    String champion = activate("delivery_risk");
+    STUB.riskLabel.set(champion);
+    String name = "shadowing-" + run;
+    register(name, "1", "delivery_risk");
+    send(admin, envelope("ml:ShadowModel", 1L, "{\"name\":\"" + name + "\",\"version\":\"1\"}"), 200);
+    STUB.stored.put(name + "@1", 0.8);
+    UUID planId = publishedPlan();
+
+    scoreUntilDone(planId);
+
+    JsonNode body = read(dispatcher, "/api/ml/plans/" + planId + "/predictions", 200);
+    assertEquals(champion, body.at("/scoring/modelLabel").asText());
+    for (JsonNode stop : body.get("stops")) {
+      assertEquals(champion, stop.get("modelLabel").asText(), "R-ML-40: the shadow never answers");
+      assertEquals(StubModelServer.LATE, stop.get("lateProbability").asDouble(), 1e-9);
+    }
+    assertTrue(STUB.namedModels.contains(champion) && STUB.namedModels.contains(name + "@1"),
+        "each request names its model: " + STUB.namedModels);
+    List<Map<String, Object>> shadow = database.asSystem(ModuleRole.ML, () -> database.query(
+        "SELECT model_label, late_prob FROM ml.shadow_predictions WHERE plan_id = ?", planId));
+    assertEquals(body.get("stops").size(), shadow.size());
+    for (Map<String, Object> row : shadow) {
+      assertEquals(name + "@1", row.get("model_label"));
+      assertEquals(0.8, ((Number) row.get("late_prob")).doubleValue(), 1e-9);
+    }
+  }
+
+  @Test
+  void withoutTheShadowLoadedThePlanIsScoredAsBeforeAndTheShadowIsSkipped() throws Exception {
+    String champion = activate("delivery_risk");
+    STUB.riskLabel.set(champion);
+    String name = "unloaded-" + run;
+    register(name, "1", "delivery_risk");
+    send(admin, envelope("ml:ShadowModel", 1L, "{\"name\":\"" + name + "\",\"version\":\"1\"}"), 200);
+    UUID planId = publishedPlan();
+
+    scoreUntilDone(planId);
+
+    assertEquals("SCORED", read(dispatcher, "/api/ml/plans/" + planId + "/predictions", 200).at("/scoring/status").asText());
+    assertFalse(STUB.namedModels.isEmpty());
+    assertTrue(STUB.namedModels.stream().allMatch(String::isEmpty),
+        "a service without a store is not sent a model it would refuse: " + STUB.namedModels);
+    assertEquals(0L, ((Number) database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT count(*) AS n FROM ml.shadow_predictions WHERE plan_id = ?", planId)).get("n")).longValue());
+  }
+
+  @Test
+  void aReplacedModelThatDidBetterIsPutBackWithTheReviewAndItsReason() throws Exception {
+    // R-ML-42: the system's one move, only backwards.
+    String older = activate("delivery_risk");
+    String newer = activate("delivery_risk");
+    backdate(older, newer);
+    seedReviewedStops(older, newer, 250);
+
+    ShadowReviewJob.Outcome outcome = shadowReviews.runAt(Instant.now()).orElseThrow();
+
+    assertEquals(older, outcome.shadowLabel());
+    assertEquals(newer, outcome.incumbentLabel());
+    assertEquals(250, outcome.result().stops());
+    assertEquals("BETTER", outcome.result().verdict().name());
+    assertTrue(outcome.rolledBack());
+    JsonNode models = read(admin, "/api/ml/models", 200);
+    assertEquals("ACTIVE", status(models, older));
+    assertEquals("REGISTERED", status(models, newer));
+    assertEquals(List.of("shadowed", "rolled_back"), events(older).subList(events(older).size() - 2, events(older).size()));
+    Map<String, Object> event = database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT actor_id, reason, review_id FROM ml.model_events e JOIN ml.model_versions m USING (model_version_id)"
+            + " WHERE m.model_name || '@' || m.model_version = ? AND e.action = 'rolled_back'", older));
+    assertEquals(com.waypoint.dispatch.shared.domain.Actor.SYSTEM_ID, event.get("actor_id"));
+    assertTrue(((String) event.get("reason")).contains("on 250 labelled stops"), (String) event.get("reason"));
+    assertTrue(event.get("review_id") != null, "rule 8: the review behind it");
+    assertEquals(1L, ((Number) database.asModule(ModuleRole.INTEGRATION, null, () -> database.queryOne(
+        "SELECT count(*) AS n FROM integration.audit_log WHERE actor_id = ? AND action = 'ml:ActivateModel'"
+            + " AND resource = ?", com.waypoint.dispatch.shared.domain.Actor.SYSTEM_ID, "wpt:ml:model:" + older))
+        .get("n")).longValue());
+
+    JsonNode review = null;
+    for (JsonNode r : read(admin, "/api/ml/models/shadow-reviews", 200)) {
+      if (r.get("modelLabel").asText().equals(older)) {
+        review = r;
+        break;
+      }
+    }
+    assertTrue(review != null);
+    assertEquals("rolled_back", review.get("action").asText());
+    assertEquals("REPLACED", review.get("shadowRole").asText());
+    read(admin, "/api/ml/models/shadow-reviews?limit=500", 422);
+  }
+
+  @Test
+  void aCandidateThatDidBetterIsReviewedButLeftForAPersonToPromote() throws Exception {
+    String champion = activate("delivery_risk");
+    String name = "reviewed-" + run;
+    register(name, "1", "delivery_risk");
+    send(admin, envelope("ml:ShadowModel", 1L, "{\"name\":\"" + name + "\",\"version\":\"1\"}"), 200);
+    backdate(name + "@1", champion);
+    seedReviewedStops(name + "@1", champion, 250);
+
+    ShadowReviewJob.Outcome outcome = shadowReviews.runAt(Instant.now()).orElseThrow();
+
+    assertEquals("BETTER", outcome.result().verdict().name());
+    assertFalse(outcome.rolledBack(), "R-ML-41: promotion stays a person's");
+    JsonNode models = read(admin, "/api/ml/models", 200);
+    assertEquals("SHADOW", status(models, name + "@1"));
+    assertEquals("ACTIVE", status(models, champion));
+  }
+
+  @Test
+  void theTrainingReferenceIsTheCalendarServingReadsAndOnlyForDepotsInScope() throws Exception {
+    // R-ML-38: days past the supplied calendar (2026-06-28) are generated, as scoring sends them.
+    UUID adminId = account("mlr-" + run, "admin", true);
+    Cookie exporter = session("mlr-" + run);
+    JsonNode ref = read(exporter, "/api/ml/training/reference?depot=" + depot + "&from=2026-06-20&to=2026-07-10", 200);
+    assertEquals(21, ref.get("calendar").size());
+    boolean generated = false;
+    for (JsonNode day : ref.get("calendar")) {
+      generated |= "2026-07-01".equals(day.get("date").asText()) && day.get("dow").asInt() == 2;
+    }
+    assertTrue(generated, "a generated day carries its weekday");
+    assertEquals(reference.outletsOfDepot(depot, null).size(), ref.get("outlets").size());
+    assertTrue(ref.get("service_allowance").size() > 0 && ref.get("traffic_speed").size() > 0);
+    assertEquals(reference.currentVersionId().orElseThrow().toString(), ref.get("referenceVersionId").asText());
+
+    JsonNode sent = null;
+    String champion = activate("delivery_risk");
+    STUB.riskLabel.set(champion);
+    UUID planId = publishedPlan();
+    scoreUntilDone(planId);
+    sent = STUB.lastRiskRequest.get().get("reference");
+    assertEquals(sent.get("traffic_speed"), ref.get("traffic_speed"), "the rows a scoring request carries");
+
+    String other = reference.depotCodes().stream().filter(d -> !d.equals(depot)).findFirst().orElseThrow();
+    long before = denials(adminId, IntelligenceDataQuery.EXPORT);
+    read(exporter, "/api/ml/training/reference?depot=" + depot + "&depot=" + other + "&from=2026-06-20&to=2026-07-10", 403);
+    assertEquals(before + 1, denials(adminId, IntelligenceDataQuery.EXPORT), "a depot outside scope is audited");
+    read(dispatcher, "/api/ml/training/reference?depot=" + depot + "&from=2026-06-20&to=2026-07-10", 403);
+    read(exporter, "/api/ml/training/reference?depot=" + depot + "&from=2020-01-01&to=2026-07-10", 422);
   }
 
   @Test
@@ -1311,6 +1495,68 @@ class IntelligenceIntegrationTest {
         "{\"name\":\"" + name + "\",\"version\":\"" + version + "\",\"kind\":\"" + kind
             + "\",\"trainedFrom\":\"2024-01-01\",\"trainedTo\":\"2026-02-14\",\"metrics\":{\"late_logloss\":0.1516}}"),
         200);
+  }
+
+  private static JsonNode model(JsonNode models, String label) {
+    for (JsonNode m : models) {
+      if ((m.get("name").asText() + "@" + m.get("version").asText()).equals(label)) {
+        return m;
+      }
+    }
+    throw new AssertionError("no model " + label);
+  }
+
+  /** A model's events in order (issue #12). */
+  private List<String> events(String label) {
+    return database.asSystem(ModuleRole.ML, () -> database.query(
+            "SELECT e.action FROM ml.model_events e JOIN ml.model_versions m USING (model_version_id)"
+                + " WHERE m.model_name || '@' || m.model_version = ? ORDER BY e.occurred_at, e.event_id", label))
+        .stream().map(r -> (String) r.get("action")).toList();
+  }
+
+  /** The shadow and the active model as if the change was five days ago, so the review has days to read. */
+  private void backdate(String shadow, String active) {
+    database.asSystem(ModuleRole.ML, () -> {
+      database.update("UPDATE ml.model_versions SET shadowed_at = now() - interval '5 days'"
+          + " WHERE model_name || '@' || model_version = ?", shadow);
+      return database.update("UPDATE ml.model_versions SET activated_at = now() - interval '5 days'"
+          + " WHERE model_name || '@' || model_version = ?", active);
+    });
+  }
+
+  /**
+   * Labelled stops of the last four days: the active model answered 0.5 everywhere; the shadow
+   * scored them sharply, so it does better on both scores.
+   */
+  private void seedReviewedStops(String shadow, String active, int n) {
+    UUID planId = UUID.randomUUID();
+    LocalDate yesterday = LocalDate.now(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE).minusDays(1);
+    database.asSystem(ModuleRole.ML, () -> {
+      UUID shadowId = (UUID) database.queryOne("SELECT model_version_id FROM ml.model_versions"
+          + " WHERE model_name || '@' || model_version = ?", shadow).get("model_version_id");
+      database.update("INSERT INTO ml.plan_scorings (plan_id, depot_code, service_date, plan_version, status,"
+          + " requested_at) VALUES (?, ?, ?, 1, 'pending', now())", planId, depot, java.sql.Date.valueOf(yesterday));
+      for (int i = 0; i < n; i++) {
+        UUID order = UUID.randomUUID();
+        boolean late = i % 3 == 0;
+        java.sql.Date day = java.sql.Date.valueOf(yesterday.minusDays(i % 4));
+        database.update(
+            """
+            INSERT INTO ml.delivery_outcomes
+                (delivery_id, order_id, outlet_id, depot_code, service_date, stop_sequence, outcome, late_label,
+                 label_source, predicted_late_prob, model_label, recorded_at)
+            VALUES (?, ?, 'OUT001', ?, ?, 1, 'delivered', ?, 'device', 0.5, ?, now())
+            """, UUID.randomUUID(), order, depot, day, late, active);
+        database.update(
+            """
+            INSERT INTO ml.shadow_predictions
+                (shadow_prediction_id, plan_id, order_id, depot_code, service_date, model_version_id, model_label,
+                 service_min, late_prob, generated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 12.0, ?, now())
+            """, UUID.randomUUID(), planId, order, depot, day, shadowId, shadow, late ? 0.9 : 0.1);
+      }
+      return null;
+    });
   }
 
   private static String status(JsonNode models, String label) {

@@ -25,7 +25,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
 
 from training.leakage import HOLDOUT_WEEKS, date_holdout
-from training.planning import columns, features, reference_tables
+from training.planning import columns, features, load_reference
 
 MIN_LABELS = 200
 PIPELINE = 'planning'
@@ -198,9 +198,10 @@ def main(argv=None) -> int:
     ap.add_argument('--out', required=True)
     ap.add_argument('--weeks', type=int, default=HOLDOUT_WEEKS)
     ap.add_argument('--reference', default=str(Path(__file__).resolve().parents[2] / 'data' / 'General Data'),
-                    help='the reference CSVs; "none" trains on the route alone')
+                    help='reference.json from fetch --kind reference, a directory of the supplied CSVs (dry runs),'
+                         ' or "none" to train on the route alone')
     a = ap.parse_args(argv)
-    g = None if a.reference == 'none' else reference_tables(a.reference)
+    g = None if a.reference == 'none' else load_reference(a.reference)
     result, artifact = train(load_export(a.export, g), a.weeks)
     write(result, artifact, a.name, a.version, a.out)
     print(json.dumps(asdict(result), indent=2))

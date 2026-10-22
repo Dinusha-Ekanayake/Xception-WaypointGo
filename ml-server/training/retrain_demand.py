@@ -32,6 +32,8 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'datathon'))
 import task2a_demand  # noqa: E402 (vendored)
 
+from training import planning  # noqa: E402
+
 NAME = 'waypoint-demand'
 # The model has an annual term and a ramp per festival: under a year it cannot tell season from trend.
 MIN_HISTORY_WEEKS = 52
@@ -93,6 +95,12 @@ def load_reference(directory=DEFAULT_REFERENCE) -> tuple[pd.DataFrame, pd.DataFr
     """The calendar and outlets the model schedules orders on, from the CSVs the backend imports."""
     d = Path(directory)
     return pd.read_csv(d / 'calendar.csv'), pd.read_csv(d / 'outlets.csv')
+
+
+def load_reference_json(tables: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """The calendar and outlets from the backend's reference export (R-ML-38): the days the forecast serves with."""
+    g = planning.reference_from_json(tables)
+    return g['calendar'], g['outlets']
 
 
 def _monday(day: str) -> dt.date:
@@ -216,10 +224,14 @@ def main(argv=None) -> int:
     ap.add_argument('--export', required=True, help='JSON lines from /api/ml/training/orders (fetch --kind orders)')
     ap.add_argument('--version', required=True)
     ap.add_argument('--out', required=True)
-    ap.add_argument('--reference', default=str(DEFAULT_REFERENCE))
+    ap.add_argument('--reference', default=str(DEFAULT_REFERENCE),
+                    help='reference.json from fetch --kind reference, or a directory of the supplied CSVs')
     ap.add_argument('--current', help='the model file in use, which the candidate must not do worse than')
     a = ap.parse_args(argv)
-    cal, outlets = load_reference(a.reference)
+    if a.reference.endswith('.json'):
+        cal, outlets = load_reference_json(json.loads(Path(a.reference).read_text(encoding='utf-8')))
+    else:
+        cal, outlets = load_reference(a.reference)
     current = joblib.load(a.current) if a.current else None
     try:
         history, counts = load_export(a.export)

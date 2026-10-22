@@ -419,16 +419,17 @@ A driver is pushed only trip-level events (R-NOT-08), and whoever caused an even
 | domain | `DeterministicEstimator`, `ModelGate`, `SupplyPolicy`, `PlannedRoutes`, `CircuitBreaker` |
 | application | `PlanScoringJob`, `ForecastJob`, `ModelHandlers`, `IntelligenceConsumers`, `IntelligenceDataQuery`, `ReferencePayload` |
 | infrastructure | `ModelServingAdapter` (HTTP to the model service, behind a circuit breaker), `JdbcIntelligenceRepository` |
-| web | `/api/ml/models`, `/plans/{id}/predictions`, `/forecast`, `/forecast/overview` (a depot's weeks with calendar and fleet capacity), `/orders/{id}/supply-probability`, `/training/deliveries`, `/training/routes`, `/training/orders` |
+| web | `/api/ml/models`, `/plans/{id}/predictions`, `/forecast`, `/forecast/overview` (a depot's weeks with calendar and fleet capacity), `/orders/{id}/supply-probability`, `/training/deliveries`, `/training/routes`, `/training/orders`, `/training/reference` (the reference tables retraining reads, R-ML-38), `/models/shadow-reviews` (R-ML-40) |
 
-**The model service** (`ml-server/`, ADR-001's Python trigger) serves the trained Datathon models: `delivery_risk` (service minutes and P(late) per stop, scored over whole planned routes, with a no-road-conditions fallback) and `demand_forecast` (weekly total and chilled m³). It only predicts, and refuses to start if a model file differs from its manifest.
+**The model service** (`ml-server/`, ADR-001's Python trigger) serves the trained Datathon models: `delivery_risk` (service minutes and P(late) per stop, scored over whole planned routes, with a no-road-conditions fallback) and `demand_forecast` (weekly total and chilled m³). It only predicts, and refuses to start if a model file in its image differs from its manifest. Beside the image it serves a model store that only the retraining run writes, each entry checked the same way, and a request names the model it means (issue #12, R-ML-39).
 
-**Owns:** `ml.model_versions`, `ml.plan_scorings`, `ml.delivery_predictions`, `ml.demand_forecasts`.
+**Owns:** `ml.model_versions`, `ml.plan_scorings`, `ml.delivery_predictions`, `ml.demand_forecasts`, `ml.shadow_predictions`, `ml.shadow_reviews`, `ml.model_events` (issue #12).
 
 **Invariants.**
 - A model is never called inside an operational transaction (R-ML-01).
 - Every stored prediction names its model or `deterministic` and is written once (R-ML-02).
-- One model per kind is active (R-ML-03).
+- One model per kind is active (R-ML-03), and at most one is the shadow: it scores every published plan apart and never answers (R-ML-40).
+- A model answers only after an administrator activates it; the one it replaces becomes the shadow, and the system may only put that one back, when the nightly review finds it better (R-ML-41, R-ML-42).
 - A model answers only when it is the active one and the service reports exactly it; otherwise the deterministic answer, marked degraded with the reason, and the plan says it was scored without the predictor (R-ML-04).
 - Predictions never change allocation (R-ML-05).
 

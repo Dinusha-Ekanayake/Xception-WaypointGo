@@ -18,7 +18,7 @@ Serves the trained Datathon models to the backend (issue #16). It only predicts:
 | Two-pipeline ensemble | **3.664 min** | **0.125** | **94.626%** | **89** | **16.02 min** | **1.987 s** | — | LightGBM + XGBoost + CatBoost | **33.442 MB** |
 | **Selected parallel hybrid** | 3.718 min | 0.131 | 94.491% | 95 | **1.49 min** | **48 ms** | **250** | **LightGBM only** | **9.747 MB** |
 
-`GET /health` names the loaded models and their versions. The backend uses a model only when this name and version match the active entry in its registry.
+`GET /health` names the image's model of each kind (`models`), every model loaded including the model store's (`available`, each with its `source`), and any store entry it refused (`rejected`, with the reason). A request may name the model it means (`"model": "name@version"`); one that names none is answered by the image's model. The backend uses a model only when the active entry in its registry is among those loaded, and names it on every request (R-ML-39).
 
 `manifest.json` lists each model's version, its training range, its validation metrics and the SHA-256 of every file in `models/`. **The service refuses to start if any file differs.**
 
@@ -81,7 +81,7 @@ python -m training.retrain --export export.jsonl --version 2026.10.1 --out build
 
 `retrain` writes the model file, `manifest-entry.json` (with `"pipeline": "planning"`, the holdout metrics and the file's SHA-256) and `report.json`. It exits 2, and the model is not handed over, unless it beats the slack alone on both Brier score and log loss with 200 or more labelled stops held out, and is not worse than what answered at the time on the same stops (the replay: each label carries `answeredBy` and `answeredLateProb`; better or worse means both scores, as on the Models screen, R-ML-16).
 
-**On a schedule.** `training.run` does both steps for every depot over the last 26 finished weeks and leaves `<out>/<date>/` with the export, model, manifest entry and report. It never touches `manifest.json` or `models/`: a model is handed over by a reviewed change. On our own server, as the user that runs the stack (the session cookie is an administrator's, kept in a file only that user reads):
+**On a schedule.** `training.run` does both steps for every depot over the last 26 finished weeks and leaves `<out>/<date>/` with the export, model, manifest entry and report. It never touches `manifest.json` or `models/`. With `--store` it puts a passing candidate in the model store instead, and with `--register` makes it the shadow (see "The model pipeline" below); a model still answers only once an administrator activates it. On our own server, as the user that runs the stack (the session cookie is an administrator's, kept in a file only that user reads):
 
 ```bash
 # crontab: Sundays 02:30 depot time
@@ -151,6 +151,25 @@ It also exits 2, writing the model but not handing it over, when the backtest sa
 **On a schedule.** `training.run` builds a demand candidate beside the late-risk one, in `<out>/<date>/demand/`, over the last `--demand-weeks` finished weeks (default 104). It compares the candidate with the demand model `manifest.json` serves. The run exits 0 when either candidate is worth handing over. Handing it over is the same reviewed change as for the late-risk model: copy the file into `models/`, replace the `demand_forecast` entry in `manifest.json` with `manifest-entry.json`, run `pytest`, then register and activate `waypoint-demand` on the admin Models screen.
 
 On a synthetic history of 78 weeks whose orders follow the calendar (`tests/demand_orders.py`), the candidate scores 5.9% total and 3.3% chilled WAPE against the naive forecast's 21% and 20%, over 6 starts. A dry run on the full Datathon order history, which reproduces the team's backtest, has not been run: the history is licensed and is not on this machine.
+
+## The model pipeline (issue #12)
+
+Retraining, measuring and promoting run as one loop, with a person on the one step that changes what answers. The plan is [docs/issues/012-mlops-pipeline/PLAN.md](../docs/issues/012-mlops-pipeline/PLAN.md).
+
+1. **Retrain on the system's own reference.** `training.run` fetches `GET /api/ml/training/reference` once per run (`reference.json` in the build): the outlets, service allowances, traffic speed and calendar exactly as the backend scores with them. The supplied calendar ends on 2026-06-28; the backend generates the days after it, so training on the CSVs would read different days from serving (R-ML-38). `--reference DIR` keeps the CSVs for a dry run on the Datathon data, and `retrain --reference reference.json` reads a fetched one.
+2. **Into the model store.** With `--store DIR` (or `ML_STORE_PATH`), a candidate that passed its gates is copied into the store the service reads: checked first as the service checks it (SHA-256, pickle allowlist), written under a hidden name and renamed, so the service never reads half of it. The service picks a new entry up within 30 seconds, with no restart; a bad one is listed on `/health` as rejected and never loaded (R-ML-39). In Compose the store is `ML_STORE_PATH`, mounted read only.
+3. **Registered, and shadowed.** With `--register` too, the run registers the candidate with the backend (`ml:RegisterModel`) under the administrator session it already uses. A late-risk candidate is then made the shadow of its kind (`ml:ShadowModel`): it scores every published plan beside the active model, into a table no screen reads, and never answers (R-ML-40). A demand candidate is registered only.
+4. **Reviewed every night.** `ShadowReviewJob` (04:10 depot time) compares the shadow with the model that answered on the same labelled stops of the last 14 days, on Brier score and log loss, and keeps the verdict: `GET /api/ml/models/shadow-reviews`.
+5. **Promoted by a person.** An administrator activates a shadow that has earned it, on the Models screen ("Use this model") or with `ml:ActivateModel`. The model it replaces becomes the shadow (R-ML-41).
+6. **Rolled back by the system.** If, within 28 days, the review finds the replaced model better than the new one on both scores, the system activates it again, recorded with the review, both scores and the system as actor, and counted as `waypoint.ml.model_rolled_back` (R-ML-42). It never activates a candidate.
+
+The weekly cron entry, with the store and registration:
+
+```bash
+30 2 * * 0  cd /srv/waypoint/ml-server && WAYPOINT_SESSION="$(cat ~/.waypoint-session)"   python -m training.run --url http://localhost:8080 --depot Peliyagoda --depot Kandy   --out /srv/waypoint/retrain --store /srv/waypoint/ml-store --register >> /var/log/waypoint-retrain.log 2>&1
+```
+
+The store directory must be readable by the container's user (uid 10002). The image's models stay the default answer, so an empty or unreadable store changes nothing. Not done yet: shadow forecasts for the demand model (its review needs finished weeks of actuals), evicting old models from memory (remove a retired entry from the store by hand), and a panel for the reviews on the Models screen.
 
 ## Reproducibility
 

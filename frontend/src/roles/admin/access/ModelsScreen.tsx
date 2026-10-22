@@ -19,6 +19,7 @@ const KINDS: ModelKind[] = ["delivery_risk", "demand_forecast"];
 const STATUS: Record<ModelVersionView["status"], { text: string; tone: "green" | "neutral" | "red" }> = {
   ACTIVE: { text: "In use", tone: "green" },
   REGISTERED: { text: "Ready", tone: "neutral" },
+  SHADOW: { text: "Being compared", tone: "neutral" },
   RETIRED: { text: "Retired", tone: "red" },
 };
 
@@ -127,7 +128,7 @@ export function ModelsScreen() {
                       )}
                       {m.status !== "RETIRED" && (
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {m.status === "REGISTERED" && (
+                          {(m.status === "REGISTERED" || m.status === "SHADOW") && (
                             <button type="button" className={primary} disabled={busy !== null} onClick={() => act(key, () => activateModel(m))}>
                               {busy === key ? "Saving…" : "Use this model"}
                             </button>

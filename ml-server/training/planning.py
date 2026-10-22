@@ -75,9 +75,34 @@ TABLES = ['outlets', 'service_allowance', 'traffic_speed', 'calendar']
 
 
 def reference_tables(directory) -> dict:
-    """The reference tables a retraining run reads, from the CSVs the backend imports (``data/General Data``)."""
+    """The reference tables from the CSVs the backend imports (``data/General Data``), for dry runs on the
+    Datathon data. A run on our own deliveries reads :func:`reference_from_json` instead: the supplied calendar
+    ends on 2026-06-28 and the backend generates the days after it."""
     from pathlib import Path
     return {n: pd.read_csv(Path(directory) / f'{n}.csv') for n in TABLES}
+
+
+def load_reference(path) -> dict:
+    """A ``reference.json`` the backend exported, or a directory of the supplied CSVs."""
+    import json
+    from pathlib import Path
+    p = Path(path)
+    if p.suffix == '.json':
+        return reference_from_json(json.loads(p.read_text(encoding='utf-8')))
+    return reference_tables(p)
+
+
+def reference_from_json(tables: dict) -> dict:
+    """The same tables from the backend's ``/api/ml/training/reference`` (R-ML-38), as the CSV reader gives them."""
+    missing = [n for n in TABLES if n not in tables]
+    if missing:
+        raise ValueError(f'the reference lacks {missing}')
+    out = {n: pd.DataFrame(tables[n]) for n in TABLES}
+    cal = out['calendar']
+    if len(cal):
+        cal['festival'] = cal['festival'].where(cal['festival'].notna(), np.nan)
+        cal['festival_ramp'] = cal['festival_ramp'].astype(float)
+    return out
 
 
 def columns(frame: pd.DataFrame) -> list[str]:

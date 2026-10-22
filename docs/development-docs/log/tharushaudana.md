@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-22 - feat(ml): run the models as a pipeline: retrain, shadow, promote, roll back
+
+`feat/mlops-pipeline` · @tharushaudana · [#12](https://github.com/jv-ransika/yi-yi/issues/12)
+
+Retraining now reads the reference the backend scores with (`/api/ml/training/reference`): the supplied calendar ends 2026-06-28, so the demand retrain refused every later order and the late-risk retrain trained on empty calendar features (R-ML-38, ML-62). A passing candidate goes into a model store the service loads without a redeploy, each entry checked like the image's (R-ML-39); it is registered and scores every plan as the shadow, apart from what screens read, reviewed nightly (R-ML-40). Promotion stays an administrator's; the replaced model becomes the shadow and the system may only put it back (R-ML-41, R-ML-42). [Plan](../../issues/012-mlops-pipeline/PLAN.md), [walkthrough](../../issues/012-mlops-pipeline/WALKTHROUGH.md).
+Verified: `ml-server` pytest (66); backend unit and architecture tests (1,389 run, 0 failed, the database tests skipped); frontend typecheck and `npm test` (430).
+Open: `IntelligenceIntegrationTest` (seven new) not run, no PostgreSQL on this machine; demand has no shadow; no review panel on the Models screen. `OrToolsSpikeTest` crashes its JVM on this machine on `dev` too.
+
+---
+
 ## 2026-10-21 - feat(ml): retrain the demand forecast on our own orders
 
 `feat/demand-retrain-tool` · @tharushaudana · [#7](https://github.com/jv-ransika/yi-yi/issues/7)

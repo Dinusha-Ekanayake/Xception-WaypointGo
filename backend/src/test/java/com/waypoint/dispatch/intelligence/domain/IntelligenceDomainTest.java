@@ -161,6 +161,15 @@ class IntelligenceDomainTest {
   }
 
   @Test
+  void aServiceHoldingSeveralModelsAnswersWhenTheActiveOneIsAmongThem() {
+    // Issue #12, R-ML-39: the image's model and the store's, each named by the request.
+    assertTrue(ModelGate.decide("delivery_risk", true, Optional.of("ours@2"), Served.loaded(List.of("image@1", "ours@2")))
+        .useModel());
+    assertGate(ModelGate.decide("delivery_risk", true, Optional.of("ours@3"), Served.loaded(List.of("image@1", "ours@2"))),
+        "has image@1, ours@2 but the active model is ours@3");
+  }
+
+  @Test
   void everyOtherCaseIsDegradedWithItsReason() {
     assertGate(ModelGate.decide("delivery_risk", false, Optional.of("m@1"), Served.loaded("m@1")), "not configured");
     assertGate(ModelGate.decide("delivery_risk", true, Optional.empty(), Served.loaded("m@1")), "no delivery_risk model");
