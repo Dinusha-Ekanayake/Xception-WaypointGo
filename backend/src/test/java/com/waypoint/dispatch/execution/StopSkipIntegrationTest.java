@@ -442,18 +442,18 @@ class StopSkipIntegrationTest {
     command(driver, "delivery:ReportFault", null,
         "{\"vehicleId\":\"" + vehicleId + "\",\"kind\":\"vehicle\",\"description\":\"clutch gone\"}", 200);
     drain();
-    // Two hours more: every store's window is missed, so each that is not a mall is asked.
-    JsonNode room = json(read(dispatcher, path + "&extraMinutes=120", 200)).get("room");
+    // An hour more, the most a store is asked to wait: each store whose window it misses is asked, never a mall.
+    JsonNode room = json(read(dispatcher, path + "&extraMinutes=60", 200)).get("room");
     assertEquals("BREAKDOWN", room.get("situation").asText(), room.toString());
     assertEquals(3, room.get("rows").size());
     JsonNode next = room.get("next");
     assertEquals("ASK", next.get("kind").asText(), next.toString());
     assertTrue(next.get("endTripToo").asBoolean(), "the driver may not go on: end trip beside it");
-    assertEquals(120, next.get("extraMinutes").asInt());
+    assertEquals(60, next.get("extraMinutes").asInt());
     java.util.List<String> asked = new java.util.ArrayList<>();
     next.get("stops").forEach(t -> asked.add(t.get("outletId").asText()));
     assertTrue(asked.contains(OUTLET) && !asked.contains(MALL_OUTLET), "a mall is never asked: " + asked);
-    read(dispatcher, path + "&extraMinutes=999", 422);
+    read(dispatcher, path + "&extraMinutes=120", 422);
 
     // The dispatcher sends each question the step names; the first store says No, the rest Yes.
     JsonNode decisions = null;
@@ -475,7 +475,7 @@ class StopSkipIntegrationTest {
           "{\"requestId\":\"" + requests.get(i) + "\",\"answer\":\"" + (i == 0 ? "no" : "yes") + "\"}", 200);
     }
 
-    JsonNode after = json(read(dispatcher, path + "&extraMinutes=120", 200)).get("room");
+    JsonNode after = json(read(dispatcher, path + "&extraMinutes=60", 200)).get("room");
     for (JsonNode r : after.get("rows")) {
       if (r.get("outletId").asText().equals(refused)) assertEquals("NO", r.get("state").asText(), after.toString());
     }
@@ -494,8 +494,8 @@ class StopSkipIntegrationTest {
         "INSERT INTO ml.message_situations (message_id, trip_id, depot_code, author_role, source, masked_text, option_order,"
             + " status, situation, confidence, model, prompt_version, created_at, answered_at, unclear)"
             + " VALUES (?, ?, ?, 'driver', 'voice', 'engine ... stopped', '{BREAKDOWN,OTHER}', 'answered', 'BREAKDOWN', 0.97,"
-            + " 'stub', 'v1', now(), now(), true)",
-        noisy, tripId.toString(), depot));
+            + " 'stub', 'v1', ?, ?, true)",
+        noisy, tripId.toString(), depot, java.sql.Timestamp.from(clock.now()), java.sql.Timestamp.from(clock.now())));
     JsonNode before = json(read(dispatcher, path, 200));
     assertTrue(before.get("room").isNull(), "an unclear reading opens nothing by itself: " + before);
     assertEquals(1, before.get("toReview").size());
@@ -503,6 +503,12 @@ class StopSkipIntegrationTest {
     assertEquals(noisy.toString(), review.get("messageId").asText());
     assertEquals("BREAKDOWN", review.get("guess").asText());
     assertTrue(review.get("unclear").asBoolean());
+    // The watcher's "Needs you" lists it too, so it is not missed with the chat closed.
+    String checks = "/api/ml/messages-to-check?depot=" + depot + "&date=" + day;
+    JsonNode listed = json(read(dispatcher, checks, 200));
+    assertEquals(1, listed.size(), listed.toString());
+    assertEquals(tripId.toString(), listed.get(0).get("tripId").asText());
+    read(farDispatcher, checks, 403);
 
     String confirm = "{\"tripId\":\"" + tripId + "\",\"messageId\":\"" + noisy + "\",\"situation\":\"%s\"}";
     command(dispatcher, "ml:ConfirmSignal", null, String.format(confirm, "FLAT_EARTH"), 422);
@@ -512,6 +518,7 @@ class StopSkipIntegrationTest {
 
     JsonNode after = json(read(dispatcher, path, 200));
     assertTrue(after.get("toReview").isEmpty(), after.toString());
+    assertTrue(json(read(dispatcher, checks, 200)).isEmpty(), "checked, it leaves Needs you");
     assertEquals("BREAKDOWN", after.get("room").get("situation").asText(), "confirmed, it opens the room");
     Map<String, Object> row = database.asSystemSeparately(ModuleRole.ML, () -> database.queryOne(
         "SELECT reviewed_by, reviewed_situation FROM ml.message_situations WHERE message_id = ?", noisy));

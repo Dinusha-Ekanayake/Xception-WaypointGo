@@ -98,7 +98,7 @@ public class MessagingQuery {
     if (t == null) return new TranscriptView("none", Optional.empty(), Optional.empty(), true);
     if ("pending".equals(t.status())) return new TranscriptView("pending", Optional.empty(), Optional.empty(), true);
     if ("done".equals(t.status()) && t.text().isPresent()) {
-      return new TranscriptView("done", t.text(), t.language(), !t.audioGone());
+      return new TranscriptView("done", t.text(), t.language(), !t.audioGone(), t.unclear());
     }
     return new TranscriptView("none", Optional.empty(), Optional.empty(), !t.audioGone());
   }

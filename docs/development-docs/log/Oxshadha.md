@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-10-23 - fix: a store manager's notification stays after it is read
+
+`dev` · @Oxshadha
+
+- The store's notifications drawer and Home card showed unread ones only, so a notification opened or marked read was gone for good. Both now keep every notification, read ones greyed as the Figma's "read rows outlined" says; only the count of new ones leaves out what was read. The test that expected removal is changed with it.
+
+---
+
+## 2026-10-23 - fix: at most an hour more; a message to check is on Needs you; an unclear transcript says so
+
+`dev` · @Oxshadha
+
+- The problem room asks a store to wait 15 min, 30 min or 1 h more, never 2 h.
+- A message waiting to be checked is a card on the dispatcher's "Needs you" with "Check it", reusing the watcher instead of a new notification; the store manager has no watcher, but every reader of a transcript the engine was unsure of sees "heard unclearly, some words may be wrong" (R-ML-37). The label sits in the shared thread component, so the driver's chat shows it too.
+
+---
+
 ## 2026-10-23 - feat: a reading in doubt is confirmed by the dispatcher before it counts
 
 `dev` · @Oxshadha

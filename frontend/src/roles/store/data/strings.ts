@@ -490,6 +490,7 @@ export const STRINGS: Record<string, [string, string]> = {
   "We are ready to receive.": ["අපි භාර ගැනීමට සූදානම්.", "பெற நாங்கள் தயார்."],
   "We can receive later today": ["අපට අද පසුව භාර ගත හැකියි", "இன்று பின்னர் பெற முடியும்"],
   "We can still receive later today. Please come when you can.": ["අපට අද පසුව තවමත් භාර ගත හැකියි. හැකි විට එන්න.", "இன்று பின்னர் இன்னும் பெற முடியும். முடிந்தபோது வாருங்கள்."],
+  "heard unclearly, some words may be wrong": ["පැහැදිලිව නොඇසුණි, සමහර වචන වැරදි විය හැක", "தெளிவாகக் கேட்கவில்லை, சில சொற்கள் தவறாக இருக்கலாம்"],
   "Understood": ["තේරුණා", "புரிந்தது"],
   "Understood, thank you.": ["තේරුණා, ස්තූතියි.", "புரிந்தது, நன்றி."],
   "Send it on the next run": ["ඊළඟ ගමනේ එවන්න", "அடுத்த பயணத்தில் அனுப்புங்கள்"],

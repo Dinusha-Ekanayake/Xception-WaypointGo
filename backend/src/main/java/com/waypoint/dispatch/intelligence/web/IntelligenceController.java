@@ -54,6 +54,7 @@ public class IntelligenceController {
   private final com.waypoint.dispatch.intelligence.application.AiExplainer explainer;
   private final com.waypoint.dispatch.intelligence.application.PlaybookQuery playbooks;
   private final com.waypoint.dispatch.intelligence.application.TripOutlookQuery tripOutlook;
+  private final com.waypoint.dispatch.intelligence.application.MessageChecksQuery messageChecks;
   private final com.waypoint.dispatch.intelligence.application.AiHealthQuery aiHealth;
 
   public IntelligenceController(
@@ -68,11 +69,13 @@ public class IntelligenceController {
       com.waypoint.dispatch.intelligence.application.AiExplainer explainer,
       com.waypoint.dispatch.intelligence.application.PlaybookQuery playbooks,
       com.waypoint.dispatch.intelligence.application.TripOutlookQuery tripOutlook,
+      com.waypoint.dispatch.intelligence.application.MessageChecksQuery messageChecks,
       com.waypoint.dispatch.intelligence.application.AiHealthQuery aiHealth) {
     this.aiHealth = aiHealth;
     this.explainer = explainer;
     this.playbooks = playbooks;
     this.tripOutlook = tripOutlook;
+    this.messageChecks = messageChecks;
     this.intelligence = intelligence;
     this.outlook = outlook;
     this.attention = attention;
@@ -319,6 +322,15 @@ public class IntelligenceController {
     return playbooks.forStop(read(request, "wpt:ml:delivery:" + deliveryId), deliveryId, situation);
   }
 
+  /** R-ML-37: the depot's messages waiting for a dispatcher to check that day, for "Needs you". */
+  @GetMapping("/messages-to-check")
+  public List<com.waypoint.dispatch.intelligence.contract.PlaybookViews.MessageCheckView> messagesToCheck(
+      @org.springframework.web.bind.annotation.RequestParam String depot,
+      @org.springframework.web.bind.annotation.RequestParam java.time.LocalDate date,
+      HttpServletRequest request) {
+    return messageChecks.forDepot(read(request, "wpt:ml:depot:" + depot), depot, date);
+  }
+
   /**
    * One trip's decision outlook (R-ML-34): the chance of each decision about the
    * trip and of each outcome for every stop still waiting, from its open reports.
@@ -329,9 +341,9 @@ public class IntelligenceController {
       @org.springframework.web.bind.annotation.RequestParam String tripId,
       @org.springframework.web.bind.annotation.RequestParam(required = false) Integer extraMinutes,
       HttpServletRequest request) {
-    if (extraMinutes != null && (extraMinutes < 0 || extraMinutes > 240)) {
+    if (extraMinutes != null && (extraMinutes < 0 || extraMinutes > 60)) {
       throw new com.waypoint.dispatch.shared.error.DomainException(
-          com.waypoint.dispatch.shared.error.ErrorCode.VALIDATION_FAILED, "extraMinutes is 0 to 240");
+          com.waypoint.dispatch.shared.error.ErrorCode.VALIDATION_FAILED, "extraMinutes is 0 to 60: a store is never asked to wait longer");
     }
     return tripOutlook.forTrip(read(request, "wpt:ml:trip:" + tripId), tripId, java.util.Optional.ofNullable(extraMinutes));
   }

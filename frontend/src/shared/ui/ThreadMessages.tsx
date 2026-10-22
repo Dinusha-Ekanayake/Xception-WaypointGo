@@ -114,6 +114,8 @@ function Transcript({ transcript, compact, tr }: { transcript: TranscriptView | 
       <div data-testid="transcript" className="flex flex-col gap-0.5">
         <span className="text-[11px] font-medium text-go-secondary">
           {tr(transcript.audioKept === false ? "Machine transcript · audio no longer kept" : "Machine transcript, check audio")}
+          {/* R-ML-37: said plainly to every reader when the machine was not sure of what it heard. */}
+          {transcript.unclear ? ` · ${tr("heard unclearly, some words may be wrong")}` : ""}
           {transcript.language ? ` · ${tr(LANGUAGE_NAME[transcript.language])}` : ""}
         </span>
         <p lang={transcript.language ?? undefined} className="whitespace-pre-wrap break-words italic">{transcript.text}</p>

@@ -6,7 +6,7 @@ import PageHeader from "../PageHeader.tsx";
 import { byUrgency, punctuality, vehicleDay } from "../data/live.ts";
 import { closedOnTheirOwn, depotSummaries, filterRuns, goodsToday, needCards, runsOf, summaryText, type RunFilter } from "../data/liveDesk.ts";
 import { dayLabel } from "../data/scope.ts";
-import { useIssues, useLive, usePositions, useReports } from "../data/useDay.ts";
+import { useIssues, useMessageChecks, useLive, usePositions, useReports } from "../data/useDay.ts";
 import { useDispatcherInbox } from "../inbox.tsx";
 import { tripOf, useOpenTripThread } from "../data/threads.ts";
 import DayPicker from "./DayTools.tsx";
@@ -51,6 +51,7 @@ export default function Live({
   const live = useLive(depots, date);
   const positions = usePositions(depots, date);
   const issues = useIssues(depots);
+  const checks = useMessageChecks(depots, date);
   const reports = useReports(depots, date);
   const inbox = useDispatcherInbox();
   const openTripThread = useOpenTripThread();
@@ -84,7 +85,7 @@ export default function Live({
   const inDepot = filterRuns(runs, depot, "all").runs;
   const shown = filterRuns(runs, depot, filter);
   const depotIssues = (issues.data ?? []).filter((i) => depot === "all" || i.depotCode === depot);
-  const cards = needCards(inDepot, depotIssues, date, now);
+  const cards = needCards(inDepot, depotIssues, date, now, checks.data ?? []);
   const goods = goodsToday(depotIssues, date);
   const onTheRoad = inDepot.filter((r) => r.day.state !== "finished").length;
   const atDock = (live.data?.dock ?? []).filter((t) => t.releasedAt === null && (depot === "all" || depotOf[t.vehicleId] === depot)).length;

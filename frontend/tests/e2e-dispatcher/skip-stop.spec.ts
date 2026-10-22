@@ -238,7 +238,7 @@ test("a breakdown's room asks the stores whose window it misses, in one tap, and
     next: {
       kind: "ASK", why: "Nobody can choose a store's delivery before it says when it can receive.",
       stops: [{ deliveryId: "d-VEH020-2", outletId: "OUT063", receiveAt: "2027-03-01T12:40:00Z", rowVersion: 1 }],
-      about: null, extraMinutes: 60, extras: [30, 60, 120], endTripToo: true,
+      about: null, extraMinutes: 60, extras: [15, 30, 60], endTripToo: true,
     },
   });
   const chat = page.getByRole("dialog", { name: "Trip messages" });
@@ -258,8 +258,10 @@ test("a breakdown's room asks the stores whose window it misses, in one tap, and
     await page.screenshot({ path: `${process.env.SHOTS_DIR}/25-problem-room-ask.png` });
   }
 
-  await room.getByRole("radio", { name: "+2 h" }).click();
-  await expect.poll(() => asked.some((q) => q.includes("extraMinutes=120"))).toBe(true);
+  // Never more than an hour more: past that, asking a store to wait helps nobody.
+  await expect(room.getByRole("radio")).toHaveText(["+15 min", "+30 min", "+1 h"]);
+  await room.getByRole("radio", { name: "+15 min" }).click();
+  await expect.poll(() => asked.some((q) => q.includes("extraMinutes=15"))).toBe(true);
 
   await room.getByRole("button", { name: /^Ask OUT063: receive at about/ }).click();
   await expect.poll(() => desk.commands.find((c) => c.kind === "issue:AskDecision")?.payload).toEqual({
@@ -404,4 +406,24 @@ test("a voice note heard over noise is put to the dispatcher to confirm in one t
   await expect.poll(() => desk.commands.find((c) => c.kind === "ml:ConfirmSignal")?.payload).toEqual({
     tripId: "t-VEH020", messageId: "m1", situation: "BREAKDOWN",
   });
+});
+
+test("a message waiting to be checked is a card in Needs you, and Check it opens its trip's chat (R-ML-37)", async ({ page }) => {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
+    said("m1", "2027-03-01T10:05:00Z", { authorName: "Dilan R.", authorRole: "driver", audience: "dispatch", body: "Voice note" }),
+  ]);
+  await serve(page, { ...liveDay(), threads: [thread] });
+  await page.route("**/api/ml/messages-to-check**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify([{ tripId: "t-VEH020", message: { messageId: "m1", guess: "BREAKDOWN", unclear: true, source: "voice", authorRole: "driver", outletId: null } }]),
+  }));
+  await page.goto("/#/live");
+  const needs = page.getByRole("region", { name: "Needs you" });
+  const card = needs.getByRole("listitem").filter({ hasText: "VEH020 · a message to check" });
+  await expect(card).toContainText("the driver's voice note was hard to hear · looks like a breakdown");
+  await expect(card).toContainText("the machine was not sure");
+  await card.getByRole("button", { name: "Check it" }).click();
+  await expect(page.getByRole("dialog", { name: "Trip messages" })).toBeVisible();
 });

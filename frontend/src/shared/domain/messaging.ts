@@ -143,4 +143,6 @@ export type TranscriptView = {
   language: "en" | "si" | "ta" | null;
   /** R-MSG-15: false once the audio passed its retention and only the words are left. Absent from an older server. */
   audioKept?: boolean;
+  /** R-ML-37: the engine said noise or cut-off words leave part of it uncertain; every reader is told. */
+  unclear?: boolean;
 };

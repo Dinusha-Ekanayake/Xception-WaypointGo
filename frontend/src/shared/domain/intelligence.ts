@@ -449,6 +449,9 @@ export type TripOutlookView = {
   toReview: { messageId: string; guess: string | null; unclear: boolean; source: string; authorRole: string; outletId: string | null }[];
 };
 
+/** GET /api/ml/messages-to-check?depot=&date=: a message waiting for a dispatcher to check, for "Needs you" (R-ML-37). */
+export type MessageCheckView = { tripId: string; message: TripOutlookView["toReview"][number] };
+
 export type RoomState =
   | "NOT_ASKED" | "MALL_CANNOT_WAIT" | "IN_WINDOW" | "ASKED" | "YES" | "NO" | "NO_ANSWER"
   | "DOCK_ASKED" | "DOCK_YES" | "DOCK_NO" | "SKIPPED" | "DELIVERED";

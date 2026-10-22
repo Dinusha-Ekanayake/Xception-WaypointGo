@@ -107,8 +107,14 @@ public final class MessagingViews {
    * @param language en, si or ta, as the engine named it
    * @param audioKept false once the note's audio passed its retention and only the
    *     words are left (R-MSG-15): the screen says the audio is no longer kept
+   * @param unclear the engine said noise or cut-off words leave part of it uncertain: every reader is told (R-ML-37)
    */
-  public record TranscriptView(String status, Optional<String> text, Optional<String> language, boolean audioKept) {}
+  public record TranscriptView(String status, Optional<String> text, Optional<String> language, boolean audioKept,
+      boolean unclear) {
+    public TranscriptView(String status, Optional<String> text, Optional<String> language, boolean audioKept) {
+      this(status, text, language, audioKept, false);
+    }
+  }
 
   /** A page of messages, newest first; {@code nextCursor} reads older ones. */
   public record MessagePage(List<MessageView> items, Optional<String> nextCursor) {

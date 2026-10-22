@@ -66,6 +66,9 @@ public final class PlaybookViews {
   public record ReviewView(String messageId, Optional<String> guess, boolean unclear, String source, String authorRole,
       Optional<String> outletId) {}
 
+  /** R-ML-37: a message waiting to be checked, on the depot's "Needs you". */
+  public record MessageCheckView(String tripId, ReviewView message) {}
+
   /** R-ML-36: the problem, each store's row and the one next step. */
   public record RoomView(String situation, List<RowView> rows, StepView next) {}
 

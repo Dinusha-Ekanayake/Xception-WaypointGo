@@ -1,4 +1,4 @@
-import type { FuelView, IssueView, ReadyTripView, RunSheetStopView, PresenceView, StoreAnswerWaiverReason, VehiclePositionView } from "@shared/domain/types";
+import type { FuelView, IssueView, MessageCheckView, ReadyTripView, RunSheetStopView, PresenceView, StoreAnswerWaiverReason, VehiclePositionView } from "@shared/domain/types";
 import { mapStatus, type MapStatus, type VehicleDay } from "./live.ts";
 import { clockOn, dayOf } from "../../../shared/wording/index.ts";
 
@@ -108,7 +108,7 @@ const WAIVED: Record<StoreAnswerWaiverReason, string> = {
 
 export type NeedCard = {
   id: string;
-  kind: "window" | "offline" | "failed" | "issue" | "left";
+  kind: "window" | "offline" | "failed" | "issue" | "left" | "check";
   /** Minutes to act, for the order and the chip; null when there is no clock. */
   minutesLeft: number | null;
   chip: { text: string; tone: Tone };
@@ -117,6 +117,18 @@ export type NeedCard = {
   detail: string;
   vehicleId: string | null;
   issueId: string | null;
+  /** A message to check: the trip whose chat holds it (R-ML-37). */
+  tripId?: string;
+};
+
+/** How a message to check is said on its card. */
+const CHECK_WORDS: Record<string, string> = {
+  BREAKDOWN: "a breakdown",
+  ROAD_BLOCKED: "a blocked road",
+  RUNNING_LATE: "running late",
+  STORE_CLOSED: "a store closed",
+  CANNOT_UNLOAD: "cannot unload",
+  GOODS_PROBLEM: "a goods problem",
 };
 
 /**
@@ -124,8 +136,30 @@ export type NeedCard = {
  * whose window will close before the vehicle gets there, a vehicle whose phone
  * has gone quiet, a stop not delivered, and an open issue on a delivery.
  */
-export function needCards(runs: Run[], issues: IssueView[], date: string, now: Date): NeedCard[] {
+export function needCards(runs: Run[], issues: IssueView[], date: string, now: Date, checks: MessageCheckView[] = []): NeedCard[] {
   const cards: NeedCard[] = [];
+  // R-ML-37: a message the machine read unsure, or heard over noise, waits for the dispatcher to check it.
+  for (const check of checks) {
+    const run = runs.find((r) => r.day.stops.some((s) => s.tripId === check.tripId));
+    if (!run) continue;
+    const m = check.message;
+    const who = m.authorRole === "store_manager" ? (m.outletId ? `${m.outletId}'s` : "a store's") : "the driver's";
+    cards.push({
+      id: `check-${m.messageId}`,
+      kind: "check",
+      minutesLeft: null,
+      chip: { text: "Check", tone: "warning" },
+      meta: "the machine was not sure",
+      title: `${run.day.vehicleId} · a message to check`,
+      detail: [
+        `${who} ${m.source === "voice" ? "voice note" : "message"} ${m.unclear ? "was hard to hear" : "was read unsure"}`,
+        m.guess ? `looks like ${CHECK_WORDS[m.guess] ?? m.guess.toLowerCase()}` : null,
+      ].filter(Boolean).join(" · "),
+      vehicleId: run.day.vehicleId,
+      issueId: null,
+      tripId: check.tripId,
+    });
+  }
   for (const run of runs) {
     const next = run.day.current;
     const left = next ? Math.round((windowCloseAt(date, next) - now.getTime()) / 60_000) : null;
@@ -222,7 +256,9 @@ export function needCards(runs: Run[], issues: IssueView[], date: string, now: D
     });
   }
   // Failed stops first, then by minutes to act; an issue comes before a proof owed.
-  const rank = (c: NeedCard): number => (c.kind === "failed" ? -1e9 : c.kind === "issue" ? 1e7 : c.minutesLeft ?? 1e9);
+  // A message to check comes right after a failed stop: it may be the problem itself.
+  const rank = (c: NeedCard): number =>
+    c.kind === "failed" ? -1e9 : c.kind === "check" ? -1e8 : c.kind === "issue" ? 1e7 : c.minutesLeft ?? 1e9;
   return cards.sort((a, b) => rank(a) - rank(b));
 }
 

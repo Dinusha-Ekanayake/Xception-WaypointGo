@@ -28,6 +28,11 @@ export function when(createdAt: string, now: Date = businessNow()): string {
 
 export type OpenSubject = (n: NotificationView) => void;
 
+/** Every notification, newest first as the inbox gives them, a row opened here shown read at once. */
+function seen(items: NotificationView[], readIds: Set<string>): NotificationView[] {
+  return items.map((n) => (readIds.has(n.notificationId) && isUnread(n) ? { ...n, readAt: n.readAt ?? new Date().toISOString() } : n));
+}
+
 function Row({ n, onOpen }: { n: NotificationView; onOpen: (n: NotificationView) => void }): React.JSX.Element {
   return (
     <li>
@@ -96,8 +101,9 @@ export function NotificationsDrawer({
     onSubject(n);
   });
 
-  const visibleItems = inbox.items.filter((n) => isUnread(n) && !readIds.has(n.notificationId));
-  const unread = visibleItems.length;
+  // Read ones stay, greyed (Figma: "read rows outlined"); only the count of new ones leaves out what was read.
+  const visibleItems = seen(inbox.items, readIds);
+  const unread = visibleItems.filter(isUnread).length;
 
   const handleOpen = (n: NotificationView) => {
     setReadIds((prev) => new Set(prev).add(n.notificationId));
@@ -214,8 +220,9 @@ export function NotificationsCard({ inbox, onSubject, onAll }: { inbox: Inbox; o
   const t = useT();
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
   const { open, error } = useOpen(inbox, onSubject);
-  const visibleItems = inbox.items.filter((n) => isUnread(n) && !readIds.has(n.notificationId));
-  const unread = visibleItems.length;
+  // Read ones stay, greyed (Figma: "read rows outlined"); only the count of new ones leaves out what was read.
+  const visibleItems = seen(inbox.items, readIds);
+  const unread = visibleItems.filter(isUnread).length;
 
   const handleOpen = (n: NotificationView) => {
     setReadIds((prev) => new Set(prev).add(n.notificationId));

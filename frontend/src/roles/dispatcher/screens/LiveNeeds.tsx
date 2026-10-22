@@ -64,6 +64,8 @@ export default function LiveNeeds({
   // server once; while it cannot be read, a card offers no steps rather than old ones.
   const playbooks = usePlaybooks();
   const suggest = (card: NeedCard): { suggestion: Suggestion; tripId: string | null; outletId: string | null } | null => {
+    // A message to check has no playbook: checking it is the step.
+    if (card.kind === "check") return null;
     const playbook = playbookOf(playbooks.data, card.kind);
     if (!playbook) return null;
     const run = runs.find((r) => r.day.vehicleId === card.vehicleId);
@@ -119,6 +121,11 @@ export default function LiveNeeds({
         {card.kind === "issue" && card.issueId && (
           <Action primary className="flex-1" onClick={() => onOpenIssue(card.issueId!)}>
             Book make-up
+          </Action>
+        )}
+        {card.kind === "check" && card.tripId && (
+          <Action primary className="flex-1" onClick={() => void openThread(card.tripId!).then(setNote)}>
+            Check it
           </Action>
         )}
         {(card.kind === "failed" || card.kind === "left") && card.vehicleId && (

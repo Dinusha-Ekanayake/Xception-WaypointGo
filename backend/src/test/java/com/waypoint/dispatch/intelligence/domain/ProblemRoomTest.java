@@ -181,6 +181,13 @@ class ProblemRoomTest {
   }
 
   @Test
+  void aStoreIsNeverAskedToWaitMoreThanAnHourMore() {
+    Room r = ProblemRoom.of(new Problem(Situation.BREAKDOWN, Optional.empty(), NOW), List.of(A), List.of(), NOW, Optional.of(Duration.ofHours(2)));
+    assertEquals(Optional.of(at(80)), r.next().stops().get(0).receiveAt(), "two hours asked is an hour");
+    assertEquals(List.of(Duration.ofMinutes(15), Duration.ofMinutes(30), Duration.ofHours(1)), ProblemRoom.EXTRAS);
+  }
+
+  @Test
   void aTimeAskedIsOnAFiveMinuteMarkAtLeastFiveMinutesAheadAndAtMostFourHours() {
     assertEquals(at(5), ProblemRoom.roundUp(NOW, NOW));
     assertEquals(at(25), ProblemRoom.roundUp(at(21), NOW));

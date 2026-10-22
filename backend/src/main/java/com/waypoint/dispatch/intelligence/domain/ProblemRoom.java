@@ -31,8 +31,11 @@ public final class ProblemRoom {
     return s == Situation.BREAKDOWN ? Duration.ofHours(1) : Duration.ofMinutes(30);
   }
 
-  /** The choices of extra time beside the ask. */
-  public static final List<Duration> EXTRAS = List.of(Duration.ofMinutes(30), Duration.ofHours(1), Duration.ofHours(2));
+  /** The choices of extra time beside the ask; never more than an hour, past which asking a store to wait helps nobody. */
+  public static final List<Duration> EXTRAS = List.of(Duration.ofMinutes(15), Duration.ofMinutes(30), Duration.ofHours(1));
+
+  /** The most extra time a store is asked to wait for. */
+  public static final Duration MOST_EXTRA = Duration.ofHours(1);
 
   static final Set<Situation> TRIP_WIDE = Set.of(Situation.BREAKDOWN, Situation.ROAD_BLOCKED, Situation.RUNNING_LATE);
   static final Set<Situation> AT_A_STOP = Set.of(Situation.STORE_CLOSED, Situation.CANNOT_UNLOAD);
@@ -95,7 +98,8 @@ public final class ProblemRoom {
    */
   public static Room of(Problem p, List<Stop> stops, List<Ask> asks, Instant now, Optional<Duration> extra) {
     List<Stop> trip = stops.stream().sorted(Comparator.comparingInt(Stop::sequence)).toList();
-    Duration added = extra.orElse(firstExtra(p.situation()));
+    Duration picked = extra.orElse(firstExtra(p.situation()));
+    Duration added = picked.compareTo(MOST_EXTRA) > 0 ? MOST_EXTRA : picked;
     List<Row> rows = new ArrayList<>();
     for (Stop s : trip) {
       rows.add(row(p, s, trip, asks, added));

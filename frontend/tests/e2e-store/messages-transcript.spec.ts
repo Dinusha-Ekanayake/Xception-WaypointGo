@@ -43,3 +43,16 @@ test("a voice note shows its transcript under the play button, and a typed messa
   await expect(sheet.getByRole("button", { name: "Play" }).first()).toBeVisible();
   await expect(sheet.getByRole("button", { name: /Listen/ }).first()).toBeVisible();
 });
+
+test("a transcript the machine heard unclearly says so plainly, in the reader's words (R-ML-37)", async ({ page }) => {
+  const thread = tripThread("trip-1", "VEH043", ["OUT085"], "store_manager", [
+    said("m1", at(12), { body: "Running 20 min late, now expected 06:05", audience: "outlet", audienceOutlet: "OUT085" }),
+    said("v1", at(6), {
+      body: "", audience: "outlet", audienceOutlet: "OUT085", voiceNoteId: "voice-1", voiceDurationMs: 8000,
+      transcript: { status: "done", text: "lorry ... break ... wela", language: "en", unclear: true },
+    }),
+  ]);
+  await mockStore(page, { threads: [thread] });
+  const sheet = await openThread(page);
+  await expect(sheet.getByTestId("transcript")).toContainText("Machine transcript, check audio · heard unclearly, some words may be wrong");
+});

@@ -87,6 +87,15 @@ public class JdbcMessageSituations {
         .toList();
   }
 
+  /** A depot's readings in a time span that nobody confirmed or took off, for "Needs you"; row-level security keeps it to the reader's depots. */
+  public List<Map<String, Object>> unconfirmed(String depotCode, Instant from, Instant to) {
+    return database.query(
+        "SELECT message_id, trip_id, situation, confidence, author_role, outlet_id, source, unclear FROM ml.message_situations"
+            + " WHERE depot_code = ? AND status = 'answered' AND reviewed_at IS NULL AND dismissed_at IS NULL"
+            + " AND created_at >= ? AND created_at < ? ORDER BY created_at",
+        depotCode, Timestamp.from(from), Timestamp.from(to));
+  }
+
   /** Rule 9: a trip's words that could not be read, waiting since before {@code waitingSince} or given up on. */
   public int unread(String tripId, Instant waitingSince) {
     return ((Number) database.queryOne(

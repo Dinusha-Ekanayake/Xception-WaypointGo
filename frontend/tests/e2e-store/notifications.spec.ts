@@ -59,7 +59,7 @@ test("a deferral notice opens its order", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: /ORD/ })).toBeVisible();
 });
 
-test("the drawer header Read all button marks all read and removes items from the list", async ({ page }) => {
+test("the drawer header Read all button marks all read, and the notifications stay, shown as read", async ({ page }) => {
   await mockStore(page);
   const sent = await inbox(page);
   await page.goto("/");
@@ -72,7 +72,23 @@ test("the drawer header Read all button marks all read and removes items from th
   await drawer.getByRole("button", { name: "Read all" }).click();
   await expect.poll(() => sent.map((c) => c.kind)).toEqual(["notification:MarkAllRead"]);
   await expect(drawer).toContainText("All caught up");
-  await expect(drawer.getByRole("button", { name: /Order deferred/ })).toHaveCount(0);
+  // Read is not gone: the store can still open what it was told (Figma: read rows outlined).
+  const deferral = drawer.getByRole("button", { name: /Order deferred/ });
+  await expect(deferral).toBeVisible();
+  await expect(deferral).not.toHaveAccessibleName(/^Unread\./);
+});
+
+test("an opened notification is still there afterwards, shown as read", async ({ page }) => {
+  await mockStore(page);
+  await inbox(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: /^Notifications/ }).first().click();
+  await page.getByRole("dialog", { name: "Notifications" }).getByRole("button", { name: /Order deferred\. Order deferred/ }).click();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: /^Notifications/ }).first().click();
+  const again = page.getByRole("dialog", { name: "Notifications" }).getByRole("button", { name: /Order deferred/ });
+  await expect(again).toBeVisible();
+  await expect(again).not.toHaveAccessibleName(/^Unread\./);
 });
 
 test("on a phone the bell carries a dot and opens the bottom sheet", async ({ page }) => {
