@@ -55,6 +55,7 @@ public class IntelligenceController {
   private final com.waypoint.dispatch.intelligence.application.PlaybookQuery playbooks;
   private final com.waypoint.dispatch.intelligence.application.TripOutlookQuery tripOutlook;
   private final com.waypoint.dispatch.intelligence.application.ReplyDraftQuery replyDrafts;
+  private final com.waypoint.dispatch.intelligence.application.DraftRiskQuery draftRisks;
   private final com.waypoint.dispatch.intelligence.application.MessageChecksQuery messageChecks;
   private final com.waypoint.dispatch.intelligence.application.AiHealthQuery aiHealth;
 
@@ -71,6 +72,7 @@ public class IntelligenceController {
       com.waypoint.dispatch.intelligence.application.PlaybookQuery playbooks,
       com.waypoint.dispatch.intelligence.application.TripOutlookQuery tripOutlook,
       com.waypoint.dispatch.intelligence.application.ReplyDraftQuery replyDrafts,
+      com.waypoint.dispatch.intelligence.application.DraftRiskQuery draftRisks,
       com.waypoint.dispatch.intelligence.application.MessageChecksQuery messageChecks,
       com.waypoint.dispatch.intelligence.application.AiHealthQuery aiHealth) {
     this.aiHealth = aiHealth;
@@ -78,6 +80,7 @@ public class IntelligenceController {
     this.playbooks = playbooks;
     this.tripOutlook = tripOutlook;
     this.replyDrafts = replyDrafts;
+    this.draftRisks = draftRisks;
     this.messageChecks = messageChecks;
     this.intelligence = intelligence;
     this.outlook = outlook;
@@ -173,6 +176,15 @@ public class IntelligenceController {
   }
 
   /** Every stop's expected service minutes and P(late), and whether a model or the fallback answered. */
+  /**
+   * A draft plan's late risk, scored now by the active model or the built-in
+   * estimate (R-ML-48); advice for the dispatcher before publishing, kept nowhere.
+   */
+  @GetMapping("/plans/{planId}/draft-risk")
+  public PlanPredictionsView draftRisk(@PathVariable UUID planId, HttpServletRequest request) {
+    return draftRisks.risk(read(request, "wpt:ml:plan:" + planId), planId);
+  }
+
   @GetMapping("/plans/{planId}/predictions")
   public PlanPredictionsView predictions(@PathVariable UUID planId, HttpServletRequest request) {
     return intelligence.predictionsFor(read(request, "wpt:ml:plan:" + planId), planId);

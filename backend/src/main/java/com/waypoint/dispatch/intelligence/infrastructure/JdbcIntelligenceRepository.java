@@ -304,6 +304,20 @@ public class JdbcIntelligenceRepository {
    * attempts. Locked so two instances never take the same plan, then leased past
    * the call so it is not claimed again while it is being scored.
    */
+  /**
+   * Plans from {@code from} on that the fallback scored before the active model
+   * was activated: owed a scoring again. Once rescored they are newer than the
+   * activation, so a model that keeps failing does not requeue them again.
+   */
+  public int requeueFallbackScorings(LocalDate from, Instant activatedAt, Instant now) {
+    return database.update(
+        "UPDATE ml.plan_scorings SET attempts = 0, next_attempt_at = ?, row_version = row_version + 1"
+            + " WHERE status = 'degraded' AND service_date >= ? AND scored_at < ?"
+            // Only those with no retry or lease pending: a plan being scored right now is left alone.
+            + " AND next_attempt_at IS NULL",
+        Timestamp.from(now), Date.valueOf(from), Timestamp.from(activatedAt));
+  }
+
   public List<DueScoring> claimDue(Instant now, Instant leaseUntil, int limit, int maxAttempts) {
     List<DueScoring> due = database.query(
             """

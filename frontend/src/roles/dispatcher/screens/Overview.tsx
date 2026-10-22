@@ -15,6 +15,7 @@ import { summarise } from "../data/fleet.ts";
 import { depotStamp, depotToday, greeting } from "../data/scope.ts";
 import { useIssues, useOrders } from "../data/useDay.ts";
 import type { ViewId } from "../navigation.ts";
+import ForecastGlance from "./ForecastGlance.tsx";
 
 // Figma "02 Overview": today's depot at a glance, every tile from the module
 // that owns the fact: orders and deferrals from Ordering and Planning, the
@@ -65,6 +66,7 @@ export default function Overview({
       <div className="flex min-h-0 w-full flex-1 gap-5 max-lg:flex-col">
         <div className="flex min-w-0 flex-1 flex-col gap-5">
           <PlanDayCard depots={depots} onOpenPlan={onOpenPlan} />
+          <ForecastGlance depots={depots} onOpen={() => onNavigate("forecast")} />
           <OrdersCard depots={depots} orders={orders.data} error={orders.error} scopeLabel={scopeLabel} onNavigate={onNavigate} />
           <SummaryCard depots={depots} scope={scope} depotFilter={depotFilter} onDepotFilter={onDepotFilter} issues={issues.data} onNavigate={onNavigate} />
         </div>

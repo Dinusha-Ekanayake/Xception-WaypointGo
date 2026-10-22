@@ -333,6 +333,56 @@ class IntelligenceIntegrationTest {
   }
 
   @Test
+  void aDraftsRiskIsScoredByTheActiveModelWhenAskedAndKeptNowhereANoticeReads() throws Exception {
+    // R-ML-48: the dispatcher sees the late risk before publishing; nothing is stored for a draft.
+    String label = activate("delivery_risk");
+    STUB.riskLabel.set(label);
+    demand();
+    demand();
+    JsonNode queued = result(send(dispatcher, envelope("plan:Generate", null,
+        "{\"depotCode\":\"" + depot + "\",\"serviceDate\":\"" + serviceDate + "\"}"), 200));
+    worker.runPending();
+    UUID planId = UUID.fromString(read(dispatcher, "/api/plans/jobs/" + queued.get("jobId").asText() + "?depot=" + depot, 200)
+        .get("planId").asText());
+
+    JsonNode risk = read(dispatcher, "/api/ml/plans/" + planId + "/draft-risk", 200);
+    assertEquals("SCORED", risk.at("/scoring/status").asText());
+    assertEquals(label, risk.at("/scoring/modelLabel").asText());
+    assertFalse(risk.get("stops").isEmpty());
+    for (JsonNode st : risk.get("stops")) {
+      assertEquals(StubModelServer.LATE, st.get("lateProbability").asDouble(), 1e-9);
+    }
+    long kept = ((Number) database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT (SELECT count(*) FROM ml.delivery_predictions WHERE plan_id = ?) + (SELECT count(*) FROM ml.plan_scorings WHERE plan_id = ?) AS n",
+        planId, planId)).get("n")).longValue();
+    assertEquals(0L, kept, "a draft's risk is kept nowhere a notice, an outcome or a metric reads");
+    read(stranger, "/api/ml/plans/" + planId + "/draft-risk", 403);
+  }
+
+  @Test
+  void aPlanTheFallbackScoredIsScoredAgainOnceAModelIsActivatedAndOnlyOnce() throws Exception {
+    // A model activated after the fallback scored today's and later plans takes them over.
+    String label = activate("delivery_risk");
+    STUB.riskLabel.set(label);
+    UUID planId = publishedPlan();
+    scoreUntilDone(planId);
+    // As if the fallback had scored it an hour before this model was activated, with no retry pending.
+    database.asSystem(ModuleRole.ML, () -> database.update(
+        "UPDATE ml.plan_scorings SET status = 'degraded', model_version_id = NULL, model_label = 'deterministic',"
+            + " reason = 'no model answered', scored_at = now() - interval '2 hours', next_attempt_at = NULL WHERE plan_id = ?",
+        planId));
+    database.asSystem(ModuleRole.ML, () -> database.update(
+        "UPDATE ml.model_versions SET activated_at = now() - interval '1 hour' WHERE status = 'active' AND kind = 'delivery_risk'"));
+    scoring.runAt(Instant.now().plusSeconds(1));
+    JsonNode after = read(dispatcher, "/api/ml/plans/" + planId + "/predictions", 200);
+    assertEquals("SCORED", after.at("/scoring/status").asText());
+    assertEquals(label, after.at("/scoring/modelLabel").asText());
+    // Once rescored it is newer than the activation: a second run does not queue it again.
+    scoring.runAt(Instant.now().plusSeconds(2));
+    assertEquals(null, scoringRow(planId).get("next_attempt_at"));
+  }
+
+  @Test
   void aPublishedPlanIsScoredByTheActiveModelAndStampedWithIt() throws Exception {
     String label = activate("delivery_risk");
     STUB.riskLabel.set(label);

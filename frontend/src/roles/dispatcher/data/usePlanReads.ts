@@ -171,19 +171,24 @@ export function useNextDelivery(serviceDate: string): Resource<string> {
  * scored", which the screen says, so the read is skipped for a draft and an
  * answer of none is not an error.
  */
-export function usePredictions(planId: string | null): Resource<PlanPredictionsView | null> {
+/**
+ * A plan's late risk: the stored scoring of a published plan, or (R-ML-48) a
+ * draft's risk scored when asked, read again whenever the draft changes
+ * ({@code stamp}). The draft's is advice only and kept nowhere.
+ */
+export function usePredictions(planId: string | null, draft = false, stamp = ""): Resource<PlanPredictionsView | null> {
   return useResource(
     planId === null
       ? null
       : async (signal) => {
           try {
-            return await request<PlanPredictionsView>(`/api/ml/plans/${q(planId)}/predictions`, { signal });
+            return await request<PlanPredictionsView>(`/api/ml/plans/${q(planId)}/${draft ? "draft-risk" : "predictions"}`, { signal });
           } catch (failure) {
             if (failure instanceof ApiError && failure.status === 404) return null;
             throw failure;
           }
         },
-    `predictions|${planId ?? ""}`,
+    `predictions|${planId ?? ""}|${draft ? `draft|${stamp}` : ""}`,
   );
 }
 

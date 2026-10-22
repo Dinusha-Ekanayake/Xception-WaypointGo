@@ -124,7 +124,7 @@ public class ForecastJob implements ScheduledJob {
     return database.asSystem(ModuleRole.ML, () -> ForecastSchedule.due(
         now,
         repository.latestForecastRun().map(r -> new ForecastSchedule.LastRun(r.at(), r.degraded())),
-        repository.activeModel(ModelViews.DEMAND_FORECAST).isPresent(),
+        repository.activeModel(ModelViews.DEMAND_FORECAST).map(m -> m.view().activatedAt().orElse(Instant.MIN)),
         Clock.OPERATING_ZONE));
   }
 

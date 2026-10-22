@@ -480,3 +480,32 @@ export function clashText(vehicleId: string, c: NonNullable<ReturnType<typeof wo
   const fleet = c.chilled ? "refrigerated capacity" : "fleet capacity";
   return `The week of ${weekDate(c.week)} is forecast at ${m3(c.demand)} of ${what}; without ${vehicleId} that day the week has ${m3(Math.max(0, c.left))} of ${fleet}${c.alreadyShort ? ", already short before this" : ""}.`;
 }
+
+/**
+ * A week ahead against what the fleet can carry that week (Task 2A in planning):
+ * the share of the fleet's room and of the reefers' room the forecast fills, and
+ * how hard to say it. "over" past the room, "tight" from 90%.
+ */
+export type WeekAhead = {
+  week: ForecastWeek;
+  fleetShare: number | null;
+  reeferShare: number | null;
+  tone: "over" | "tight" | "fine";
+};
+
+export const TIGHT_SHARE = 0.9;
+
+export function weekAhead(week: ForecastWeek): WeekAhead {
+  const fleetShare = week.fleetM3 > 0 ? week.total / week.fleetM3 : null;
+  const reeferShare = week.refrigeratedM3 > 0 ? week.chilled / week.refrigeratedM3 : week.chilled > 0 ? Infinity : null;
+  const worst = Math.max(fleetShare ?? 0, reeferShare ?? 0);
+  return { week, fleetShare, reeferShare, tone: worst > 1 ? "over" : worst >= TIGHT_SHARE ? "tight" : "fine" };
+}
+
+/** Who made the numbers, in the screen's words: never a model's name when the estimate answered. */
+export function forecastSource(f: Pick<Forecast, "modelLabel" | "degraded" | "status">): string {
+  if (f.status !== "READY") return "No forecast yet";
+  if (f.degraded || !f.modelLabel || f.modelLabel === "deterministic") return "Estimated from past orders, no model";
+  if (f.modelLabel === "mixed") return "Model forecast for some depots, estimate for others";
+  return "Model forecast";
+}

@@ -287,6 +287,16 @@ class IntelligenceDomainTest {
         "with no model a retry would only write the fallback again");
   }
 
+  @Test
+  void aModelActivatedAfterAFallbackRunIsOwedAForecastAtOnce() {
+    var last = ran("2026-10-03T14:00", true);
+    var now = colombo("2026-10-03T15:05");
+    assertTrue(ForecastSchedule.due(now, last, Optional.of(colombo("2026-10-03T15:00")), COLOMBO), "activated after the run");
+    assertFalse(ForecastSchedule.due(now, last, Optional.of(colombo("2026-10-03T13:00")), COLOMBO), "activated before: the six hours stand");
+    assertEquals(colombo("2026-10-03T16:00"),
+        ForecastSchedule.nextRun(now, last, Optional.of(colombo("2026-10-03T15:00")), COLOMBO), "the next hourly run");
+  }
+
   // ---- routes ---------------------------------------------------------------------------------
 
   private static TripFacts trip(List<StopFacts> stops) {

@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-22 - feat: the Datathon models in planning, and the fixes that made them answer
+
+`dev` · @Oxshadha
+
+- Asked by @Oxshadha: the Task 1 and 2A models were built in but nothing showed them. They were never registered anywhere, and once activated locally neither answered for any date after 2026-06-28: generated calendar days had no paydays and an empty road table broke the features. Fixed both (R-CAL-05, ML-82).
+- Activating a model now takes effect by itself: plans the fallback scored are scored again once, and the forecast runs at the next hour (ML-83).
+- Task 1 on the draft: the plan board shows the late risk before publishing, scored on demand and stored nowhere a notice reads (R-ML-48). Task 2A on Overview: the next two weeks against the fleet's and the refrigerated room, saying whether a model or the estimate made the numbers.
+- Checked locally with both models active: 143 stops scored by the model (late chance 16.6% on average against the estimate's 4.1%), 60 forecast rows by the model, a Saturday draft showing "1 high, on this draft".
+
+---
+
 ## 2026-10-22 - fix: a store's older Yes no longer tells the driver it will receive
 
 `dev` · @Oxshadha

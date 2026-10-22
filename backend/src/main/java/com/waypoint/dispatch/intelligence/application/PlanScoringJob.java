@@ -161,6 +161,11 @@ public class PlanScoringJob implements ScheduledJob {
 
   /** @return how many plans were scored, by a model or deterministically */
   int runAt(Instant now) {
+    // A late-risk model activated after the fallback scored today's and later plans scores them again.
+    database.asSystem(ModuleRole.ML, () -> repository.activeModel(ModelViews.DELIVERY_RISK)
+        .flatMap(m -> m.view().activatedAt())
+        .map(at -> repository.requeueFallbackScorings(now.atZone(Clock.OPERATING_ZONE).toLocalDate(), at, now))
+        .orElse(0));
     List<DueScoring> due =
         database.asSystem(ModuleRole.ML, () -> repository.claimDue(
             now, now.plus(LEASE), properties.scoringBatch(), properties.maxAttempts()));
@@ -273,6 +278,52 @@ public class PlanScoringJob implements ScheduledJob {
       metrics.increment("waypoint.ml.fallback", "operation", "delivery_risk", "reason", category(why));
     }
     shadow(g, loaded, now);
+  }
+
+  /** A plan's risk scored now and kept nowhere (R-ML-48), for a draft the dispatcher is still deciding. */
+  public record Preview(PlanView plan, List<PredictionViews.StopPredictionView> stops, boolean scored, String modelLabel,
+      Optional<String> reason) {}
+
+  /**
+   * R-ML-48: the same gate and model as a published plan, but nothing is written:
+   * no prediction, outcome, notice or metric reads a draft's risk, and no store
+   * is ever told about a plan that was not published.
+   */
+  public Optional<Preview> preview(UUID planId) {
+    Optional<Gathered> gathered = database.asSystem(ModuleRole.ML, () -> gather(planId));
+    if (gathered.isEmpty()) {
+      return Optional.empty();
+    }
+    Gathered g = gathered.get();
+    Optional<Answer<Loaded>> loaded = adapter.configured() && g.active().isPresent()
+        ? Optional.of(adapter.availableModels()) : Optional.empty();
+    Decision decision = gate(g, loaded);
+    Map<String, StopRisk> byOrder = new HashMap<>();
+    String label = PredictionViews.DETERMINISTIC;
+    Optional<String> reason = decision.reason();
+    if (decision.useModel() && !g.routes().isEmpty()) {
+      // No transaction is open here: the model may take a while (R-ML-01).
+      Answer<RiskAnswer> answer = adapter.deliveryRisk(request(g, selectable(loaded)
+          ? g.active().map(m -> m.view().label()) : Optional.empty()));
+      if (answer.value().isPresent()) {
+        label = answer.value().get().modelLabel();
+        answer.value().get().stops().forEach(r -> byOrder.put(r.deliveryId(), r));
+      } else {
+        reason = Optional.of("model serving failed: " + answer.failure().orElse("unknown"));
+      }
+    }
+    String modelLabel = label;
+    List<PredictionViews.StopPredictionView> stops = g.stops().stream().map(s -> {
+      StopRisk r = byOrder.get(s.orderId().toString());
+      return r != null
+          ? new PredictionViews.StopPredictionView(s.orderId(), s.tripId(), s.sequence(), s.outletId(), r.serviceMinutes(),
+              r.lateProbability(), modelLabel, false, List.of(), Optional.empty(), Optional.empty())
+          : new PredictionViews.StopPredictionView(s.orderId(), s.tripId(), s.sequence(), s.outletId(), s.serviceMinutes(),
+              s.lateProbability(), PredictionViews.DETERMINISTIC, true, List.of(), Optional.empty(), Optional.empty());
+    }).toList();
+    metrics.increment("waypoint.ml.draft_risk", "outcome", byOrder.isEmpty() ? "degraded" : "scored");
+    return Optional.of(new Preview(g.plan(), stops, !byOrder.isEmpty(), byOrder.isEmpty() ? PredictionViews.DETERMINISTIC : modelLabel,
+        byOrder.isEmpty() ? reason.or(() -> Optional.of("no model answered")) : reason));
   }
 
   private static boolean selectable(Optional<Answer<Loaded>> loaded) {

@@ -50,6 +50,10 @@ def general(reference: dict) -> dict:
         if name == 'calendar':
             df['festival'] = df['festival'].replace({'': np.nan})
             df['festival_ramp'] = df['festival_ramp'].astype(float)
+        if name == 'road_conditions':
+            # Days past the road data send none; an empty table still has a number in this column,
+            # so the merge fills 100 (no disruption) as a number and the features stay numeric.
+            df['disruption_index'] = pd.to_numeric(df['disruption_index'], errors='coerce').astype(float)
         g[name] = df
     return g
 
@@ -159,6 +163,9 @@ def _context(g, trained):
     cal = ctx.cal.copy()
     cal['d'] = pd.to_datetime(cal.date)
     pay = cal.loc[cal.is_payday == 1, 'd'].values
+    if len(pay) == 0:
+        # No payday in the calendar sent: every day is as far from one as training ever counted.
+        pay = np.array([np.datetime64('1970-01-01', 'ns')])
     idx = np.searchsorted(pay, cal.d.values, side='right') - 1
     lag = (cal.d.values - pay[np.clip(idx, 0, None)]).astype('timedelta64[D]').astype(int)
     cal['pay_lag'] = np.where(idx >= 0, np.minimum(lag, 10), 10)

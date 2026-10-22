@@ -389,7 +389,7 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
     Instant nextRunAt = read(actor.userId(), () -> ForecastSchedule.nextRun(
         now,
         repository.latestForecastRun().map(r -> new ForecastSchedule.LastRun(r.at(), r.degraded())),
-        repository.activeModel(ModelViews.DEMAND_FORECAST).isPresent(),
+        repository.activeModel(ModelViews.DEMAND_FORECAST).map(m -> m.view().activatedAt().orElse(Instant.MIN)),
         Clock.OPERATING_ZONE));
     return new ForecastOverviewView(
         depot, rows.isEmpty() ? OverviewStatus.NONE : OverviewStatus.READY, label, degraded, generatedAt, out,

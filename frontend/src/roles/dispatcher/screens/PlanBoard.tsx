@@ -71,7 +71,9 @@ export default function PlanBoard({
   const low = lowLoad(rows);
   const [filter, setFilter] = usePersistentState<Filter>("dispatcher:plan:filter", NO_FILTER);
   const [openId, setOpenId] = useState<string | null>(null);
-  const predictions = usePredictions(published ? plan.planId : null);
+  // R-ML-48: a draft is scored too, so the risk can change a decision before publishing.
+  const stamp = useMemo(() => `${plan.planVersion}:${plan.trips.map((t) => `${t.vehicleId}/${t.stops.map((s) => s.orderId).join(",")}`).join(";")}`, [plan]);
+  const predictions = usePredictions(plan.planId, !published, stamp);
   const risk = predictions.data ? lateRisk(plan, predictions.data) : null;
   // Per trip and per stop (#119): the board tags risky trips, the open trip tags every stop.
   const trips = useMemo(() => (predictions.data ? tripRisks(predictions.data) : null), [predictions.data]);
@@ -105,14 +107,14 @@ export default function PlanBoard({
           note={low.trips > 0 ? `${low.trips === 1 ? "trip" : "trips"} · ${low.spareM3} m³ spare` : "trips · none to merge"}
         />
         {risk ? (
-          <Kpi label="Late risk" tag="over 35% chance" tone="danger" value={`${risk.high} high`} note={`${risk.low} low${estimate ? " · estimated" : ""}${road ? ` · ${road}` : ""}`} />
+          <Kpi label="Late risk" tag="over 35% chance" tone="danger" value={`${risk.high} high`} note={`${risk.low} low${estimate ? " · estimated" : ""}${!published ? " · on this draft" : ""}${road ? ` · ${road}` : ""}`} />
         ) : (
           <Kpi
             label="Tight windows"
             tag="under 15 min to spare"
             tone="danger"
             value={`${tight.tight} ${tight.tight === 1 ? "trip" : "trips"}`}
-            note={`${tight.watch} under 30 min · ${published && predictions.loading ? "reading the late risk…" : "from the planned times"}`}
+            note={`${tight.watch} under 30 min · ${predictions.loading ? "reading the late risk…" : "from the planned times"}`}
           />
         )}
       </div>

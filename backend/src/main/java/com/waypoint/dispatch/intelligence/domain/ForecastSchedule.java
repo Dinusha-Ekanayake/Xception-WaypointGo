@@ -41,13 +41,30 @@ public final class ForecastSchedule {
   }
 
   /**
+   * As {@link #due(Instant, Optional, boolean, ZoneId)}, and owed at once when the
+   * demand model was activated after the newest run, which the fallback made: an
+   * administrator who turns a model on sees its forecast within the hour, not up
+   * to {@link #FALLBACK_RETRY} later.
+   */
+  public static boolean due(Instant at, Optional<LastRun> last, Optional<Instant> activeSince, ZoneId zone) {
+    if (last.isPresent() && last.get().degraded() && activeSince.isPresent() && activeSince.get().isAfter(last.get().at())) {
+      return true;
+    }
+    return due(at, last, activeSince.isPresent(), zone);
+  }
+
+  /**
    * The first hourly wake-up after {@code now} at which {@link #due} holds, as
    * things stand: a model activated later can only bring it forward.
    */
   public static Instant nextRun(Instant now, Optional<LastRun> last, boolean modelActive, ZoneId zone) {
+    return nextRun(now, last, modelActive ? Optional.of(Instant.MIN) : Optional.<Instant>empty(), zone);
+  }
+
+  public static Instant nextRun(Instant now, Optional<LastRun> last, Optional<Instant> activeSince, ZoneId zone) {
     ZonedDateTime tick = now.atZone(zone).truncatedTo(ChronoUnit.HOURS).plusHours(1);
     for (int i = 0; i < MAX_HOURS; i++, tick = tick.plusHours(1)) {
-      if (due(tick.toInstant(), last, modelActive, zone)) {
+      if (due(tick.toInstant(), last, activeSince, zone)) {
         return tick.toInstant();
       }
     }

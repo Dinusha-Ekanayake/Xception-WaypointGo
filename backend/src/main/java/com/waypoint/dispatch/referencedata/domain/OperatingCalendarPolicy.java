@@ -17,6 +17,21 @@ import java.util.List;
 public final class OperatingCalendarPolicy {
   private OperatingCalendarPolicy() {}
 
+  /**
+   * R-CAL-05: a payday as the supplied calendar has them, the 25th and the last
+   * day of each month, brought back to the Saturday when it falls on a Sunday.
+   * Generated days keep paydays so a model that counts the days since one never
+   * reads a calendar without any.
+   */
+  public static boolean isPayday(LocalDate date) {
+    LocalDate shifted = date.getDayOfWeek() == DayOfWeek.SATURDAY ? date.plusDays(1) : date;
+    boolean onTheDay = date.getDayOfWeek() != DayOfWeek.SUNDAY && (date.getDayOfMonth() == 25 || date.equals(date.withDayOfMonth(date.lengthOfMonth())));
+    boolean broughtBack = date.getDayOfWeek() == DayOfWeek.SATURDAY
+        && (shifted.getDayOfMonth() == 25 || shifted.equals(shifted.withDayOfMonth(shifted.lengthOfMonth())))
+        && shifted.getMonth() == date.getMonth();
+    return onTheDay || broughtBack;
+  }
+
   /** R-PLN-17: Waypoint operates Monday to Saturday. */
   public static boolean operatesOn(LocalDate date) {
     return date.getDayOfWeek() != DayOfWeek.SUNDAY;
@@ -32,7 +47,7 @@ public final class OperatingCalendarPolicy {
         weekend,
         date.get(iso.weekBasedYear()),
         date.get(iso.weekOfWeekBasedYear()),
-        false,
+        isPayday(date),
         null,
         BigDecimal.ZERO,
         false,
