@@ -162,6 +162,7 @@ export function TripThread({
           online={online}
           keepsOffline={keepsOffline}
           tr={tr}
+          oneRow={variant === "desk"}
           {...(sender ? { sender } : {})}
           {...(draft ? { draft } : {})}
           onSent={(queued) => {

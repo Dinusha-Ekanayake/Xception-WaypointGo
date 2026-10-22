@@ -146,10 +146,11 @@ public final class ProblemRoom {
     Duration picked = extra.orElse(firstExtra(p.situation()));
     Duration added = picked.compareTo(MOST_EXTRA) > 0 ? MOST_EXTRA : picked;
     List<Row> rows = new ArrayList<>();
+    Optional<Stop> heading = headingTo(p, trip, asks);
     for (Stop s : trip) {
-      rows.add(row(p, s, trip, asks, added));
+      rows.add(row(p, s, trip, asks, added, heading));
     }
-    Step next = next(p, trip, rows, asks, now, added);
+    Step next = next(p, trip, rows, asks, now, added, heading);
     // A breakdown keeps its way out beside every step but ending the trip itself.
     boolean waiting = rows.stream().anyMatch(r -> r.state() != State.DELIVERED && r.state() != State.SKIPPED);
     if (p.situation() == Situation.BREAKDOWN && waiting && next.kind() != Kind.END_TRIP) {
@@ -158,7 +159,7 @@ public final class ProblemRoom {
     return new Room(p.situation(), List.copyOf(rows), next);
   }
 
-  private static Row row(Problem p, Stop s, List<Stop> trip, List<Ask> asks, Duration extra) {
+  private static Row row(Problem p, Stop s, List<Stop> trip, List<Ask> asks, Duration extra, Optional<Stop> heading) {
     if (s.outcome() == Outcome.DELIVERED) return new Row(s.deliveryId(), s.outletId(), s.sequence(), State.DELIVERED, Optional.empty(), Optional.empty());
     if (s.outcome() == Outcome.SKIPPED) return new Row(s.deliveryId(), s.outletId(), s.sequence(), State.SKIPPED, Optional.empty(), Optional.empty());
     if (s.outcome() == Outcome.OTHER) return new Row(s.deliveryId(), s.outletId(), s.sequence(), State.DELIVERED, Optional.empty(), Optional.empty());
@@ -176,10 +177,11 @@ public final class ProblemRoom {
       if (a.expiredUnanswered()) return new Row(s.deliveryId(), s.outletId(), s.sequence(), State.NO_ANSWER, Optional.of(a.deadline()), Optional.empty());
       if (a.open()) return new Row(s.deliveryId(), s.outletId(), s.sequence(), State.ASKED, Optional.of(a.deadline()), Optional.empty());
     }
-    if (!concerned(p, s, trip, extra)) {
+    if (!concerned(p, s, trip, extra) && !(STUCK.contains(p.situation()) && heading.filter(h -> h.deliveryId().equals(s.deliveryId())).isPresent())) {
       return new Row(s.deliveryId(), s.outletId(), s.sequence(), State.IN_WINDOW, Optional.of(s.expectedArrival()), Optional.empty());
     }
-    if (s.mall() && !AT_A_STOP.contains(p.situation())) {
+    // A mall's fixed window matters only once it is missed; inside it, it is asked like any store.
+    if (s.mall() && !AT_A_STOP.contains(p.situation()) && concerned(p, s, trip, extra)) {
       return new Row(s.deliveryId(), s.outletId(), s.sequence(), State.MALL_CANNOT_WAIT, Optional.empty(), Optional.of("A mall's window is fixed"));
     }
     return new Row(s.deliveryId(), s.outletId(), s.sequence(), State.NOT_ASKED, Optional.empty(), Optional.empty());
@@ -198,6 +200,21 @@ public final class ProblemRoom {
     return TRIP_WIDE.contains(p.situation()) && arrival(p, s, extra).isAfter(s.windowClose());
   }
 
+  /** The van is stuck: the store it is heading to waits for it, whatever its window, and is asked. */
+  static final Set<Situation> STUCK = Set.of(Situation.BREAKDOWN, Situation.ROAD_BLOCKED);
+
+  /**
+   * The store the van is heading to: the first still waiting that has not said
+   * it cannot receive. When that store says No, the next one becomes the store
+   * the van is heading to, so it is asked at once.
+   */
+  static Optional<Stop> headingTo(Problem p, List<Stop> trip, List<Ask> asks) {
+    return trip.stream()
+        .filter(s -> s.outcome() == Outcome.WAITING || s.outcome() == Outcome.REACHED)
+        .filter(s -> !latest(asks, s.deliveryId(), "receive_late").map(a -> a.said("no")).orElse(false))
+        .findFirst();
+  }
+
   /** When the van will now reach a store: its expected arrival, plus the extra time on a breakdown or blocked road. */
   static Instant arrival(Problem p, Stop s, Duration extra) {
     return p.situation() == Situation.RUNNING_LATE ? s.expectedArrival() : s.expectedArrival().plus(extra);
@@ -212,7 +229,8 @@ public final class ProblemRoom {
     return waiting.stream().filter(s -> s.outcome() == Outcome.REACHED).findFirst().or(() -> waiting.stream().findFirst());
   }
 
-  private static Step next(Problem p, List<Stop> trip, List<Row> rows, List<Ask> asks, Instant now, Duration extra) {
+  private static Step next(Problem p, List<Stop> trip, List<Row> rows, List<Ask> asks, Instant now, Duration extra,
+      Optional<Stop> heading) {
     boolean breakdown = p.situation() == Situation.BREAKDOWN;
     List<Row> waiting = rows.stream().filter(r -> r.state() != State.DELIVERED && r.state() != State.SKIPPED).toList();
     if (waiting.isEmpty()) {
@@ -227,8 +245,11 @@ public final class ProblemRoom {
       toAsk.add(new Target(s.deliveryId(), s.outletId(), Optional.of(roundUp(at, now)), s.rowVersion()));
     }
     if (!toAsk.isEmpty()) {
+      boolean onlyNext = toAsk.size() == 1 && heading.filter(h -> h.deliveryId().equals(toAsk.get(0).deliveryId())).isPresent();
       String why = AT_A_STOP.contains(p.situation())
           ? toAsk.get(0).outletId() + " is the store the driver is at."
+          : STUCK.contains(p.situation()) && onlyNext
+              ? toAsk.get(0).outletId() + " is next: the van now reaches it about " + toAsk.get(0).receiveAt().map(Wording::hhmm).orElse("later") + "."
           : p.situation() == Situation.RUNNING_LATE
               ? (toAsk.size() == 1 ? "This store's" : "These stores'") + " window will be missed."
               : "Nobody can choose a store's delivery before it says when it can receive.";

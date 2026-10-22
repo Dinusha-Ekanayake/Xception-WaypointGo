@@ -29,8 +29,8 @@ test("off topic and thanks get nothing; words not read get thanks and the driver
   assert.deepEqual(ids(dispatcherAnswers(store(null, "ok"))), ["answer.thanks", "answer.tell_driver"]);
 });
 
-test("a driver's breakdown in their own words asks how long; the dispatcher's own words get nothing", () => {
-  assert.deepEqual(ids(dispatcherAnswers({ mine: false, authorRole: "driver", body: "lorry eka break down una", aboutOutletId: null, understood: "BREAKDOWN" })), ["answer.how_long"]);
+test("a driver's breakdown in their own words asks how long and tells the stores waiting; the dispatcher's own words get nothing", () => {
+  assert.deepEqual(ids(dispatcherAnswers({ mine: false, authorRole: "driver", body: "lorry eka break down una", aboutOutletId: null, understood: "BREAKDOWN" })), ["answer.how_long", "answer.tell_waiting"]);
   assert.deepEqual(dispatcherAnswers({ ...store("SAYS_NO"), mine: true }), []);
 });
 
@@ -70,4 +70,15 @@ test("a store that said No in the chat after its Yes loses its \"will receive\" 
   const state: Reply[] = [{ id: "driver.store_will_receive", version: 1, label: "Tell the driver OUT005 will receive", to: "driver", outletId: null, body: "..." }];
   assert.deepEqual(dispatcherChips([], state, null, ["OUT005"]), []);
   assert.deepEqual(ids(dispatcherChips([], state, null, [])), ["driver.store_will_receive"]);
+});
+
+test("a driver's report gets chips by its type: a blocked road asks how long and tells the stores waiting, naming none", () => {
+  const report = (reportType: string) => ({ mine: false, authorRole: "driver" as const, body: "road disruption in Colombo: Road blocked",
+    aboutOutletId: null, understood: null, reportType: reportType as never });
+  const road = dispatcherAnswers(report("road_disruption"));
+  assert.deepEqual(road.map((r) => [r.id, r.to]), [["answer.how_long", "driver"], ["answer.tell_waiting", "channel"]]);
+  assert.doesNotMatch(road[1]!.body, /OUT\d+/, "nothing about one store reaches the others (R-MSG-08)");
+  assert.deepEqual(ids(dispatcherAnswers(report("vehicle_fault"))), ["answer.how_long", "answer.tell_waiting"]);
+  assert.deepEqual(ids(dispatcherAnswers(report("store_closed"))), ["answer.wait_there"]);
+  assert.deepEqual(ids(dispatcherAnswers(report("other"))), [], "a report sent as other is read by its words, or by Jev");
 });

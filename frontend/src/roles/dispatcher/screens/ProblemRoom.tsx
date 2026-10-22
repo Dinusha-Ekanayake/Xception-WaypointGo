@@ -7,7 +7,7 @@ import { friendlyError } from "@shared/api/problem";
 import { IssueCommandKind, type DecisionView, type RoomState, type RoomView, type RunSheetStopView } from "@shared/domain/types";
 import { newId, postCommand, resolveReport } from "@shared/messaging/useThread";
 import { clockOn } from "@shared/wording";
-import { cx } from "@shared/ui";
+import { cx, usePersistentState } from "@shared/ui";
 import { useCommand } from "../data/useCommand.ts";
 import { useStoreContacts } from "../data/storeContacts.ts";
 import HeardAnswers from "./HeardAnswers.tsx";
@@ -44,6 +44,22 @@ function stateWords(state: RoomState, at: string | null): string {
     case "SKIPPED": return "Skipped · next day";
     case "DELIVERED": return "Done";
   }
+}
+
+/** The stores in one line: "4 stores · 1 skipped · 3 in their window". */
+function storesLine(rows: RoomView["rows"]): string {
+  const count = (states: RoomState[]) => rows.filter((r) => states.includes(r.state)).length;
+  const parts = [
+    [count(["NOT_ASKED"]), "not asked"],
+    [count(["ASKED", "DOCK_ASKED"]), "asked"],
+    [count(["YES", "DOCK_YES"]), "said Yes"],
+    [count(["NO", "DOCK_NO"]), "said No"],
+    [count(["NO_ANSWER"]), "no answer"],
+    [count(["IN_WINDOW"]), "in their window"],
+    [count(["SKIPPED"]), "skipped"],
+    [count(["DELIVERED"]), "done"],
+  ].filter(([n]) => (n as number) > 0).map(([n, w]) => `${n} ${w}`);
+  return [`${rows.length} ${rows.length === 1 ? "store" : "stores"}`, ...parts].join(" · ");
 }
 
 const TONE: Partial<Record<RoomState, string>> = {
@@ -83,6 +99,11 @@ export default function ProblemRoom({
   onExtra: (minutes: number) => void;
 }): React.JSX.Element {
   const { run, busy } = useCommand();
+  // The room folds to its title line, and its store rows to one line, so the chat below stays readable.
+  // Folded by itself while nothing waits on the dispatcher (an answer due, or every store settled); open
+  // when a decision is due. What the dispatcher chose for this trip wins either way.
+  const [chosen, setHidden] = usePersistentState<boolean | null>(`dispatcher:room:${tripId}:hidden`, null);
+  const [showRows, setShowRows] = usePersistentState<boolean>(`dispatcher:room:${tripId}:rows`, false);
   const [open, setOpen] = useState<Open>(null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -151,18 +172,42 @@ export default function ProblemRoom({
   const primary = "min-h-9 rounded-full bg-go-ink px-4 text-[13px] font-medium text-go-card disabled:opacity-40";
   const quiet = "min-h-9 rounded-full bg-go-card px-3 text-[13px] font-medium text-go-teal shadow-[inset_0_0_0_1px_rgb(0_0_0/0.08)] disabled:opacity-40";
   const off = !online || busy || sending;
+  const deciding = next.kind !== "DONE" && next.kind !== "WAIT";
+  const hidden = chosen ?? !deciding;
+  const canClose = next.kind === "DONE" && reportIds.length > 0;
 
   return (
-    <section aria-label="Problem room" className="flex max-h-[45dvh] flex-col gap-3 overflow-y-auto rounded-go-card-s bg-go-surface px-3.5 py-3">
-      <span className="text-[13px] font-medium text-go-ink">{`Problem · ${title}`}</span>
-      <ul aria-label="Stores on the trip" className="flex flex-col gap-1">
-        {room.rows.map((r) => (
-          <li key={r.deliveryId} className="flex items-baseline justify-between gap-3 text-[13px]">
-            <span className="font-medium text-go-ink">{r.outletId}</span>
-            <span className={cx("text-right", TONE[r.state] ?? "text-go-secondary")}>{stateWords(r.state, r.at)}</span>
-          </li>
-        ))}
-      </ul>
+    <section aria-label="Problem room" className="flex max-h-[38dvh] flex-col gap-2.5 overflow-y-auto rounded-go-card-s bg-go-surface px-3.5 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="min-w-0 text-[13px] font-medium text-go-ink">{`Problem · ${title}`}</span>
+        <button type="button" aria-expanded={!hidden} onClick={() => setHidden(!hidden)} className="shrink-0 text-[12px] font-medium text-go-teal">
+          {hidden ? "Show" : "Hide"}
+        </button>
+      </div>
+      {hidden && (
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-[12px] text-go-secondary">
+          <span>{next.why}</span>
+          {canClose && (
+            <button type="button" disabled={off} onClick={() => void handled()} className="font-medium text-go-teal disabled:opacity-40">Mark handled</button>
+          )}
+        </div>
+      )}
+      {hidden && <HeardAnswers heard={room.heard ?? []} decisions={decisions} online={online} onRecorded={changed} />}
+      {!hidden && (
+        <>
+      <button type="button" aria-expanded={showRows} onClick={() => setShowRows((v) => !v)} className="self-start text-left text-[12px] text-go-secondary">
+        {`${storesLine(room.rows)} · ${showRows ? "hide stores" : "show stores"}`}
+      </button>
+      {showRows && (
+        <ul aria-label="Stores on the trip" className="flex flex-col gap-1">
+          {room.rows.map((r) => (
+            <li key={r.deliveryId} className="flex items-baseline justify-between gap-3 text-[13px]">
+              <span className="font-medium text-go-ink">{r.outletId}</span>
+              <span className={cx("text-right", TONE[r.state] ?? "text-go-secondary")}>{stateWords(r.state, r.at)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       <HeardAnswers heard={room.heard ?? []} decisions={decisions} online={online} onRecorded={changed} />
 
       <div role="group" aria-label="Next step" className="flex flex-col gap-2 rounded-xl bg-go-card px-3 py-2.5">
@@ -246,6 +291,8 @@ export default function ProblemRoom({
         )}
         {error && <p role="alert" className="text-[12px] text-go-danger">{error}</p>}
       </div>
+        </>
+      )}
     </section>
   );
 }

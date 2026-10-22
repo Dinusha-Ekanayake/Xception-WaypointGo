@@ -33,6 +33,7 @@ export function ThreadComposer({
   draft,
   onSent,
   tr = plain,
+  oneRow = false,
 }: {
   threadId: string;
   role: MemberRole;
@@ -50,6 +51,8 @@ export function ThreadComposer({
   draft?: Draft;
   onSent: (queued: boolean) => void;
   tr?: Translate;
+  /** The desk: the chips and the recipients each scroll in one row, so the messages above keep the room. */
+  oneRow?: boolean;
 }): React.JSX.Element {
   const reports = REPORTS_BY_ROLE[role];
   // Until the writer picks someone, the default follows the members as they load.
@@ -149,7 +152,7 @@ export function ThreadComposer({
       }}
     >
       {replies.length > 0 && !report && body.trim() === "" && (
-        <div role="group" aria-label={tr("Suggested replies")} className="flex flex-wrap gap-1.5">
+        <div role="group" aria-label={tr("Suggested replies")} className={cx("flex gap-1.5", oneRow ? ROW : "flex-wrap")}>
           {offered.map((r, i) => (
               <button
                 key={r.id}
@@ -160,7 +163,7 @@ export function ThreadComposer({
                   setBody(r.body);
                   setPicked({ reply: r, rank: i + 1 });
                 }}
-                className="min-h-8 rounded-full border border-go-divider bg-go-card px-3 text-[13px] font-medium text-go-teal"
+                className="min-h-8 shrink-0 rounded-full border border-go-divider bg-go-card px-3 text-[13px] font-medium text-go-teal"
               >
                 {tr(r.label)}
               </button>
@@ -169,7 +172,7 @@ export function ThreadComposer({
         </div>
       )}
       {members.length > 1 && !report && (
-        <div role="radiogroup" aria-label={tr("Send to")} className="flex flex-wrap gap-1.5">
+        <div role="radiogroup" aria-label={tr("Send to")} className={cx("flex gap-1.5", oneRow ? ROW : "flex-wrap")}>
           {members.map((m) => {
             const value = { to: m.to, outletId: m.outletId };
             const on = sameAddress(value, address);
@@ -293,3 +296,6 @@ export function ThreadComposer({
     </form>
   );
 }
+
+/** One row that scrolls sideways, its scrollbar hidden: every chip is still reachable by a swipe or the keyboard. */
+const ROW = "overflow-x-auto whitespace-nowrap pb-0.5 [scrollbar-width:none] [&>*]:shrink-0";

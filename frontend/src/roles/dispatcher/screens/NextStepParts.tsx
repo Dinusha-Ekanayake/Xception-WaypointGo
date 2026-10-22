@@ -113,10 +113,10 @@ export function ReviewMessage({
     if (!sent.ok) return setError(friendlyError(sent.error));
     announceChange({ topic: "message" });
   };
-  const chip = "min-h-8 rounded-full bg-go-card px-3 text-[13px] font-medium text-go-teal shadow-[inset_0_0_0_1px_rgb(0_0_0/0.08)] disabled:opacity-40";
+  const chip = "min-h-7 rounded-full bg-go-card px-2.5 text-[12px] font-medium text-go-teal shadow-[inset_0_0_0_1px_rgb(0_0_0/0.08)] disabled:opacity-40";
   const others = CHOICES.filter((c) => c !== item.guess);
   return (
-    <div role="group" aria-label="Check this message" className="flex flex-col gap-1.5 rounded-go-card-s bg-go-warning-tint px-3.5 py-2.5 text-[13px] text-go-ink">
+    <div role="group" aria-label="Check this message" className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-go-card-s bg-go-warning-tint px-3 py-2 text-[12px] text-go-ink">
       <span>
         <span className="font-medium">Check this: </span>
         {said}
@@ -126,7 +126,7 @@ export function ReviewMessage({
       <span className="flex flex-wrap gap-1.5">
         {item.guess && (
           <button type="button" disabled={!online || busy} onClick={() => void confirm(item.guess!)}
-            className="min-h-8 rounded-full bg-go-ink px-3 text-[13px] font-medium text-go-card disabled:opacity-40">
+            className="min-h-7 rounded-full bg-go-ink px-2.5 text-[12px] font-medium text-go-card disabled:opacity-40">
             {`Yes, ${(SITUATION[item.guess] ?? item.guess).toLowerCase()}`}
           </button>
         )}

@@ -68,12 +68,33 @@ class ProblemRoomTest {
 
   @Test
   void aSmallerExtraTimeAsksFewerStores() {
-    Stop d = stop("OUT004", 1, Outcome.WAITING, false, 20, 70);
-    Room hour = ProblemRoom.of(new Problem(Situation.ROAD_BLOCKED, Optional.empty(), NOW), List.of(d), List.of(), NOW, Optional.of(Duration.ofHours(1)));
-    Room half = ProblemRoom.of(new Problem(Situation.ROAD_BLOCKED, Optional.empty(), NOW), List.of(d), List.of(), NOW, Optional.of(Duration.ofMinutes(30)));
-    assertEquals(Kind.ASK, hour.next().kind());
-    assertEquals(Kind.DONE, half.next().kind(), "with 30 minutes it still makes its window");
+    Stop first = stop("OUT009", 1, Outcome.WAITING, false, 10, 240);
+    Stop d = stop("OUT004", 2, Outcome.WAITING, false, 30, 70);
+    Room hour = ProblemRoom.of(new Problem(Situation.ROAD_BLOCKED, Optional.empty(), NOW), List.of(first, d), List.of(), NOW, Optional.of(Duration.ofHours(1)));
+    Room half = ProblemRoom.of(new Problem(Situation.ROAD_BLOCKED, Optional.empty(), NOW), List.of(first, d), List.of(), NOW, Optional.of(Duration.ofMinutes(30)));
+    assertEquals(List.of("OUT009", "OUT004"), hour.next().stops().stream().map(ProblemRoom.Target::outletId).toList());
+    assertEquals(List.of("OUT009"), half.next().stops().stream().map(ProblemRoom.Target::outletId).toList(),
+        "with 30 minutes OUT004 still makes its window; the store the van is heading to is asked either way");
+    assertEquals(State.IN_WINDOW, state(half, "OUT004"));
     assertFalse(half.next().endTripToo(), "only a breakdown offers ending the trip beside");
+  }
+
+  /** The van is stuck on its way: the store it is heading to is asked whether it can wait, even inside its window. */
+  @Test
+  void aBlockedRoadAsksTheStoreTheVanIsHeadingToAndTheNextOneOnceThatOneSaysNo() {
+    Stop next = stop("OUT008", 1, Outcome.WAITING, false, 10, 240);
+    Stop then = stop("OUT003", 2, Outcome.WAITING, false, 30, 240);
+    Room r = ProblemRoom.of(new Problem(Situation.ROAD_BLOCKED, Optional.empty(), NOW), List.of(next, then), List.of(), NOW, Optional.empty());
+    assertEquals(Kind.ASK, r.next().kind());
+    assertEquals(List.of("OUT008"), r.next().stops().stream().map(ProblemRoom.Target::outletId).toList());
+    assertEquals(Optional.of(at(40)), r.next().stops().get(0).receiveAt(), "its arrival plus the half hour");
+    assertTrue(r.next().why().startsWith("OUT008 is next: the van now reaches it about"), r.next().why());
+    assertEquals(State.IN_WINDOW, state(r, "OUT003"));
+    Room no = room(Situation.ROAD_BLOCKED, List.of(next, then), List.of(ask(next, "receive_late", "answered", "no", 10)));
+    assertEquals(List.of("OUT003"), no.next().stops().stream().map(ProblemRoom.Target::outletId).toList(),
+        "OUT008 can't: the van now heads to OUT003, which is asked at once");
+    Room late = room(Situation.RUNNING_LATE, List.of(next, then), List.of());
+    assertEquals(Kind.DONE, late.next().kind(), "running late but in the window: their screens show the new time");
   }
 
   @Test
@@ -100,7 +121,8 @@ class ProblemRoomTest {
 
   @Test
   void aStoreThatSaidNoIsSkippedAndOneThatSaidYesKeepsItsDelivery() {
-    Room r = room(Situation.BREAKDOWN, List.of(A, B), List.of(ask(A, "receive_late", "answered", "no", 10)));
+    Room r = room(Situation.BREAKDOWN, List.of(A, B),
+        List.of(ask(A, "receive_late", "answered", "no", 10), ask(B, "receive_late", "sent", null, 30)));
     assertEquals(Kind.SKIP, r.next().kind());
     assertEquals("OUT001", r.next().stops().get(0).outletId());
     assertTrue(r.next().why().startsWith("OUT001 can't receive at"), r.next().why());
@@ -141,7 +163,10 @@ class ProblemRoomTest {
     Stop skipped = stop("OUT001", 1, Outcome.SKIPPED, false, 20, 40);
     Stop next = stop("OUT002", 2, Outcome.WAITING, false, 40, 240);
     Stop after = stop("OUT008", 3, Outcome.WAITING, false, 60, 240);
-    Room ask = room(Situation.BREAKDOWN, List.of(skipped, next, after), List.of());
+    Ask waits = ask(next, "receive_late", "answered", "yes", 30);
+    Room first = room(Situation.BREAKDOWN, List.of(skipped, next, after), List.of());
+    assertEquals(Kind.ASK, first.next().kind(), "the store the van is heading to is asked whether it can wait first");
+    Room ask = room(Situation.BREAKDOWN, List.of(skipped, next, after), List.of(waits));
     assertEquals(Kind.ASK_DOCK, ask.next().kind());
     assertEquals("OUT002", ask.next().stops().get(0).outletId(), "only the store straight after");
     assertEquals("OUT001", ask.next().about().orElseThrow().outletId());
@@ -151,7 +176,8 @@ class ProblemRoomTest {
     assertEquals(Kind.TELL_DRIVER_DOCK, tell.next().kind());
     assertEquals(State.DOCK_NO, state(tell, "OUT002"));
     Stop done = stop("OUT002", 2, Outcome.DELIVERED, false, 40, 240);
-    assertEquals(Kind.DONE, room(Situation.BREAKDOWN, List.of(skipped, done, after), List.of()).next().kind(),
+    assertEquals(Kind.DONE, room(Situation.BREAKDOWN, List.of(skipped, done, after),
+            List.of(ask(after, "receive_late", "answered", "yes", 40))).next().kind(),
         "once the next store is done, the goods were re-stowed there");
   }
 

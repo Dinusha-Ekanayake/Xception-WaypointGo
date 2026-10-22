@@ -122,18 +122,31 @@ export function replies(state: TripState): Reply[] {
  * when the newest word is the dispatcher's own, or the store is not known.
  */
 export function dispatcherAnswers(
-  latest: Pick<MessageView, "mine" | "authorRole" | "body" | "aboutOutletId" | "understood"> | null,
+  latest: Pick<MessageView, "mine" | "authorRole" | "body" | "aboutOutletId" | "understood"> & { reportType?: MessageView["reportType"] } | null,
   stateReplies: Reply[] = [],
 ): Reply[] {
   if (!latest || latest.mine) return [];
-  // Jev's sure reading first, else the rules' own reading of a few plain words.
-  const act = latest.understood ?? wordsAct(latest.body);
+  // Jev's sure reading first; a report says what it is by its type; else the rules' reading of a few plain words.
+  const act = latest.understood ?? reportAct(latest.reportType ?? null) ?? wordsAct(latest.body);
   // The off-topic guard: unrelated or abusive words, and thanks, ask for no reply.
   if (act === "OFF_TOPIC" || act === "THANKS") return [];
   const answer = (id: string, label: string, to: MessageAudience, outletId: string | null, body: string): Reply =>
     ({ id: `answer.${id}`, version: TEMPLATE_VERSION, label, to, outletId, body });
   if (latest.authorRole === "driver") {
-    if (act === "BREAKDOWN" || act === "ROAD_BLOCKED") return [answer("how_long", "Ask how long it takes", "driver", null, "Noted. How long until you can go on?")];
+    // Held up on the road: the driver is asked how long, and the stores still waiting hear it, no store named.
+    if (act === "ROAD_BLOCKED") {
+      return [
+        answer("how_long", "Ask how long it takes", "driver", null, "Noted. Can you take another road? How long until you can go on?"),
+        answer("tell_waiting", "Tell the stores waiting", "channel", null, "Our van is held up by a blocked road. We will tell you its new time shortly."),
+      ];
+    }
+    if (act === "BREAKDOWN") {
+      return [
+        answer("how_long", "Ask how long it takes", "driver", null, "Noted. How long until you can go on?"),
+        answer("tell_waiting", "Tell the stores waiting", "channel", null, "Our van has broken down on the way. We will tell you its new time shortly."),
+      ];
+    }
+    if (act === "RUNNING_LATE") return [answer("noted_drive", "Noted, drive safely", "driver", null, "Noted, thank you. Drive safely.")];
     if (act === "STORE_CLOSED" || act === "CANNOT_UNLOAD") return [answer("wait_there", "Wait there, asking the store", "driver", null, "Wait there a few minutes, I am asking the store.")];
     return [];
   }
@@ -162,6 +175,18 @@ export function dispatcherAnswers(
     default:
       // A yes, a later time, a problem, or words not read: thanks, and the driver told.
       return [thanks, ...tell];
+  }
+}
+
+/** What a report is by its type, in the acts the chips answer (R-ML-43); null for "other" and the rest. */
+export function reportAct(type: MessageView["reportType"] | null): string | null {
+  switch (type) {
+    case "vehicle_fault": return "BREAKDOWN";
+    case "road_disruption": return "ROAD_BLOCKED";
+    case "late": return "RUNNING_LATE";
+    case "store_closed": return "STORE_CLOSED";
+    case "cannot_unload": return "CANNOT_UNLOAD";
+    default: return null;
   }
 }
 

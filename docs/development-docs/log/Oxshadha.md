@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-22 - fix: a stuck van asks its next store, report chips, and a chat that stays readable
+
+`dev` · @Oxshadha
+
+- Found on preview by @Oxshadha: the problem room filled the dispatcher's chat and could not fold; a blocked road asked nobody while the next store was still in its window; a driver's report had no chips; after a store said No nothing asked the next one.
+- The store the van is heading to is asked on a breakdown or blocked road, and the next one as soon as it says No (R-ML-49, ML-85, ML-86). A report's type gives the chips (ML-87). The room folds by itself while nothing waits on the dispatcher; the desk's chips and recipients scroll in one row (ML-88). Checked at 1392x816: five messages visible with a decision due, against one before.
+
+---
+
 ## 2026-10-22 - feat: the Datathon models in planning, and the fixes that made them answer
 
 `dev` · @Oxshadha

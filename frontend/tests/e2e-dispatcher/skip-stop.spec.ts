@@ -244,14 +244,18 @@ test("a breakdown's room asks the stores whose window it misses, in one tap, and
   const chat = page.getByRole("dialog", { name: "Trip messages" });
   const room = chat.getByRole("region", { name: "Problem room" });
   await expect(room).toContainText("Problem · VEH020 broke down");
+  // The stores fold to one line so the chat stays readable; a tap opens them.
+  await expect(room).toContainText("2 stores · 1 not asked · 1 done");
+  await room.getByRole("button", { name: /show stores$/ }).click();
   const rows = room.getByRole("list", { name: "Stores on the trip" });
   await expect(rows).toContainText("OUT061");
   await expect(rows).toContainText("Done");
   await expect(rows).toContainText("Not asked yet");
-  // One place: no old chips, no End trip in the header, no ready replies, no percentages.
+  // One place: no old chips, no End trip in the header, no percentages. The driver's breakdown report
+  // gets its own answers by its type; the trip's other ready replies step aside while the room decides.
   await expect(chat.locator("#message-r1").getByRole("group", { name: "Suggested decisions" })).toHaveCount(0);
   await expect(chat.getByRole("button", { name: "End trip", exact: true })).toHaveCount(0);
-  await expect(chat.getByRole("group", { name: "Suggested replies" })).toHaveCount(0);
+  await expect(chat.getByRole("group", { name: "Suggested replies" }).getByRole("button")).toHaveText(["Ask how long it takes", "Tell the stores waiting"]);
   await expect(room).not.toContainText("%");
   if (process.env.SHOTS_DIR) {
     await page.waitForTimeout(600);
@@ -284,6 +288,8 @@ test("a store that said No is the next to skip, the form filled in with why (R-M
   });
   const chat = page.getByRole("dialog", { name: "Trip messages" });
   const room = chat.getByRole("region", { name: "Problem room" });
+  await expect(room).toContainText("1 said No");
+  await room.getByRole("button", { name: /show stores$/ }).click();
   await expect(room).toContainText("No · can't receive");
   await room.getByRole("button", { name: "Skip OUT063 to next day" }).click();
   const form = chat.getByRole("group", { name: "Skip OUT063" });
@@ -523,4 +529,24 @@ test("a store's message no ready reply fits gets a reply written automatically, 
   await expect.poll(() => desk.commands.find((c) => c.kind === "message:Post")?.payload).toMatchObject({
     to: "outlet", outletId: "OUT063", templateId: "answer.drafted",
   });
+});
+
+test("the problem room folds by itself once nothing waits on the dispatcher, and the dispatcher's choice stays for the trip", async ({ page }) => {
+  await openRoom(page, {
+    situation: "ROAD_BLOCKED",
+    rows: [ROWS[0], { ...ROWS[1], state: "IN_WINDOW", at: "2027-03-01T10:40:00Z" }],
+    next: { kind: "DONE", why: "Every store still waiting can receive in time.", stops: [], about: null, extraMinutes: null, extras: [], endTripToo: false },
+  });
+  const chat = page.getByRole("dialog", { name: "Trip messages" });
+  const room = chat.getByRole("region", { name: "Problem room" });
+  // Settled: one line, so the chat below keeps the room.
+  await expect(room).toContainText("Problem · VEH020 is held up by a blocked road");
+  await expect(room).toContainText("Every store still waiting can receive in time.");
+  await expect(room.getByRole("button", { name: /show stores$/ })).toHaveCount(0);
+  await room.getByRole("button", { name: "Show" }).click();
+  await expect(room.getByRole("button", { name: /show stores$/ })).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("region", { name: "Timeline" }).getByTestId("report-sign").first().click();
+  await expect(chat.getByRole("region", { name: "Problem room" }).getByRole("button", { name: "Hide" })).toBeVisible();
 });
