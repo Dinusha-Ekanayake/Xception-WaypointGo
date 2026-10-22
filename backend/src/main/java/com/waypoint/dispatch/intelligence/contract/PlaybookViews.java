@@ -136,6 +136,7 @@ public final class PlaybookViews {
    * @param source {@code report} for a report picked by its writer; {@code message} for one read automatically
    * @param authorRole who wrote a message read automatically (driver, store_manager), so the card can say so
    */
+  /** @param issueId for a report that raised an Issue: the room's "Mark handled" resolves both. */
   public record SignalView(String messageId, String situation, String source, Optional<String> outletId,
-      Optional<String> authorRole) {}
+      Optional<String> authorRole, Optional<String> issueId) {}
 }

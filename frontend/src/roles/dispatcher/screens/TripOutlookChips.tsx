@@ -92,7 +92,7 @@ export default function TripOutlookChips({
         vehicleId={vehicleId}
         stops={stops}
         decisions={decisions}
-        reportIds={view.signals.filter((x) => x.source === "report").map((x) => x.messageId)}
+        reports={view.signals.filter((x) => x.source === "report").map((x) => ({ messageId: x.messageId, issueId: x.issueId ?? null }))}
         online={online}
         onExtra={onExtra}
       />

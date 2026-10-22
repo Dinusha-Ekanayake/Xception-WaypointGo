@@ -5,7 +5,7 @@ import { send } from "@shared/api/commands";
 import { announceChange } from "@shared/api/changes";
 import { friendlyError } from "@shared/api/problem";
 import { IssueCommandKind, type DecisionView, type RoomState, type RoomView, type RunSheetStopView } from "@shared/domain/types";
-import { newId, postCommand, resolveReport } from "@shared/messaging/useThread";
+import { newId, postCommand, resolveIssueReport, resolveReport } from "@shared/messaging/useThread";
 import { clockOn } from "@shared/wording";
 import { cx, usePersistentState } from "@shared/ui";
 import { useCommand } from "../data/useCommand.ts";
@@ -80,7 +80,7 @@ export default function ProblemRoom({
   vehicleId,
   stops,
   decisions,
-  reportIds,
+  reports,
   online,
   onExtra,
 }: {
@@ -93,7 +93,7 @@ export default function ProblemRoom({
   /** The day's questions, for recording a store's answer given by phone. */
   decisions: DecisionView[];
   /** The open reports the room is about, resolved together once it is done. */
-  reportIds: string[];
+  reports: { messageId: string; issueId: string | null }[];
   online: boolean;
   /** Re-reads the room with another extra time. */
   onExtra: (minutes: number) => void;
@@ -153,7 +153,10 @@ export default function ProblemRoom({
   const handled = async () => {
     setSending(true);
     try {
-      for (const id of reportIds) await resolveReport(id, `Handled: ${next.why}`);
+      // A report that raised an Issue is resolved with it, as its own "Mark resolved" does; else the report alone.
+      for (const r of reports) {
+        await (r.issueId ? resolveIssueReport(r.issueId, r.messageId, `Handled: ${next.why}`) : resolveReport(r.messageId, `Handled: ${next.why}`));
+      }
       announceChange({ topic: "message" });
     } finally {
       setSending(false);
@@ -174,7 +177,7 @@ export default function ProblemRoom({
   const off = !online || busy || sending;
   const deciding = next.kind !== "DONE" && next.kind !== "WAIT";
   const hidden = chosen ?? !deciding;
-  const canClose = next.kind === "DONE" && reportIds.length > 0;
+  const canClose = next.kind === "DONE" && reports.length > 0;
 
   return (
     <section aria-label="Problem room" className="flex max-h-[38dvh] flex-col gap-2.5 overflow-y-auto rounded-go-card-s bg-go-surface px-3.5 py-2.5">
@@ -281,7 +284,7 @@ export default function ProblemRoom({
             Tell the driver to move the goods inside the van
           </button>
         )}
-        {next.kind === "DONE" && reportIds.length > 0 && (
+        {next.kind === "DONE" && reports.length > 0 && (
           <button type="button" disabled={off} className={quiet} onClick={() => void handled()}>Mark the problem handled</button>
         )}
         {next.endTripToo && next.kind !== "END_TRIP" && (

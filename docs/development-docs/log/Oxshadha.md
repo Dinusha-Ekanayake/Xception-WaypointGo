@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-22 - fix: Mark handled resolves the report's Issue too
+
+`dev` · @Oxshadha
+
+- Found in the local check: the problem room's "Mark handled" resolved the chat reports but left the Issues they raised open on the Issues screen. Each report now carries its Issue, and the room resolves both, as the report's own "Mark resolved" already did.
+
+---
+
 ## 2026-10-22 - fix: a driver's report shows on Live's timeline at once again
 
 `dev` · @Oxshadha

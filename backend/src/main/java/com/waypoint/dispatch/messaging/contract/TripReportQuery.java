@@ -25,5 +25,7 @@ public interface TripReportQuery {
   }
 
   /** @param aboutOutletId the stop the report names; for a store's own report, its store */
-  record OpenReport(UUID messageId, Instant at, String reportType, String authorRole, Optional<String> aboutOutletId) {}
+  /** @param issueId the Issue the report raised, when it raised one: handling the report resolves both. */
+  record OpenReport(UUID messageId, Instant at, String reportType, String authorRole, Optional<String> aboutOutletId,
+      Optional<UUID> issueId) {}
 }

@@ -40,6 +40,7 @@ public class TripReportReads implements TripReportQuery {
         ((Timestamp) r.get("created_at")).toInstant(),
         (String) r.get("report_type"),
         (String) r.get("author_role"),
-        Optional.ofNullable((String) r.get("about_outlet")));
+        Optional.ofNullable((String) r.get("about_outlet")),
+        Optional.ofNullable((UUID) r.get("source_issue_id")));
   }
 }

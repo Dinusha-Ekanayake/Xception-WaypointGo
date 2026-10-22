@@ -489,7 +489,7 @@ public class JdbcThreadRepository {
   public List<Map<String, Object>> openReports(UUID threadId) {
     return database.query(
         """
-        SELECT message_id, report_type, author_role, about_outlet, created_at
+        SELECT message_id, report_type, author_role, about_outlet, created_at, source_issue_id
           FROM messaging.messages
          WHERE thread_id = ? AND kind = 'report' AND resolved_at IS NULL AND report_type IS NOT NULL
          ORDER BY created_at, message_id

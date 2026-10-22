@@ -111,7 +111,9 @@ public class TripOutlookQuery {
     }
     boolean noneInWindow = stops.stream().filter(s -> s.facts().stopOpen()).allMatch(s -> s.facts().window() == Window.MISSED);
     List<Signal> signals = new ArrayList<>();
+    Map<java.util.UUID, String> issueOf = new HashMap<>();
     for (TripReportQuery.OpenReport r : trip.reports()) {
+      r.issueId().ifPresent(i -> issueOf.put(r.messageId(), i.toString()));
       Playbooks.ofReport(r.reportType())
           .ifPresent(s -> signals.add(new Signal(r.messageId(), s, r.aboutOutletId(), r.at(), Source.REPORT)));
     }
@@ -159,7 +161,7 @@ public class TripOutlookQuery {
         o.trip().stream().map(c -> new ChanceView(c.action().name(), c.chance(), c.warning())).toList(),
         signals.stream()
             .map(s -> new SignalView(s.messageId().toString(), s.situation().name(), s.source().name().toLowerCase(java.util.Locale.ROOT),
-                s.outletId(), Optional.ofNullable(authors.get(s.messageId()))))
+                s.outletId(), Optional.ofNullable(authors.get(s.messageId())), Optional.ofNullable(issueOf.get(s.messageId()))))
             .toList(),
         o.stops().stream()
             .map(s -> new StopOutlookView(

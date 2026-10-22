@@ -427,6 +427,8 @@ export type TripOutlookView = {
     outletId: string | null;
     /** For a message read automatically (R-ML-35): driver or store_manager. */
     authorRole: string | null;
+    /** A report that raised an Issue: the room's "Mark handled" resolves both. Absent from older servers. */
+    issueId?: string | null;
   }[];
   stops: {
     deliveryId: string;

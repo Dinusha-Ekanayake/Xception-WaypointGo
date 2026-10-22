@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { said, tripThread } from "../thread-mocks.ts";
-import { LIVE_NOW, liveDay, serve, type Desk } from "./mocks.ts";
+import { LIVE_NOW, issue, liveDay, serve, type Desk } from "./mocks.ts";
 import { storeClosed } from "../playbook-fixture.ts";
 
 // R-EXE-31: on a trip on the road the dispatcher skips a store (next day or
@@ -549,4 +549,19 @@ test("the problem room folds by itself once nothing waits on the dispatcher, and
   await page.getByRole("button", { name: "Timeline", exact: true }).click();
   await page.getByRole("region", { name: "Timeline" }).getByTestId("report-sign").first().click();
   await expect(chat.getByRole("region", { name: "Problem room" }).getByRole("button", { name: "Hide" })).toBeVisible();
+});
+
+test("Mark handled resolves the report's Issue with it, so the Issues screen does not keep it open", async ({ page }) => {
+  const { desk } = await openRoom(page, {
+    situation: "ROAD_BLOCKED",
+    rows: [ROWS[0], { ...ROWS[1], state: "YES", at: "2027-03-01T10:40:00Z" }],
+    next: { kind: "DONE", why: "Every store the problem touches has an answer.", stops: [], about: null, extraMinutes: null, extras: [], endTripToo: false },
+  }, { issues: [issue(9, { type: "ROAD_DISRUPTION", rowVersion: 2 })] },
+  [{ messageId: "r1", situation: "ROAD_BLOCKED", source: "report", outletId: null, authorRole: null, issueId: "issue-9" }]);
+  const room = page.getByRole("dialog", { name: "Trip messages" }).getByRole("region", { name: "Problem room" });
+  await room.getByRole("button", { name: "Mark handled" }).click();
+  await expect.poll(() => desk.commands.find((c) => c.kind === "issue:Resolve")).toMatchObject({
+    payload: { issueId: "issue-9", action: "other", note: "Handled: Every store the problem touches has an answer." }, expectedVersion: 2,
+  });
+  await expect.poll(() => desk.commands.find((c) => c.kind === "message:Resolve")?.payload).toMatchObject({ messageId: "r1" });
 });
