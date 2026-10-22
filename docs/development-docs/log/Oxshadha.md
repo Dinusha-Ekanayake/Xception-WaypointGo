@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-22 - fix: a driver's report shows on Live's timeline at once again
+
+`dev` · @Oxshadha
+
+- Found on preview by @Oxshadha: the notification came but the timeline showed no report sign. The report list refreshed on road, vehicle and delivery changes only (since 5217ee5d), and a report reaches the trip's thread as a message just after the road event. While each read had its own connection (before 04f55f12) the browser's six-connection limit often left the list polling every 2 s, which hid the gap; with one connection per tab it waited for the minute's fallback poll. It now refreshes on messages too: the sign shows 1.2 s after the report, measured live.
+
+---
+
 ## 2026-10-22 - fix: a stuck van asks its next store, report chips, and a chat that stays readable
 
 `dev` · @Oxshadha

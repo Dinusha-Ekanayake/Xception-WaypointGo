@@ -256,7 +256,9 @@ export function useReports(depots: string[], date: string): Resource<ReportMarkV
               depots.map((depot) => request<ReportMarkView[]>(`/api/threads/reports?depot=${q(depot)}&date=${q(date)}`, { signal })),
             )
           ).flat();
-  const reports = useResource(load, `reports|${depots.join(",")}|${date}`, POLL_MS, { depots, topics: ["vehicle", "road", "delivery"] });
+  // A driver's report reaches the trip's thread after the road or vehicle event that raised it, as a
+  // message: without "message" the sign waited for the minute's fallback poll.
+  const reports = useResource(load, `reports|${depots.join(",")}|${date}`, POLL_MS, { depots, topics: ["vehicle", "road", "delivery", "message"] });
   // A report resolved in the thread leaves the timeline now, not at the next poll.
   const { refresh } = reports;
   useEffect(() => {
