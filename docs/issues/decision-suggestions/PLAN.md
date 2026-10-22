@@ -156,6 +156,32 @@ The step is a button with its result in words ("Sends 3 questions, answers due 0
 2. A driver's own words into a problem situation (part 2, R-ML-35), which opens the room.
 Both stay off in production until @jv-ransika agrees; on preview they can be switched on to be tried.
 
+### The foundation: a problem case, not a path per edge case
+
+The room above is not written for the road-blocked case; it is one case of a small general model, the way case management standards treat work whose steps cannot be fixed in advance: a case file, and rules ("sentries") that make a step available when its conditions are true, rather than a fixed sequence ([CMMN overview](https://skills.visual-paradigm.com/?p=508)). Here:
+
+- **The problem** (the case): the trip, what was reported and by whom, when.
+- **The parties**: each store still waiting, the driver, the loaders; each with a state (waiting, asked, yes, no, no answer, skipped, delivered).
+- **The asks**: questions with a deadline and a fixed set of answers (`receive_late`, `dock_help`, and new kinds as needed), answered by a tap, by voice, or by the dispatcher for a phone call.
+- **The rules**: one table, `situation x party state x facts -> next step` (ask, skip, call, end trip, tell), defined once (rule 5) and read by the dispatcher's room, the store's chips and the log.
+
+A new edge case is a new row in the table and a new test, not a new screen. The table, to be filled and agreed row by row:
+
+| Situation | Who is asked | Answers | What each leads to |
+| --- | --- | --- | --- |
+| Breakdown, road blocked, running late | each store still waiting: can you receive at about T? | yes / no / none by the deadline | keep / skip / call; most no: end trip |
+| Store closed, cannot unload (at the door) | that store: someone coming, dock cleared? | yes / no / none | wait / skip / call |
+| A skipped store's goods in front of a later store's | the later store: may the crew unload at your dock? | yes / no / none | unload there / **open** / call |
+| A mall store late | nobody (its window is fixed) | | skip |
+| Driver silent (no signal) | the driver, then the stores waiting: arrival not confirmed | | tell, then wait |
+| Goods problem at receipt | nobody now | | noted for the day's end (Issues) |
+
+**Everyone sees the same room.** A shared picture of an incident lets everyone decide consistently and is what spares units falling back on radio and face-to-face updates ([JESIP common operating picture](https://www.jesip.org.uk/joint-doctrine/common-operating-picture), [FIRESCOPE ICS-1401](https://firescope.caloes.ca.gov/ICS%20Documents/ICS%201401.pdf)). The dispatcher sees every row; a store sees its own row and the question to it; the driver sees what was decided for each stop. That replaces call-by-call with one open record.
+
+**The risk, and how it is held.** People follow a computer's suggestion when it is wrong (commission) and miss what it did not flag (omission), more so under heavy workload ([Alberdi et al. 2009](https://openaccess.city.ac.uk/id/eprint/384/)); others ignore a good aid altogether ([DTIC report](https://apps.dtic.mil/sti/pdfs/ADA390225.pdf)). So: the next step comes from the rule table, never from a model; each step says why ("OUT001 said No at 04:34"); nothing is sent or decided without a tap; Jev only reads words into an answer the dispatcher confirms; and every party's state stays visible, so nothing the rules did not flag is hidden.
+
+**What the evidence does and does not say.** The design follows doctrine and studies of decision making under pressure, and vendor reports that telling the receiver early cuts "where is my delivery" contacts by roughly a quarter ([project44, one case](https://www.project44.com/?p=7311)); none of it measures this design. It is measured here, before and after: minutes from report to decision, characters typed by the dispatcher and the stores, calls made (the "Call" step taken), answers given by a tap against typed, steps dismissed or taken another way.
+
 ### Edge cases to decide or test
 
 - A mall stop late: never asked; its row offers Skip only (R-PLN-14, EXE-20).
