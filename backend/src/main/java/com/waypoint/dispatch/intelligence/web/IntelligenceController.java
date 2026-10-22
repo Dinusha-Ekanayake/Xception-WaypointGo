@@ -23,6 +23,7 @@ import com.waypoint.dispatch.shared.error.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -154,6 +155,17 @@ public class IntelligenceController {
     return intelligence.backtest(read(request, "wpt:ml:model:*"), weeks);
   }
 
+  /**
+   * Issue #12, R-ML-38: each night's comparison of the shadow with the model
+   * that answered, newest first. Read before promoting a shadow; a rollback the
+   * system made is on its review.
+   */
+  @GetMapping("/models/shadow-reviews")
+  public List<com.waypoint.dispatch.intelligence.contract.ModelViews.ShadowReviewView> shadowReviews(
+      @RequestParam(required = false, defaultValue = "30") int limit, HttpServletRequest request) {
+    return intelligence.shadowReviews(read(request, "wpt:ml:model:*"), limit);
+  }
+
   /** Every stop's expected service minutes and P(late), and whether a model or the fallback answered. */
   @GetMapping("/plans/{planId}/predictions")
   public PlanPredictionsView predictions(@PathVariable UUID planId, HttpServletRequest request) {
@@ -250,6 +262,26 @@ public class IntelligenceController {
       HttpServletRequest request) {
     Actor actor = authorizer.require(request, IntelligenceDataQuery.EXPORT, "wpt:ml:training:" + depot);
     return intelligence.trainingRoutes(actor, depot, from, to, Optional.ofNullable(after), limit);
+  }
+
+  /**
+   * Issue #12, R-ML-36: the outlets, service allowances, traffic speed and
+   * calendar a retraining run reads, as a scoring request builds them.
+   */
+  @GetMapping("/training/reference")
+  public Map<String, Object> trainingReference(
+      @RequestParam List<String> depot,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+      HttpServletRequest request) {
+    Actor actor = null;
+    for (String d : depot) {
+      actor = authorizer.require(request, IntelligenceDataQuery.EXPORT, "wpt:ml:training:" + d);
+    }
+    if (actor == null) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "name at least one depot");
+    }
+    return intelligence.trainingReference(actor, depot, from, to);
   }
 
   /** T1-01: a draft's stops likely to be late, each with the dispatcher's latest keep or swap. */

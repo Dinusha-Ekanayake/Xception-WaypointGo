@@ -22,6 +22,7 @@ import com.waypoint.dispatch.intelligence.infrastructure.JdbcIntelligenceReposit
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcIntelligenceRepository.Prediction;
 import com.waypoint.dispatch.intelligence.infrastructure.ModelServingAdapter;
 import com.waypoint.dispatch.intelligence.infrastructure.ModelServingAdapter.Answer;
+import com.waypoint.dispatch.intelligence.infrastructure.ModelServingAdapter.Loaded;
 import com.waypoint.dispatch.intelligence.infrastructure.ModelServingAdapter.RiskAnswer;
 import com.waypoint.dispatch.intelligence.infrastructure.ModelServingAdapter.StopRisk;
 import com.waypoint.dispatch.ordering.contract.OrderQuery;
@@ -73,6 +74,12 @@ import org.springframework.stereotype.Component;
  * is active, up to {@code app.ml.max-attempts} (P-28).
  *
  * <p>Allocation is never changed by any of this (R-ML-05): the risk is advice.
+ *
+ * <p>Issue #12, R-ML-38: when the kind has a shadow model and the service has it
+ * loaded, the shadow scores the same request once the plan's own scoring is
+ * written, still with no transaction open. Its answers go to
+ * {@code ml.shadow_predictions}, which no screen, outcome or metric reads, and a
+ * shadow that fails changes nothing about the plan's scoring.
  */
 @Component
 public class PlanScoringJob implements ScheduledJob {
@@ -175,7 +182,8 @@ public class PlanScoringJob implements ScheduledJob {
   record StopPlan(UUID orderId, UUID tripId, int sequence, String outletId, BigDecimal serviceMinutes,
       BigDecimal lateProbability) {}
 
-  record Gathered(PlanView plan, List<StopPlan> stops, List<Route> routes, Optional<ModelRow> active) {}
+  record Gathered(
+      PlanView plan, List<StopPlan> stops, List<Route> routes, Optional<ModelRow> active, Optional<ModelRow> shadow) {}
 
   private void score(DueScoring due) {
     Optional<Gathered> gathered = database.asSystem(ModuleRole.ML, () -> gather(due.planId()));
@@ -188,14 +196,18 @@ public class PlanScoringJob implements ScheduledJob {
     }
     Gathered g = gathered.get();
 
-    Decision decision = gate(g);
+    // One look at what the service holds, for the gate and the shadow alike.
+    Optional<Answer<Loaded>> loaded = adapter.configured() && (g.active().isPresent() || g.shadow().isPresent())
+        ? Optional.of(adapter.availableModels()) : Optional.empty();
+    Decision decision = gate(g, loaded);
     Map<String, StopRisk> byOrder = new HashMap<>();
     Optional<String> roadConditions = Optional.empty();
     Optional<String> reason = decision.reason();
     String label = PredictionViews.DETERMINISTIC;
     if (decision.useModel() && !g.routes().isEmpty()) {
       // No transaction is open here: the model may take a while (R-ML-01).
-      Answer<RiskAnswer> answer = adapter.deliveryRisk(request(g));
+      Answer<RiskAnswer> answer = adapter.deliveryRisk(request(g, selectable(loaded)
+          ? g.active().map(m -> m.view().label()) : Optional.empty()));
       if (answer.value().isPresent()) {
         RiskAnswer a = answer.value().get();
         label = a.modelLabel();
@@ -260,19 +272,65 @@ public class PlanScoringJob implements ScheduledJob {
     if (!scored) {
       metrics.increment("waypoint.ml.fallback", "operation", "delivery_risk", "reason", category(why));
     }
+    shadow(g, loaded, now);
   }
 
-  private Decision gate(Gathered g) {
-    Optional<String> active = g.active().map(m -> m.view().label());
-    Served served;
-    if (!adapter.configured() || active.isEmpty()) {
-      served = Served.none();
-    } else {
-      Answer<Map<String, String>> loaded = adapter.loadedModels();
-      served = loaded.value()
-          .map(m -> Optional.ofNullable(m.get(ModelViews.DELIVERY_RISK)).map(Served::loaded).orElse(Served.none()))
-          .orElseGet(() -> Served.unavailable(loaded.failure().orElse("unknown")));
+  private static boolean selectable(Optional<Answer<Loaded>> loaded) {
+    return loaded.flatMap(Answer::value).map(Loaded::selectable).orElse(false);
+  }
+
+  /**
+   * R-ML-38: the shadow's answer for every stop of the plan, kept apart. Once
+   * per plan and shadow, so a degraded plan scored again does not call it twice.
+   * A competition model never shadows where it may not answer (R-ML-09).
+   */
+  private void shadow(Gathered g, Optional<Answer<Loaded>> loaded, Instant now) {
+    if (g.shadow().isEmpty() || g.routes().isEmpty()) {
+      return;
     }
+    ModelRow shadow = g.shadow().get();
+    String label = shadow.view().label();
+    String skipped = null;
+    if (!selectable(loaded)) {
+      skipped = "not_selectable";
+    } else if (!loaded.get().value().get().has(ModelViews.DELIVERY_RISK, label)) {
+      skipped = "not_loaded";
+    } else if (!adapter.allowsCompetitionModels() && ModelGate.competitionModel(label)) {
+      skipped = "competition_model";
+    } else if (database.asSystem(ModuleRole.ML, () -> repository.hasShadowPredictions(g.plan().planId(), label))) {
+      return;
+    }
+    if (skipped != null) {
+      metrics.increment("waypoint.ml.shadow_scoring", "outcome", "skipped", "reason", skipped);
+      return;
+    }
+    Answer<RiskAnswer> answer = adapter.deliveryRisk(request(g, Optional.of(label)));
+    if (answer.value().isEmpty() || !label.equals(answer.value().get().modelLabel())) {
+      metrics.increment("waypoint.ml.shadow_scoring", "outcome", "failed", "reason",
+          answer.value().isEmpty() ? category(answer.failure()) : "version_mismatch");
+      return;
+    }
+    Map<String, StopRisk> byOrder = new HashMap<>();
+    answer.value().get().stops().forEach(s -> byOrder.put(s.deliveryId(), s));
+    database.asSystem(ModuleRole.ML, () -> {
+      for (StopPlan s : g.stops()) {
+        StopRisk risk = byOrder.get(s.orderId().toString());
+        if (risk != null) {
+          repository.insertShadowPrediction(UuidV7.generate(now, random), g.plan().planId(), s.orderId(),
+              g.plan().depotCode(), g.plan().serviceDate(), shadow.id(), label, risk.serviceMinutes(),
+              risk.lateProbability(), now);
+        }
+      }
+    });
+    metrics.increment("waypoint.ml.shadow_scoring", "outcome", "scored", "reason", "none");
+  }
+
+  private Decision gate(Gathered g, Optional<Answer<Loaded>> loaded) {
+    Optional<String> active = g.active().map(m -> m.view().label());
+    Served served = active.isEmpty() ? Served.none() : loaded
+        .map(a -> a.value().map(l -> l.served(ModelViews.DELIVERY_RISK))
+            .orElseGet(() -> Served.unavailable(a.failure().orElse("unknown"))))
+        .orElse(Served.none());
     return ModelGate.decide(ModelViews.DELIVERY_RISK, adapter.configured(), active, served, adapter.allowsCompetitionModels());
   }
 
@@ -312,7 +370,8 @@ public class PlanScoringJob implements ScheduledJob {
             .ifPresent(routes::add);
       }
     }
-    return Optional.of(new Gathered(plan, stops, routes, repository.activeModel(ModelViews.DELIVERY_RISK)));
+    return Optional.of(new Gathered(plan, stops, routes, repository.activeModel(ModelViews.DELIVERY_RISK),
+        repository.shadowModel(ModelViews.DELIVERY_RISK)));
   }
 
   /**
@@ -347,11 +406,13 @@ public class PlanScoringJob implements ScheduledJob {
         o.itemCount(), o.weightKg(), o.volumeM3()));
   }
 
-  private Map<String, Object> request(Gathered g) {
+  /** @param model the label to name, for a service that holds several (R-ML-37); empty for its image model */
+  private Map<String, Object> request(Gathered g, Optional<String> model) {
     Map<String, Object> body = new LinkedHashMap<>();
     body.put("routes", routes(g));
     body.put("reference", payload.forDepotDay(g.plan().depotCode(), g.plan().serviceDate(),
         g.plan().referenceVersionId()));
+    model.ifPresent(label -> body.put("model", label));
     return body;
   }
 

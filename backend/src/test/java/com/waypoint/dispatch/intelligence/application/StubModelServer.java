@@ -32,6 +32,13 @@ final class StubModelServer {
   final AtomicInteger riskCalls = new AtomicInteger();
   final AtomicReference<JsonNode> lastRiskRequest = new AtomicReference<>();
   final AtomicReference<JsonNode> lastForecastRequest = new AtomicReference<>();
+  /**
+   * Issue #12: further delivery-risk models the service holds, as a store would, each with the
+   * late probability it answers. Empty: the service lists no {@code available}, as before the store.
+   */
+  final java.util.Map<String, Double> stored = new java.util.concurrent.ConcurrentHashMap<>();
+  /** The {@code model} each delivery-risk request named, or empty when it named none. */
+  final java.util.List<String> namedModels = new java.util.concurrent.CopyOnWriteArrayList<>();
 
   private final ObjectMapper json = new ObjectMapper();
   private final HttpServer server;
@@ -54,6 +61,8 @@ final class StubModelServer {
     demandLabel.set("stub-demand@1");
     failing = false;
     roadConditions = "used";
+    stored.clear();
+    namedModels.clear();
   }
 
   private void health(HttpExchange ex) throws IOException {
@@ -65,6 +74,16 @@ final class StubModelServer {
     ArrayNode models = body.putArray("models");
     models.addObject().put("kind", "delivery_risk").put("name", name(riskLabel.get())).put("version", version(riskLabel.get()));
     models.addObject().put("kind", "demand_forecast").put("name", name(demandLabel.get())).put("version", version(demandLabel.get()));
+    if (!stored.isEmpty()) {
+      ArrayNode available = body.putArray("available");
+      for (JsonNode m : models) {
+        available.add(m.deepCopy());
+      }
+      for (String label : stored.keySet()) {
+        available.addObject().put("kind", "delivery_risk").put("name", name(label)).put("version", version(label))
+            .put("source", "store");
+      }
+    }
     send(ex, 200, json.writeValueAsString(body));
   }
 
@@ -76,14 +95,22 @@ final class StubModelServer {
       send(ex, 500, "{}");
       return;
     }
+    String named = req.path("model").isTextual() ? req.path("model").asText() : null;
+    namedModels.add(named == null ? "" : named);
+    if (named != null && !named.equals(riskLabel.get()) && !stored.containsKey(named)) {
+      send(ex, 422, "{\"detail\":\"model " + named + " is not loaded\"}");
+      return;
+    }
+    String answering = named == null ? riskLabel.get() : named;
+    double answer = stored.getOrDefault(answering, late);
     ObjectNode body = json.createObjectNode()
-        .put("kind", "delivery_risk").put("modelName", name(riskLabel.get())).put("modelVersion", version(riskLabel.get()))
+        .put("kind", "delivery_risk").put("modelName", name(answering)).put("modelVersion", version(answering))
         .put("roadConditions", roadConditions);
     ArrayNode predictions = body.putArray("predictions");
     for (JsonNode route : req.path("routes")) {
       for (JsonNode stop : route.path("stops")) {
         predictions.addObject().put("deliveryId", stop.path("deliveryId").asText()).put("serviceMin", SERVICE)
-            .put("lateProb", late).put("roadConditions", "used".equals(roadConditions) ? "used" : "fallback");
+            .put("lateProb", answer).put("roadConditions", "used".equals(roadConditions) ? "used" : "fallback");
       }
     }
     send(ex, 200, json.writeValueAsString(body));

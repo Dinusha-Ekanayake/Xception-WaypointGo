@@ -3,6 +3,7 @@ package com.waypoint.dispatch.intelligence.infrastructure;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.intelligence.domain.CircuitBreaker;
+import com.waypoint.dispatch.intelligence.domain.ModelGate;
 import com.waypoint.dispatch.platform.config.IntelligenceProperties;
 import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.shared.util.Clock;
@@ -90,17 +91,52 @@ public class ModelServingAdapter {
     return circuit.state(clock.now());
   }
 
-  /** Kind to {@code name@version}, as the service reports it has loaded. */
-  public Answer<Map<String, String>> loadedModels() {
+  /**
+   * What the service has loaded, per kind (issue #12, R-ML-37).
+   *
+   * @param byKind every label of each kind, the image's model first
+   * @param selectable whether the service takes a {@code model} on a request; an
+   *     older one does not, and answers every request with its image model
+   */
+  public record Loaded(Map<String, List<String>> byKind, boolean selectable) {
+    public Loaded {
+      byKind = Map.copyOf(byKind);
+    }
+
+    public ModelGate.Served served(String kind) {
+      List<String> labels = byKind.getOrDefault(kind, List.of());
+      return labels.isEmpty() ? ModelGate.Served.none() : ModelGate.Served.loaded(labels);
+    }
+
+    public boolean has(String kind, String label) {
+      return byKind.getOrDefault(kind, List.of()).contains(label);
+    }
+  }
+
+  /** Every model the service has loaded, as its {@code /health} reports them. */
+  public Answer<Loaded> availableModels() {
     Answer<JsonNode> res = call("health", "GET", "/health", null, properties.healthTimeout());
     if (res.value().isEmpty()) {
       return Answer.failed(res.failure().orElseThrow());
     }
-    Map<String, String> out = new LinkedHashMap<>();
-    for (JsonNode m : res.value().get().path("models")) {
-      out.put(m.path("kind").asText(), m.path("name").asText() + "@" + m.path("version").asText());
+    Map<String, List<String>> out = new LinkedHashMap<>();
+    JsonNode health = res.value().get();
+    for (JsonNode m : health.path("models")) {
+      add(out, m);
     }
-    return Answer.ok(out);
+    JsonNode available = health.path("available");
+    for (JsonNode m : available) {
+      add(out, m);
+    }
+    return Answer.ok(new Loaded(out, available.isArray()));
+  }
+
+  private static void add(Map<String, List<String>> out, JsonNode m) {
+    List<String> labels = out.computeIfAbsent(m.path("kind").asText(), k -> new ArrayList<>());
+    String label = m.path("name").asText() + "@" + m.path("version").asText();
+    if (!labels.contains(label)) {
+      labels.add(label);
+    }
   }
 
   public Answer<RiskAnswer> deliveryRisk(Map<String, Object> body) {

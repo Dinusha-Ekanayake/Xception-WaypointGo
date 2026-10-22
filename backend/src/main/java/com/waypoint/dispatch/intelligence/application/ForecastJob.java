@@ -15,6 +15,7 @@ import com.waypoint.dispatch.intelligence.infrastructure.JdbcIntelligenceReposit
 import com.waypoint.dispatch.intelligence.infrastructure.ModelServingAdapter;
 import com.waypoint.dispatch.intelligence.infrastructure.ModelServingAdapter.Answer;
 import com.waypoint.dispatch.intelligence.infrastructure.ModelServingAdapter.ForecastAnswer;
+import com.waypoint.dispatch.intelligence.infrastructure.ModelServingAdapter.Loaded;
 import com.waypoint.dispatch.intelligence.infrastructure.ModelServingAdapter.WeekAnswer;
 import com.waypoint.dispatch.ordering.contract.OrderQuery;
 import com.waypoint.dispatch.platform.db.Database;
@@ -171,7 +172,9 @@ public class ForecastJob implements ScheduledJob {
 
     Optional<ModelRow> active =
         database.asSystem(ModuleRole.ML, () -> repository.activeModel(ModelViews.DEMAND_FORECAST));
-    Decision decision = gate(active);
+    Optional<Answer<Loaded>> loaded = adapter.configured() && active.isPresent()
+        ? Optional.of(adapter.availableModels()) : Optional.empty();
+    Decision decision = gate(active, loaded);
     Map<Key, WeekVolume> model = new LinkedHashMap<>();
     String label = PredictionViews.DETERMINISTIC;
     Optional<String> reason = decision.reason();
@@ -192,6 +195,11 @@ public class ForecastJob implements ScheduledJob {
       body.put("calendar", payload.calendar(ReferencePayload.CALENDAR_FROM, end));
       body.put("outlets", payload.outlets(depots, versionId.get()));
       body.put("weeks", weeks);
+      // R-ML-37: a service holding several models answers with the one named. An older service is not sent
+      // the field, which it would refuse.
+      if (loaded.flatMap(Answer::value).map(Loaded::selectable).orElse(false)) {
+        body.put("model", active.get().view().label());
+      }
       Answer<ForecastAnswer> answer = adapter.demandForecast(body);
       if (answer.value().isPresent()) {
         label = answer.value().get().modelLabel();
@@ -222,17 +230,12 @@ public class ForecastJob implements ScheduledJob {
     return results.size();
   }
 
-  private Decision gate(Optional<ModelRow> active) {
+  private Decision gate(Optional<ModelRow> active, Optional<Answer<Loaded>> loaded) {
     Optional<String> label = active.map(m -> m.view().label());
-    Served served;
-    if (!adapter.configured() || label.isEmpty()) {
-      served = Served.none();
-    } else {
-      Answer<Map<String, String>> loaded = adapter.loadedModels();
-      served = loaded.value()
-          .map(m -> Optional.ofNullable(m.get(ModelViews.DEMAND_FORECAST)).map(Served::loaded).orElse(Served.none()))
-          .orElseGet(() -> Served.unavailable(loaded.failure().orElse("unknown")));
-    }
+    Served served = loaded
+        .map(a -> a.value().map(l -> l.served(ModelViews.DEMAND_FORECAST))
+            .orElseGet(() -> Served.unavailable(a.failure().orElse("unknown"))))
+        .orElse(Served.none());
     return ModelGate.decide(ModelViews.DEMAND_FORECAST, adapter.configured(), label, served, adapter.allowsCompetitionModels());
   }
 

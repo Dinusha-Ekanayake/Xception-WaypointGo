@@ -1,12 +1,14 @@
 package com.waypoint.dispatch.intelligence.application;
 
-import com.waypoint.dispatch.intelligence.domain.ModelGate;
-import com.waypoint.dispatch.platform.config.IntelligenceProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.waypoint.dispatch.intelligence.contract.ModelViews;
 import com.waypoint.dispatch.intelligence.contract.ModelViews.ModelStatus;
+import com.waypoint.dispatch.intelligence.domain.ModelGate;
+import com.waypoint.dispatch.intelligence.domain.ModelRegistryPolicy;
+import com.waypoint.dispatch.intelligence.domain.ModelRegistryPolicy.Move;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcIntelligenceRepository;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcIntelligenceRepository.ModelRow;
+import com.waypoint.dispatch.platform.config.IntelligenceProperties;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.Command;
 import com.waypoint.dispatch.platform.messaging.CommandHandler;
@@ -25,6 +27,8 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
@@ -170,26 +174,67 @@ final class ModelHandlers {
       return ModelViews.ACTIVATE;
     }
 
+    /**
+     * The model it replaces becomes the shadow of the kind (issue #12, R-ML-40):
+     * it keeps scoring every plan, so the system can put it back if the new
+     * model does worse. A shadow already there returns to registered.
+     */
     @Override
     public Object handle(Actor actor, Command command) {
       ModelRow row = existing(command);
       long expected = expected(command, row);
-      if (row.view().status() == ModelStatus.RETIRED) {
-        throw new DomainException(ErrorCode.CONFLICT, "A retired model cannot be activated",
-            List.of("R-ML-03"));
-      }
+      List<ModelRow> kind = repository.standingOf(row.view().kind());
+      Map<UUID, Move> moves = ModelRegistryPolicy.activate(RegistryMoves.standing(row), RegistryMoves.standings(kind));
       if (!allowCompetitionModels && ModelGate.competitionModel(row.view().name())) {
         throw new DomainException(ErrorCode.CONFLICT,
             "Models trained on the competition data cannot be used here", List.of("R-ML-09"));
       }
-      if (row.view().status() == ModelStatus.ACTIVE) {
+      if (moves.isEmpty()) {
         return result(row, "ACTIVE", expected);
       }
-      Instant now = clock.now();
-      repository.demoteActive(row.view().kind(), now);
-      repository.activate(row.id(), expected, actor.userId(), now);
+      long version = RegistryMoves.apply(repository, kind, moves, row.id(), expected, actor.userId(), clock.now(),
+          "activated", Optional.empty(), Optional.empty());
       metrics.increment("waypoint.ml.model_activated", "kind", row.view().kind());
-      return result(row, "ACTIVE", expected + 1);
+      return result(row, "ACTIVE", version);
+    }
+  }
+
+  /**
+   * Issue #12, R-ML-38: a registered model scores every published plan beside
+   * the active one, kept apart, and never answers. The scheduled retraining run
+   * sends this for a candidate that passed its gates; an administrator may too.
+   */
+  @Component
+  static class Shadow extends ModelHandler {
+    private final boolean allowCompetitionModels;
+
+    Shadow(JdbcIntelligenceRepository repository, Metrics metrics, Clock clock, IntelligenceProperties properties) {
+      super(repository, metrics, clock);
+      this.allowCompetitionModels = properties.allowCompetitionModels();
+    }
+
+    @Override
+    public String kind() {
+      return ModelViews.SHADOW;
+    }
+
+    @Override
+    public Object handle(Actor actor, Command command) {
+      ModelRow row = existing(command);
+      long expected = expected(command, row);
+      List<ModelRow> kind = repository.standingOf(row.view().kind());
+      Map<UUID, Move> moves = ModelRegistryPolicy.shadow(RegistryMoves.standing(row), RegistryMoves.standings(kind));
+      if (!allowCompetitionModels && ModelGate.competitionModel(row.view().name())) {
+        throw new DomainException(ErrorCode.CONFLICT,
+            "Models trained on the competition data cannot be used here", List.of("R-ML-09"));
+      }
+      if (moves.isEmpty()) {
+        return result(row, "SHADOW", expected);
+      }
+      long version = RegistryMoves.apply(repository, kind, moves, row.id(), expected, actor.userId(), clock.now(),
+          "activated", Optional.empty(), Optional.empty());
+      metrics.increment("waypoint.ml.model_shadowed", "kind", row.view().kind());
+      return result(row, "SHADOW", version);
     }
   }
 

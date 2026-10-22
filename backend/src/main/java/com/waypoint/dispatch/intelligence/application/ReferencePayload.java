@@ -46,16 +46,7 @@ class ReferencePayload {
     Map<String, Object> out = new LinkedHashMap<>();
     out.put("outlets", outlets.stream().map(ReferencePayload::outlet).toList());
     out.put("vehicles", vehicles.stream().map(ReferencePayload::vehicle).toList());
-
-    List<Map<String, Object>> allowances = new ArrayList<>();
-    Set<String> combos = new LinkedHashSet<>();
-    for (OutletView o : outlets) {
-      if (combos.add(o.brandCode() + "|" + o.dockType())) {
-        reference.serviceAllowance(o.brandCode(), o.dockType(), versionId).ifPresent(a -> allowances.add(row(
-            "brand", a.brandCode(), "dock_type", a.dockType(), "service_allowance_min", a.minutes())));
-      }
-    }
-    out.put("service_allowance", allowances);
+    out.put("service_allowance", allowances(outlets, versionId));
 
     List<Map<String, Object>> travel = new ArrayList<>();
     for (String district : new LinkedHashSet<>(outlets.stream().map(OutletView::districtName).toList())) {
@@ -66,10 +57,7 @@ class ReferencePayload {
           "inter_stop_freeflow_min", t.interStopFreeflowMin())));
     }
     out.put("district_travel", travel);
-    out.put("traffic_speed", reference.trafficSpeed(versionId).stream()
-        .map(t -> row("district", t.districtName(), "hour", t.hour(), "monsoon", t.monsoon() ? 1 : 0,
-            "speed_index", t.speedIndex()))
-        .toList());
+    out.put("traffic_speed", trafficSpeed(versionId));
     // A festival ramp is read backwards from the next festival, so the calendar
     // runs a year past the day.
     out.put("calendar", calendar(day.minusDays(60), day.plusDays(370)));
@@ -78,6 +66,43 @@ class ReferencePayload {
             r.disruptionIndex()))
         .toList());
     return out;
+  }
+
+  /**
+   * The tables a retraining run reads (issue #12): the same rows a scoring
+   * request carries, for these depots and days, so training reads the calendar
+   * serving reads, generated days past the supplied calendar included (R-ML-36).
+   */
+  Map<String, Object> forTraining(List<String> depotCodes, LocalDate from, LocalDate to, UUID versionId) {
+    List<OutletView> outlets = depotCodes.stream()
+        .flatMap(d -> reference.outletsOfDepot(d, versionId).stream())
+        .toList();
+    Map<String, Object> out = new LinkedHashMap<>();
+    out.put("referenceVersionId", versionId.toString());
+    out.put("outlets", outlets.stream().map(ReferencePayload::outlet).toList());
+    out.put("service_allowance", allowances(outlets, versionId));
+    out.put("traffic_speed", trafficSpeed(versionId));
+    out.put("calendar", calendar(from, to));
+    return out;
+  }
+
+  private List<Map<String, Object>> allowances(List<OutletView> outlets, UUID versionId) {
+    List<Map<String, Object>> allowances = new ArrayList<>();
+    Set<String> combos = new LinkedHashSet<>();
+    for (OutletView o : outlets) {
+      if (combos.add(o.brandCode() + "|" + o.dockType())) {
+        reference.serviceAllowance(o.brandCode(), o.dockType(), versionId).ifPresent(a -> allowances.add(row(
+            "brand", a.brandCode(), "dock_type", a.dockType(), "service_allowance_min", a.minutes())));
+      }
+    }
+    return allowances;
+  }
+
+  private List<Map<String, Object>> trafficSpeed(UUID versionId) {
+    return reference.trafficSpeed(versionId).stream()
+        .map(t -> row("district", t.districtName(), "hour", t.hour(), "monsoon", t.monsoon() ? 1 : 0,
+            "speed_index", t.speedIndex()))
+        .toList();
   }
 
   /** Every outlet of these depots: the demand model schedules each outlet's orders. */
