@@ -52,11 +52,13 @@ public class TripOutlookQuery {
   private final JdbcDecisionSuggestions log;
   private final com.waypoint.dispatch.intelligence.infrastructure.JdbcMessageSituations read;
   private final com.waypoint.dispatch.platform.config.AiProperties ai;
+  private final com.waypoint.dispatch.issues.contract.IssueQuery issues;
 
   public TripOutlookQuery(
       TripReportQuery reports, ExecutionQuery execution, OrderQuery orders, Database database, Clock clock,
       JdbcDecisionSuggestions log, com.waypoint.dispatch.intelligence.infrastructure.JdbcMessageSituations read,
-      com.waypoint.dispatch.platform.config.AiProperties ai) {
+      com.waypoint.dispatch.platform.config.AiProperties ai, com.waypoint.dispatch.issues.contract.IssueQuery issues) {
+    this.issues = issues;
     this.read = read;
     this.ai = ai;
     this.reports = reports;
@@ -68,12 +70,17 @@ public class TripOutlookQuery {
   }
 
   public TripOutlookView forTrip(Actor actor, String tripId) {
-    // One read as the dispatcher, so every contract read below sees them as the ambient actor and
-    // row-level security answers for their depots only.
-    return database.readAs(ModuleRole.ML, actor.userId(), () -> outlook(tripId));
+    return forTrip(actor, tripId, Optional.empty());
   }
 
-  private TripOutlookView outlook(String tripId) {
+  /** @param extraMinutes the extra time the dispatcher picked for the room's ask, on a breakdown or a blocked road */
+  public TripOutlookView forTrip(Actor actor, String tripId, Optional<Integer> extraMinutes) {
+    // One read as the dispatcher, so every contract read below sees them as the ambient actor and
+    // row-level security answers for their depots only.
+    return database.readAs(ModuleRole.ML, actor.userId(), () -> outlook(tripId, extraMinutes));
+  }
+
+  private TripOutlookView outlook(String tripId, Optional<Integer> extraMinutes) {
     TripReports trip = reports.openReports(tripId).orElseThrow(() -> notYours(tripId));
     boolean inScope =
         Boolean.TRUE.equals(database.queryOne("SELECT app.actor_has_depot(?) AS ok", trip.depotCode()).get("ok"));
@@ -141,7 +148,82 @@ public class TripOutlookQuery {
                 s.learned(), s.because().stream().map(Object::toString).toList()))
             .toList(),
         ai.jevLive(),
-        unread);
+        unread,
+        room(tripId, trip, onTrip, signals, now, extraMinutes));
+  }
+
+  /**
+   * R-ML-36: the problem the room is about, the most serious on the road first (a
+   * breakdown, a blocked road, running late), else a store found closed or unable
+   * to unload; a goods problem waits for the day's end and opens none.
+   */
+  private Optional<com.waypoint.dispatch.intelligence.contract.PlaybookViews.RoomView> room(
+      String tripId, TripReports trip, List<RunSheetStopView> onTrip, List<Signal> signals, Instant now,
+      Optional<Integer> extraMinutes) {
+    if (onTrip.isEmpty() || trip.serviceDate().isEmpty()) {
+      return Optional.empty();
+    }
+    java.util.Comparator<Signal> first = java.util.Comparator.comparing(Signal::at);
+    Optional<Signal> problem = java.util.stream.Stream.of(Situation.BREAKDOWN, Situation.ROAD_BLOCKED, Situation.RUNNING_LATE)
+        .flatMap(s -> signals.stream().filter(x -> x.situation() == s).sorted(first).limit(1))
+        .findFirst()
+        .or(() -> signals.stream()
+            .filter(x -> x.situation() == Situation.STORE_CLOSED || x.situation() == Situation.CANNOT_UNLOAD)
+            .min(first));
+    if (problem.isEmpty()) {
+      return Optional.empty();
+    }
+    java.time.LocalDate day = trip.serviceDate().get();
+    List<com.waypoint.dispatch.intelligence.domain.ProblemRoom.Stop> stops = onTrip.stream()
+        .map(s -> new com.waypoint.dispatch.intelligence.domain.ProblemRoom.Stop(
+            s.deliveryId(), s.outletId(), s.sequence(), outcome(s.outcome()), s.mallOutlet(), false,
+            day.atTime(s.windowClose()).atZone(Clock.OPERATING_ZONE).toInstant(),
+            // The van is not there yet: an arrival already past stands at now.
+            max(s.expectedArrival().orElse(day.atTime(s.plannedArrival()).atZone(Clock.OPERATING_ZONE).toInstant()), now),
+            s.rowVersion()))
+        .toList();
+    List<com.waypoint.dispatch.intelligence.domain.ProblemRoom.Ask> asks =
+        issues.decisionsOfTrip(java.util.UUID.fromString(tripId), day).stream()
+            .map(d -> new com.waypoint.dispatch.intelligence.domain.ProblemRoom.Ask(
+                d.requestId(), d.kind(), d.deliveryId(), d.aboutDeliveryId(), d.receiveAt(), d.deadline(), d.state(),
+                d.answer(), d.askedAt()))
+            .toList();
+    var r = com.waypoint.dispatch.intelligence.domain.ProblemRoom.of(
+        new com.waypoint.dispatch.intelligence.domain.ProblemRoom.Problem(
+            problem.get().situation(), problem.get().outletId(), problem.get().at()),
+        stops, asks, now, extraMinutes.map(java.time.Duration::ofMinutes));
+    var n = r.next();
+    return Optional.of(new com.waypoint.dispatch.intelligence.contract.PlaybookViews.RoomView(
+        r.situation().name(),
+        r.rows().stream().map(x -> new com.waypoint.dispatch.intelligence.contract.PlaybookViews.RowView(
+            x.deliveryId().toString(), x.outletId(), x.sequence(), x.state().name(), x.at(), x.because())).toList(),
+        new com.waypoint.dispatch.intelligence.contract.PlaybookViews.StepView(
+            n.kind().name(), n.stops().stream().map(TripOutlookQuery::target).toList(), n.about().map(TripOutlookQuery::target),
+            n.why(), n.extra().map(d -> (int) d.toMinutes()),
+            n.extra().isPresent()
+                ? com.waypoint.dispatch.intelligence.domain.ProblemRoom.EXTRAS.stream().map(d -> (int) d.toMinutes()).toList()
+                : List.of(),
+            n.endTripToo())));
+  }
+
+  private static com.waypoint.dispatch.intelligence.contract.PlaybookViews.TargetView target(
+      com.waypoint.dispatch.intelligence.domain.ProblemRoom.Target t) {
+    return new com.waypoint.dispatch.intelligence.contract.PlaybookViews.TargetView(
+        t.deliveryId().toString(), t.outletId(), t.receiveAt(), t.rowVersion());
+  }
+
+  private static com.waypoint.dispatch.intelligence.domain.ProblemRoom.Outcome outcome(DeliveryOutcome o) {
+    return switch (o) {
+      case PENDING -> com.waypoint.dispatch.intelligence.domain.ProblemRoom.Outcome.WAITING;
+      case ARRIVED -> com.waypoint.dispatch.intelligence.domain.ProblemRoom.Outcome.REACHED;
+      case DELIVERED -> com.waypoint.dispatch.intelligence.domain.ProblemRoom.Outcome.DELIVERED;
+      case SKIPPED -> com.waypoint.dispatch.intelligence.domain.ProblemRoom.Outcome.SKIPPED;
+      default -> com.waypoint.dispatch.intelligence.domain.ProblemRoom.Outcome.OTHER;
+    };
+  }
+
+  private static Instant max(Instant a, Instant b) {
+    return a.isAfter(b) ? a : b;
   }
 
   private static boolean open(RunSheetStopView s) {

@@ -204,106 +204,149 @@ test("a report about the vehicle gets its chips too, asked about the next stop, 
   await expect(chat.getByRole("radio", { name: "Everyone on the trip" })).toHaveAttribute("aria-checked", "true");
 });
 
-test("while a problem is open, one Next step card decides and then offers the word to send (R-ML-34)", async ({ page }) => {
+/** A trip outlook whose problem room is the one given (R-ML-36). */
+function withRoom(room: unknown, signals: unknown[] = [{ messageId: "r1", situation: "BREAKDOWN", source: "report", outletId: null, authorRole: null }]) {
+  return { tripId: "t-VEH020", version: 1, situation: "BREAKDOWN", trip: [], signals, stops: [], messagesRead: true, unreadMessages: 0, room };
+}
+
+const ROWS = [
+  { deliveryId: "d-VEH020-1", outletId: "OUT061", sequence: 1, state: "DELIVERED", at: null, because: null },
+  { deliveryId: "d-VEH020-2", outletId: "OUT063", sequence: 2, state: "NOT_ASKED", at: null, because: null },
+];
+
+async function openRoom(page: Page, room: unknown, extra: Partial<Desk> = {}, signals?: unknown[]): Promise<{ desk: Desk; asked: string[] }> {
   await page.clock.install({ time: new Date(LIVE_NOW) });
   const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
     said("r1", "2027-03-01T10:05:00Z", { kind: "report", reportType: "vehicle_fault", authorName: "Dilan R.", authorRole: "driver", audience: "dispatch", body: "Engine light" }),
   ]);
-  const desk = await serve(page, { ...liveDay(), threads: [thread] });
+  const desk = await serve(page, { ...liveDay(), threads: [thread], ...extra });
   const asked: string[] = [];
   await page.route("**/api/ml/trip-outlook**", (route) => {
-    asked.push(new URL(route.request().url()).searchParams.get("tripId") ?? "");
-    return route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        tripId: "t-VEH020", version: 1, situation: "BREAKDOWN",
-        trip: [{ action: "END_TRIP", chance: 0.5, warning: null }, { action: "WAIT", chance: 0.4, warning: null }, { action: "CARRY_ON", chance: 0.1, warning: null }],
-        signals: [{ messageId: "r1", situation: "BREAKDOWN", source: "report", outletId: null }],
-        stops: [{
-          deliveryId: "d-VEH020-2", outletId: "OUT063", sequence: 2, rowVersion: 1, situation: "BREAKDOWN", learned: false, because: ["r1"],
-          chances: [
-            { action: "SKIP_NEXT_DAY", chance: 0.6, warning: "Deferred before: this store would be skipped twice in a row" },
-            { action: "DELIVER", chance: 0.3, warning: null },
-            { action: "ASK_RECEIVE_LATER", chance: 0.1, warning: null },
-          ],
-        }],
-      }),
-    });
+    asked.push(new URL(route.request().url()).search);
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(withRoom(room, signals)) });
   });
   await page.goto("/#/live");
   await page.getByRole("button", { name: "Timeline", exact: true }).click();
   await page.getByRole("region", { name: "Timeline" }).getByTestId("report-sign").first().click();
+  return { desk, asked };
+}
 
+test("a breakdown's room asks the stores whose window it misses, in one tap, and keeps ending the trip as the way out (R-ML-36)", async ({ page }) => {
+  const { desk, asked } = await openRoom(page, {
+    situation: "BREAKDOWN",
+    rows: ROWS,
+    next: {
+      kind: "ASK", why: "Nobody can choose a store's delivery before it says when it can receive.",
+      stops: [{ deliveryId: "d-VEH020-2", outletId: "OUT063", receiveAt: "2027-03-01T12:40:00Z", rowVersion: 1 }],
+      about: null, extraMinutes: 60, extras: [30, 60, 120], endTripToo: true,
+    },
+  });
   const chat = page.getByRole("dialog", { name: "Trip messages" });
-  const card = chat.getByRole("region", { name: "Next step" });
-  await expect(card).toContainText("Next step · VEH020 broke down");
-  await expect(card.getByRole("group", { name: "VEH020 · the trip" }).getByRole("button")).toHaveText(["End trip · 50%", "Wait · 40%", "Carry on · 10%"]);
-  const store = card.getByRole("group", { name: "OUT063 · Breakdown" });
-  await expect(store.getByRole("button")).toHaveText(["Skip to next day · 60%", "Deliver as planned · 30%", "Ask to receive later · 10%"]);
-  await expect(store).toContainText("skipped twice in a row");
-  expect(asked[0]).toBe("t-VEH020");
-  // One place to decide: no chips beside the report, no End trip in the header, no ready replies.
+  const room = chat.getByRole("region", { name: "Problem room" });
+  await expect(room).toContainText("Problem · VEH020 broke down");
+  const rows = room.getByRole("list", { name: "Stores on the trip" });
+  await expect(rows).toContainText("OUT061");
+  await expect(rows).toContainText("Done");
+  await expect(rows).toContainText("Not asked yet");
+  // One place: no old chips, no End trip in the header, no ready replies, no percentages.
   await expect(chat.locator("#message-r1").getByRole("group", { name: "Suggested decisions" })).toHaveCount(0);
   await expect(chat.getByRole("button", { name: "End trip", exact: true })).toHaveCount(0);
   await expect(chat.getByRole("group", { name: "Suggested replies" })).toHaveCount(0);
+  await expect(room).not.toContainText("%");
   if (process.env.SHOTS_DIR) {
     await page.waitForTimeout(600);
-    await page.screenshot({ path: `${process.env.SHOTS_DIR}/21-next-step-card.png` });
+    await page.screenshot({ path: `${process.env.SHOTS_DIR}/25-problem-room-ask.png` });
   }
 
-  // Wait: the card offers the word for everyone on the trip, sent from here.
-  await card.getByRole("button", { name: /^Wait/ }).click();
-  await expect(card).toContainText("Waiting. Tell everyone on the trip?");
-  await expect(card).toContainText("VEH020 broke down. We will tell you the new time as soon as we know.");
-  if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/22-next-step-after.png` });
-  await card.getByRole("button", { name: "Send to everyone on the trip" }).click();
-  await expect.poll(() => desk.commands.find((c) => c.kind === "message:Post")?.payload).toMatchObject({
-    to: "all", body: "VEH020 broke down. We will tell you the new time as soon as we know.",
+  await room.getByRole("radio", { name: "+2 h" }).click();
+  await expect.poll(() => asked.some((q) => q.includes("extraMinutes=120"))).toBe(true);
+
+  await room.getByRole("button", { name: /^Ask OUT063: receive at about/ }).click();
+  await expect.poll(() => desk.commands.find((c) => c.kind === "issue:AskDecision")?.payload).toEqual({
+    kind: "receive_late", deliveryId: "d-VEH020-2", receiveAt: "2027-03-01T12:40:00Z",
   });
 
-  // Skip: confirmed in place; the store is told by the skip itself, so no second word is offered.
-  await chat.getByRole("region", { name: "Next step" }).getByRole("group", { name: "OUT063 · Breakdown" }).getByRole("button", { name: /Skip to next day/ }).click();
-  const form = chat.getByRole("group", { name: "Skip OUT063" });
-  await expect(form.getByRole("radio", { name: "Next day" })).toHaveAttribute("aria-checked", "true");
-  await form.getByRole("textbox", { name: "Why" }).fill("Broken down, cannot reach it today");
-  await form.getByRole("button", { name: "Skip to next day" }).click();
-  await expect.poll(() => desk.commands.find((c) => c.kind === "delivery:SkipStop")?.payload).toMatchObject({ deliveryId: "d-VEH020-2", then: "NEXT_DAY" });
-  const done = chat.getByRole("region", { name: "Next step" });
-  await expect(done).toContainText("Done: OUT063 moves to the next delivery day. The store was told.");
-  await expect(done.getByRole("button", { name: /^Send to/ })).toHaveCount(0);
+  await room.getByRole("button", { name: "The driver can't go on: end the trip" }).click();
+  await expect(chat.getByRole("button", { name: /^End trip/ }).last()).toBeVisible();
 });
 
-test("a driver's message read as a breakdown says so plainly, and the dispatcher can take it off the card with a reason (R-ML-35)", async ({ page }) => {
-  await page.clock.install({ time: new Date(LIVE_NOW) });
-  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
-    said("m1", "2027-03-01T10:05:00Z", { authorName: "Dilan R.", authorRole: "driver", audience: "dispatch", body: "Engine light came on, pulled over" }),
-  ]);
-  const desk = await serve(page, { ...liveDay(), threads: [thread] });
-  await page.route("**/api/ml/trip-outlook**", (route) => route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify({
-      tripId: "t-VEH020", version: 1, situation: "BREAKDOWN",
-      trip: [{ action: "END_TRIP", chance: 0.5, warning: null }, { action: "WAIT", chance: 0.4, warning: null }, { action: "CARRY_ON", chance: 0.1, warning: null }],
-      signals: [{ messageId: "m1", situation: "BREAKDOWN", source: "message", outletId: null, authorRole: "driver" }],
-      stops: [],
-      messagesRead: true,
-      unreadMessages: 0,
-    }),
-  }));
-  await page.goto("/#/live");
-  await page.getByRole("button", { name: "Timeline", exact: true }).click();
-  await page.getByRole("region", { name: "Timeline" }).getByRole("button", { name: /^VEH020/ }).first().click();
-  await page.getByRole("button", { name: /Messages|All messages/ }).first().click();
+test("a store that said No is the next to skip, the form filled in with why (R-ML-36)", async ({ page }) => {
+  const { desk } = await openRoom(page, {
+    situation: "BREAKDOWN",
+    rows: [ROWS[0], { ...ROWS[1], state: "NO" }],
+    next: {
+      kind: "SKIP", why: "OUT063 can't receive at 18:10.",
+      stops: [{ deliveryId: "d-VEH020-2", outletId: "OUT063", receiveAt: null, rowVersion: 1 }],
+      about: null, extraMinutes: null, extras: [], endTripToo: true,
+    },
+  });
+  const chat = page.getByRole("dialog", { name: "Trip messages" });
+  const room = chat.getByRole("region", { name: "Problem room" });
+  await expect(room).toContainText("No · can't receive");
+  await room.getByRole("button", { name: "Skip OUT063 to next day" }).click();
+  const form = chat.getByRole("group", { name: "Skip OUT063" });
+  await expect(form.getByRole("textbox", { name: "Why" })).toHaveValue("OUT063 can't receive at 18:10.");
+  await form.getByRole("button", { name: "Skip to next day" }).click();
+  await expect.poll(() => desk.commands.find((c) => c.kind === "delivery:SkipStop")?.payload).toMatchObject({
+    deliveryId: "d-VEH020-2", then: "NEXT_DAY", reason: "OUT063 can't receive at 18:10.",
+  });
+});
 
-  const card = page.getByRole("dialog", { name: "Trip messages" }).getByRole("region", { name: "Next step" });
-  await expect(card).toContainText("Breakdown: from the driver's message, read automatically");
-  await expect(card).not.toContainText("Jev");
-  await expect(card).toContainText("Likely from the trip's reports and messages.");
-  await expect(card).not.toContainText("%) ");
-  await card.getByRole("button", { name: "Not a problem" }).click();
-  const off = card.getByRole("group", { name: "Take it off the card" });
+test("a store with no answer by the deadline is called, and its answer recorded by phone (R-ML-36)", async ({ page }) => {
+  const asked = {
+    requestId: "q-1", kind: "receive_late", depotCode: "KDY", serviceDate: "2027-03-01", tripId: "t-VEH020", vehicleId: "VEH020",
+    deliveryId: "d-VEH020-2", outletId: "OUT063", aboutDeliveryId: null, aboutOutletId: null, aboutUnits: null,
+    receiveAt: "2027-03-01T12:40:00Z", arrivalAt: null, deadline: "2027-03-01T10:20:00Z", state: "expired", answer: null,
+    answeredVia: null, answeredAt: null, answeredLate: false, reason: null, voiceNoteId: null, askedAt: "2027-03-01T10:06:00Z",
+    rowVersion: 3, askedBySystem: false,
+  };
+  const { desk } = await openRoom(page, {
+    situation: "BREAKDOWN",
+    rows: [ROWS[0], { ...ROWS[1], state: "NO_ANSWER" }],
+    next: {
+      kind: "CALL", why: "OUT063 did not answer by the deadline.",
+      stops: [{ deliveryId: "d-VEH020-2", outletId: "OUT063", receiveAt: null, rowVersion: 1 }],
+      about: null, extraMinutes: null, extras: [], endTripToo: true,
+    },
+  }, { decisions: [asked] as never });
+  const room = page.getByRole("dialog", { name: "Trip messages" }).getByRole("region", { name: "Problem room" });
+  await expect(room.getByRole("link", { name: /^Call OUT063/ })).toBeVisible();
+  await room.getByRole("button", { name: "They said No" }).click();
+  await expect.poll(() => desk.commands.find((c) => c.kind === "issue:AnswerDecision")).toMatchObject({
+    payload: { requestId: "q-1", answer: "no", byPhone: true }, expectedVersion: 3,
+  });
+});
+
+test("a skipped store's goods in the way ask the next store's dock, and a refusal tells the driver (R-ML-36)", async ({ page }) => {
+  const dock = {
+    situation: "BREAKDOWN",
+    rows: [{ ...ROWS[0], state: "SKIPPED" }, ROWS[1]],
+    next: {
+      kind: "ASK_DOCK", why: "OUT061's goods were loaded in front of OUT063's.",
+      stops: [{ deliveryId: "d-VEH020-2", outletId: "OUT063", receiveAt: null, rowVersion: 1 }],
+      about: { deliveryId: "d-VEH020-1", outletId: "OUT061", receiveAt: null, rowVersion: 1 },
+      extraMinutes: null, extras: [], endTripToo: false,
+    },
+  };
+  const { desk } = await openRoom(page, dock);
+  const room = page.getByRole("dialog", { name: "Trip messages" }).getByRole("region", { name: "Problem room" });
+  await room.getByRole("button", { name: "Ask OUT063: may the crew unload OUT061's goods at its dock?" }).click();
+  await expect.poll(() => desk.commands.find((c) => c.kind === "issue:AskDecision")?.payload).toEqual({
+    kind: "dock_help", deliveryId: "d-VEH020-2", aboutDeliveryId: "d-VEH020-1",
+  });
+});
+
+test("a driver's message read as a breakdown says so plainly under the room, and the dispatcher can take it off with a reason (R-ML-35)", async ({ page }) => {
+  const { desk } = await openRoom(page, {
+    situation: "BREAKDOWN",
+    rows: ROWS,
+    next: { kind: "WAIT", why: "1 answer due by 15:40.", stops: [], about: null, extraMinutes: null, extras: [], endTripToo: true },
+  }, {}, [{ messageId: "m1", situation: "BREAKDOWN", source: "message", outletId: null, authorRole: "driver" }]);
+  const chat = page.getByRole("dialog", { name: "Trip messages" });
+  await expect(chat).toContainText("Breakdown: from the driver's message, read automatically");
+  await expect(chat).not.toContainText("Jev");
+  await chat.getByRole("button", { name: "Not a problem" }).click();
+  const off = chat.getByRole("group", { name: "Take it off the card" });
   await expect(off.getByRole("button", { name: "Take it off" })).toBeDisabled();
   await off.getByRole("textbox", { name: "Why" }).fill("Only a warning light, driving on");
   await off.getByRole("button", { name: "Take it off" }).click();

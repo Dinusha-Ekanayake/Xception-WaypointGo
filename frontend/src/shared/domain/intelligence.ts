@@ -417,6 +417,34 @@ export type TripOutlookView = {
   messagesRead: boolean;
   /** Words that could not be read: waiting over a minute, or given up on (rule 9). */
   unreadMessages: number;
+  /** The trip's problem room (R-ML-36): each store's row and the one next step; null with no problem open. */
+  room: RoomView | null;
+};
+
+export type RoomState =
+  | "NOT_ASKED" | "MALL_CANNOT_WAIT" | "IN_WINDOW" | "ASKED" | "YES" | "NO" | "NO_ANSWER"
+  | "DOCK_ASKED" | "DOCK_YES" | "DOCK_NO" | "SKIPPED" | "DELIVERED";
+
+export type RoomStepKind = "ASK" | "END_TRIP" | "SKIP" | "CALL" | "ASK_DOCK" | "TELL_DRIVER_DOCK" | "WAIT" | "DONE";
+
+export type RoomTarget = { deliveryId: string; outletId: string; receiveAt: string | null; rowVersion: number };
+
+/** R-ML-36: the problem, each store's row and the one next step, chosen by rules from the stores' answers. */
+export type RoomView = {
+  situation: string;
+  rows: { deliveryId: string; outletId: string; sequence: number; state: RoomState; at: string | null; because: string | null }[];
+  next: {
+    kind: RoomStepKind;
+    stops: RoomTarget[];
+    /** For the dock: the skipped store whose goods are in the way. */
+    about: RoomTarget | null;
+    /** The fact the step follows from, in plain words. */
+    why: string;
+    extraMinutes: number | null;
+    extras: number[];
+    /** A breakdown also offers "the driver can't go on: end trip". */
+    endTripToo: boolean;
+  };
 };
 
 export const SuggestionCommandKind = {

@@ -48,10 +48,32 @@ public final class PlaybookViews {
    * @param signals what it was made from, so the screen can say where a chip came from
    * @param messagesRead whether drivers' and stores' own words are read for it (R-ML-35); false, it stands on reports alone
    * @param unreadMessages words that could not be read: waiting over a minute, or given up on (rule 9)
+   * @param room the trip's problem room (R-ML-36): each store's state and the one next step; empty with no problem open
    */
   public record TripOutlookView(
       String tripId, int version, Optional<String> situation, List<ChanceView> trip, List<SignalView> signals,
-      List<StopOutlookView> stops, boolean messagesRead, int unreadMessages) {}
+      List<StopOutlookView> stops, boolean messagesRead, int unreadMessages, Optional<RoomView> room) {}
+
+  /** R-ML-36: the problem, each store's row and the one next step. */
+  public record RoomView(String situation, List<RowView> rows, StepView next) {}
+
+  /**
+   * @param state NOT_ASKED, MALL_CANNOT_WAIT, IN_WINDOW, ASKED, YES, NO, NO_ANSWER, DOCK_ASKED, DOCK_YES, DOCK_NO, SKIPPED, DELIVERED
+   * @param at the time the state names: the deadline, the time agreed, the expected arrival
+   */
+  public record RowView(String deliveryId, String outletId, int sequence, String state, Optional<java.time.Instant> at,
+      Optional<String> because) {}
+
+  /**
+   * @param kind ASK, END_TRIP, SKIP, CALL, ASK_DOCK, TELL_DRIVER_DOCK, WAIT, DONE
+   * @param about for the dock, the skipped store whose goods are in the way
+   * @param extraMinutes the extra time the ask used, with the other choices in {@code extras}
+   * @param endTripToo a breakdown also offers "the driver can't go on: end trip"
+   */
+  public record StepView(String kind, List<TargetView> stops, Optional<TargetView> about, String why,
+      Optional<Integer> extraMinutes, List<Integer> extras, boolean endTripToo) {}
+
+  public record TargetView(String deliveryId, String outletId, Optional<java.time.Instant> receiveAt, long rowVersion) {}
 
   /** @param chance 0 to 1, summing to 1 over the list it is in */
   public record ChanceView(String action, double chance, Optional<String> warning) {}

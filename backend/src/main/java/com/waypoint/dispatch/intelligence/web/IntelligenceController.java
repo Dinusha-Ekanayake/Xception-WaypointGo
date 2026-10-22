@@ -294,8 +294,14 @@ public class IntelligenceController {
    */
   @GetMapping("/trip-outlook")
   public com.waypoint.dispatch.intelligence.contract.PlaybookViews.TripOutlookView tripOutlook(
-      @org.springframework.web.bind.annotation.RequestParam String tripId, HttpServletRequest request) {
-    return tripOutlook.forTrip(read(request, "wpt:ml:trip:" + tripId), tripId);
+      @org.springframework.web.bind.annotation.RequestParam String tripId,
+      @org.springframework.web.bind.annotation.RequestParam(required = false) Integer extraMinutes,
+      HttpServletRequest request) {
+    if (extraMinutes != null && (extraMinutes < 0 || extraMinutes > 240)) {
+      throw new com.waypoint.dispatch.shared.error.DomainException(
+          com.waypoint.dispatch.shared.error.ErrorCode.VALIDATION_FAILED, "extraMinutes is 0 to 240");
+    }
+    return tripOutlook.forTrip(read(request, "wpt:ml:trip:" + tripId), tripId, java.util.Optional.ofNullable(extraMinutes));
   }
 
   private Actor read(HttpServletRequest request, String resource) {

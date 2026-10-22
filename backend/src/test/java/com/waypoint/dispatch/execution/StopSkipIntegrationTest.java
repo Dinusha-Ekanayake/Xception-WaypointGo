@@ -434,6 +434,58 @@ class StopSkipIntegrationTest {
   }
 
   @Test
+  void theProblemRoomAsksTheStoresAndAStoreThatSaysNoIsTheNextToSkip() throws Exception {
+    // R-ML-36: no problem, no room.
+    String path = "/api/ml/trip-outlook?tripId=" + tripId;
+    assertTrue(json(read(dispatcher, path, 200)).get("room").isNull(), "nothing open");
+
+    command(driver, "delivery:ReportFault", null,
+        "{\"vehicleId\":\"" + vehicleId + "\",\"kind\":\"vehicle\",\"description\":\"clutch gone\"}", 200);
+    drain();
+    // Two hours more: every store's window is missed, so each that is not a mall is asked.
+    JsonNode room = json(read(dispatcher, path + "&extraMinutes=120", 200)).get("room");
+    assertEquals("BREAKDOWN", room.get("situation").asText(), room.toString());
+    assertEquals(3, room.get("rows").size());
+    JsonNode next = room.get("next");
+    assertEquals("ASK", next.get("kind").asText(), next.toString());
+    assertTrue(next.get("endTripToo").asBoolean(), "the driver may not go on: end trip beside it");
+    assertEquals(120, next.get("extraMinutes").asInt());
+    java.util.List<String> asked = new java.util.ArrayList<>();
+    next.get("stops").forEach(t -> asked.add(t.get("outletId").asText()));
+    assertTrue(asked.contains(OUTLET) && !asked.contains(MALL_OUTLET), "a mall is never asked: " + asked);
+    read(dispatcher, path + "&extraMinutes=999", 422);
+
+    // The dispatcher sends each question the step names; the first store says No, the rest Yes.
+    JsonNode decisions = null;
+    java.util.List<UUID> requests = new java.util.ArrayList<>();
+    for (JsonNode t : next.get("stops")) {
+      requests.add(UUID.fromString(json(command(dispatcher, "issue:AskDecision", null,
+          "{\"kind\":\"receive_late\",\"deliveryId\":\"" + t.get("deliveryId").asText() + "\",\"receiveAt\":\""
+              + t.get("receiveAt").asText() + "\"}", 200)).get("result").get("requestId").asText()));
+    }
+    decisions = json(read(dispatcher, "/api/issues/decisions?date=" + day, 200));
+    String refused = next.get("stops").get(0).get("outletId").asText();
+    for (int i = 0; i < requests.size(); i++) {
+      String outlet = next.get("stops").get(i).get("outletId").asText();
+      long version = 0;
+      for (JsonNode d : decisions) {
+        if (d.get("requestId").asText().equals(requests.get(i).toString())) version = d.get("rowVersion").asLong();
+      }
+      command(outlet.equals(OUTLET) ? storeOne : storeTwo, "issue:AnswerDecision", version,
+          "{\"requestId\":\"" + requests.get(i) + "\",\"answer\":\"" + (i == 0 ? "no" : "yes") + "\"}", 200);
+    }
+
+    JsonNode after = json(read(dispatcher, path + "&extraMinutes=120", 200)).get("room");
+    for (JsonNode r : after.get("rows")) {
+      if (r.get("outletId").asText().equals(refused)) assertEquals("NO", r.get("state").asText(), after.toString());
+    }
+    JsonNode step = after.get("next");
+    assertEquals("SKIP", step.get("kind").asText(), step.toString());
+    assertEquals(refused, step.get("stops").get(0).get("outletId").asText());
+    assertTrue(step.get("why").asText().startsWith(refused + " can't receive at"), step.toString());
+  }
+
+  @Test
   void aMessageReadAsABreakdownIsOnTheTripsCardUntilTheDispatcherTakesItOffWithAReason() throws Exception {
     // R-ML-35: the driver wrote, Jev read it as a breakdown; a second read was not sure enough.
     String path = "/api/ml/trip-outlook?tripId=" + tripId;

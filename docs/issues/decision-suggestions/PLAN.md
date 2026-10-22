@@ -182,6 +182,20 @@ A new edge case is a new row in the table and a new test, not a new screen. The 
 
 **What the evidence does and does not say.** The design follows doctrine and studies of decision making under pressure, and vendor reports that telling the receiver early cuts "where is my delivery" contacts by roughly a quarter ([project44, one case](https://www.project44.com/?p=7311)); none of it measures this design. It is measured here, before and after: minutes from report to decision, characters typed by the dispatcher and the stores, calls made (the "Call" step taken), answers given by a tap against typed, steps dismissed or taken another way.
 
+### Decided 2026-10-23 (@Oxshadha, asked by @jv-ransika to choose): the first rows, for problems the driver reports
+
+The first slice covers what the driver reports (breakdown, road blocked, running late, store closed, cannot unload), typed or read from their words (R-ML-35). The driver's app does not change. The next step is chosen in this order, the first that applies:
+
+1. **Ask.** A breakdown or blocked road: every waiting store not yet asked and not a mall, "can you receive at about T?", T its own expected arrival plus the extra time the dispatcher picks (+30 min, +1 h, +2 h; +1 h first for a breakdown, +30 min for a road), rounded up to 5 minutes and within 4 hours (R-ISS-12). Running late: only the stores whose expected arrival is past their window; the others already see the new time on their own screen (R-EXE-15). At the door (store closed, cannot unload): that store, at about 15 minutes from now. A breakdown also offers "Driver can't go on: End trip" beside it, the one way out.
+2. **End trip**, when no waiting store can still be delivered today: every one said No, gave no answer after a call, or is a mall past its window. Not when some said Yes: those keep their delivery.
+3. **Skip** a store that said No, its reason filled in; a mall past its window, "a mall's window is fixed".
+4. **Call** a store whose question expired with no answer, with its manager's name and phone; the dispatcher then records the answer given by phone (R-ISS-14).
+5. **Ask the dock.** The van is loaded last stop first, so a skipped store's goods sit in front of every later store's. The next waiting store after it is asked whether the crew may unload them at its dock to reach its own (`dock_help`); the crew re-stows them behind the remaining stops there, so only the next store is asked.
+6. **The dock refused** (the question Ransika left to us): the driver is told to move the skipped store's goods inside the van at the kerb before that stop, and to say if they cannot, which reopens the trip's choice (skip that store too, or end the trip). Chilled goods never leave the refrigerated body (R-ISS-12).
+7. **Waiting** for answers, with their deadline; then **done**, one line per store.
+
+**PR 1 and 2 of part 3 built 2026-10-23:** `ProblemRoom` (pure, 12 rule tests), Issues' `decisionsOfTrip` contract read, the room in `GET /api/ml/trip-outlook` (`room`, `extraMinutes`), and the dispatcher's room in the chat in place of part 2's card (`ProblemRoom.tsx`): rows, the one step, one-tap ask of every store it names, End trip, Skip with its reason filled in, Call with the manager's phone and the answer recorded by phone, the dock question, the word to the driver, and "Mark the problem handled". Rule R-ML-36, edge cases ML-57 to ML-59. Next: the store's answer chips in its chat (PR 3), and the review of words read unsure or from a noisy voice note.
+
 ### Edge cases to decide or test
 
 - A mall stop late: never asked; its row offers Skip only (R-PLN-14, EXE-20).

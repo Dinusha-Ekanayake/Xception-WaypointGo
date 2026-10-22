@@ -58,15 +58,18 @@ export function SkipStopForm({
   onDone,
   initialThen = "NEXT_DAY",
   onSent,
+  initialReason,
 }: {
   stop: RunSheetStopView;
   onDone: () => void;
   initialThen?: Then;
   onSent?: () => void;
+  /** The reason a problem room already knows ("OUT001 can't receive at 05:50."); still editable. */
+  initialReason?: string;
 }): React.JSX.Element {
   const { busy, run } = useCommand();
   const [then, setThen] = useState<Then>(initialThen);
-  const [reason, setReason] = useState("");
+  const [reason, setReason] = useState(initialReason ?? "");
   const [error, setError] = useState<Error | null>(null);
   const ready = reason.trim().length >= REASON_MIN;
 

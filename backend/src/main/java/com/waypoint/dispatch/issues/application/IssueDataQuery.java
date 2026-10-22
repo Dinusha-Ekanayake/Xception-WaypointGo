@@ -156,6 +156,14 @@ public class IssueDataQuery implements IssueQuery {
     return read(actor.userId(), () -> decisions.ofDay(serviceDate, depotCode));
   }
 
+  @Override
+  public List<com.waypoint.dispatch.issues.contract.IssueViews.DecisionView> decisionsOfTrip(
+      UUID tripId, java.time.LocalDate serviceDate) {
+    return read(ambient(), () -> decisions.ofDay(serviceDate, java.util.Optional.empty()).stream()
+        .filter(d -> d.tripId().equals(tripId))
+        .toList());
+  }
+
   private <T> T read(UUID actorId, Supplier<T> work) {
     return database.readAs(ModuleRole.ISSUES, actorId, work);
   }

@@ -17,4 +17,12 @@ public interface IssueQuery {
 
   /** One issue the ambient actor can see, by id: Messaging reads a report's wording and who raised it (issue #136). */
   Optional<IssueView> issue(UUID issueId);
+
+  /**
+   * FF-09: the questions asked of a trip's stores that day, newest first, read as
+   * the asking person (row-level security decides the rows). For the trip's
+   * problem room in Intelligence (decision suggestions part 3).
+   */
+  java.util.List<com.waypoint.dispatch.issues.contract.IssueViews.DecisionView> decisionsOfTrip(
+      UUID tripId, java.time.LocalDate serviceDate);
 }

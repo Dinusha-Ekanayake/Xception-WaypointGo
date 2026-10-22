@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-23 - feat: the trip's problem room, one next step from the stores' answers
+
+`dev` · @Oxshadha
+
+- Replaces the decision card's percentages, which @Oxshadha found useless on preview: while a problem the driver reported is open, the top of the trip's chat shows each store's state and one next step (ask, end trip, skip, call, ask the dock, tell the driver), chosen by rules from the stores' Yes/No answers, never a guess (R-ML-36, [PLAN](../../issues/decision-suggestions/PLAN.md) part 3).
+- @jv-ransika left the approach to us: a later store that refuses its dock means the driver moves the skipped goods inside the van at the kerb, recorded in the plan.
+
+---
+
 ## 2026-10-23 - feat: Jev reads drivers' and stores' own words onto the trip's Next step card
 
 `dev` · @Oxshadha

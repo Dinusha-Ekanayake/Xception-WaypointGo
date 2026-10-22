@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import type { DecisionView, MessageView, ReplyRankingView, RunSheetView, ThreadView } from "@shared/domain/types";
@@ -98,9 +98,10 @@ function ThreadSheetPanel({
   const nextOpen = [...openStops].sort((x, y) => x.sequence - y.sequence)[0];
   // R-ML-34: the trip's outlook at the top covers its reports; a report's own chips stay only as the
   // fallback while the outlook cannot be read, so the same decision is never offered twice.
-  const outlook = useTripOutlook(head?.subjectId ?? null, head?.depotCode ?? null, online);
+  const [extra, setExtra] = useState<number | null>(null);
+  const outlook = useTripOutlook(head?.subjectId ?? null, head?.depotCode ?? null, online, extra);
   const covered = new Set((outlook?.signals ?? []).map((x) => x.messageId));
-  // While a problem is open, its Next step card is the one place to decide or send: the header's
+  // While a problem is open, its problem room is the one place to decide or send: the header's
   // End trip and Tell each store, and the ready replies, step aside until the trip is quiet again.
   const problem = problemOpen(outlook);
   const reportActions = (m: MessageView) => {
@@ -158,7 +159,6 @@ function ThreadSheetPanel({
             {date && <TellEachStore threadId={open.threadId} stops={tripStops} serviceDate={date} online={online} />}
           </div>
         )}
-        {/* Mounted while the chat is open, so its "Done" stays once the last stop is decided. */}
         {head && (
           <TripOutlookChips
             view={outlook}
@@ -166,9 +166,9 @@ function ThreadSheetPanel({
             tripId={head.subjectId}
             vehicleId={head.vehicleId}
             stops={tripStops}
-            openStops={openStops}
+            decisions={(answers.data ?? []).filter((d) => d.tripId === head.subjectId)}
             online={online}
-            onDraft={(draft) => inbox?.openThread({ threadId: open.threadId, draft })}
+            onExtra={setExtra}
           />
         )}
         {!online && (
