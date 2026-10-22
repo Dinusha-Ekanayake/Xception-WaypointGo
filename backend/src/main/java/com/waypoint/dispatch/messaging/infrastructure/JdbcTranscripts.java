@@ -46,10 +46,15 @@ public class JdbcTranscripts {
   }
 
   public void done(UUID voiceNoteId, String text, Optional<String> language, String engine, Instant now) {
+    done(voiceNoteId, text, language, false, engine, now);
+  }
+
+  /** @param unclear the engine said part of it is uncertain (R-ML-37) */
+  public void done(UUID voiceNoteId, String text, Optional<String> language, boolean unclear, String engine, Instant now) {
     database.update(
-        "UPDATE messaging.voice_transcripts SET status = 'done', transcript = ?, language = ?, engine = ?,"
+        "UPDATE messaging.voice_transcripts SET status = 'done', transcript = ?, language = ?, unclear = ?, engine = ?,"
             + " attempts = attempts + 1, finished_at = ? WHERE voice_note_id = ? AND status = 'pending'",
-        text, language.orElse(null), engine, Timestamp.from(now), voiceNoteId);
+        text, language.orElse(null), unclear, engine, Timestamp.from(now), voiceNoteId);
   }
 
   /** Another try later, or failed for good after the last one. */

@@ -15,11 +15,23 @@ public final class TranscriptText {
 
   private TranscriptText() {}
 
-  /** @param language en, si or ta; empty when the engine named another or none */
-  public record Heard(String text, Optional<String> language) {}
+  /**
+   * @param language en, si or ta; empty when the engine named another or none
+   * @param unclear the engine said noise or cut-off words leave part of it uncertain (R-ML-37)
+   */
+  public record Heard(String text, Optional<String> language, boolean unclear) {
+    public Heard(String text, Optional<String> language) {
+      this(text, language, false);
+    }
+  }
 
   /** What to store from the engine's answer; empty when it heard no speech. */
   public static Optional<Heard> heard(String text, String language) {
+    return heard(text, language, false);
+  }
+
+  /** As above, kept with whether the engine heard it clearly. */
+  public static Optional<Heard> heard(String text, String language, boolean unclear) {
     String cleaned = text == null ? "" : text.replaceAll("[\\p{Cntrl}&&[^\\n]]", "").strip();
     if (cleaned.isEmpty()) {
       return Optional.empty();
@@ -28,6 +40,6 @@ public final class TranscriptText {
       cleaned = cleaned.substring(0, MAX);
     }
     String lang = language == null ? "" : language.strip().toLowerCase(java.util.Locale.ROOT);
-    return Optional.of(new Heard(cleaned, LANGUAGES.contains(lang) ? Optional.of(lang) : Optional.empty()));
+    return Optional.of(new Heard(cleaned, LANGUAGES.contains(lang) ? Optional.of(lang) : Optional.empty(), unclear));
   }
 }

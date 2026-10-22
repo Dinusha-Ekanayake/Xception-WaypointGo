@@ -169,6 +169,7 @@ function ThreadSheetPanel({
             decisions={(answers.data ?? []).filter((d) => d.tripId === head.subjectId)}
             online={online}
             onExtra={setExtra}
+            onShow={(messageId) => inbox?.openThread({ threadId: open.threadId, messageId })}
           />
         )}
         {!online && (

@@ -28,4 +28,22 @@ class MessageTriageTest {
     assertEquals(ReportTriage.OPTIONS.keySet(), MessageTriage.shuffled(7).keySet());
     assertEquals(MessageTriage.shuffled(7).keySet().stream().toList(), MessageTriage.shuffled(7).keySet().stream().toList(), "a retry asks the same question");
   }
+
+  @Test
+  void aSureClearReadingCountsAnUnsureOrUnclearOneIsReviewedAndAConfirmationDecides() {
+    // R-ML-37.
+    assertEquals(MessageTriage.Reading.SIGNAL, MessageTriage.reading("BREAKDOWN", 0.8, 0.5, false, Optional.empty()));
+    assertEquals(MessageTriage.Reading.REVIEW, MessageTriage.reading("BREAKDOWN", 0.3, 0.5, false, Optional.empty()),
+        "a problem said unsurely is confirmed, not dropped");
+    assertEquals(MessageTriage.Reading.NOTHING, MessageTriage.reading(MessageTriage.NONE, 0.4, 0.5, false, Optional.empty()));
+    assertEquals(MessageTriage.Reading.REVIEW, MessageTriage.reading("BREAKDOWN", 0.99, 0.5, true, Optional.empty()),
+        "words heard unclearly are confirmed however sure the reading");
+    assertEquals(MessageTriage.Reading.REVIEW, MessageTriage.reading(MessageTriage.NONE, 0.6, 0.5, true, Optional.empty()));
+    assertEquals(MessageTriage.Reading.NOTHING, MessageTriage.reading(MessageTriage.NONE, 0.95, 0.5, true, Optional.empty()),
+        "noisy chat Jev is very sure says nothing is left alone");
+    assertEquals(MessageTriage.Reading.SIGNAL, MessageTriage.reading(MessageTriage.NONE, 0.95, 0.5, true, Optional.of("STORE_CLOSED")));
+    assertEquals(MessageTriage.Reading.NOTHING, MessageTriage.reading("BREAKDOWN", 0.99, 0.5, false, Optional.of(MessageTriage.NONE)),
+        "what the dispatcher confirmed decides");
+    assertEquals(MessageTriage.Reading.NOTHING, MessageTriage.reading(null, 0, 0.5, true, Optional.empty()));
+  }
 }

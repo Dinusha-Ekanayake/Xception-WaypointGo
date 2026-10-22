@@ -486,6 +486,43 @@ class StopSkipIntegrationTest {
   }
 
   @Test
+  void aVoiceNoteHeardUnclearlyWaitsForTheDispatcherToConfirmWhatItReports() throws Exception {
+    // R-ML-37: the driver spoke over the engine; Jev read a breakdown, but the words were unclear.
+    String path = "/api/ml/trip-outlook?tripId=" + tripId;
+    UUID noisy = UUID.randomUUID();
+    database.asSystemSeparately(ModuleRole.ML, () -> database.update(
+        "INSERT INTO ml.message_situations (message_id, trip_id, depot_code, author_role, source, masked_text, option_order,"
+            + " status, situation, confidence, model, prompt_version, created_at, answered_at, unclear)"
+            + " VALUES (?, ?, ?, 'driver', 'voice', 'engine ... stopped', '{BREAKDOWN,OTHER}', 'answered', 'BREAKDOWN', 0.97,"
+            + " 'stub', 'v1', now(), now(), true)",
+        noisy, tripId.toString(), depot));
+    JsonNode before = json(read(dispatcher, path, 200));
+    assertTrue(before.get("room").isNull(), "an unclear reading opens nothing by itself: " + before);
+    assertEquals(1, before.get("toReview").size());
+    JsonNode review = before.get("toReview").get(0);
+    assertEquals(noisy.toString(), review.get("messageId").asText());
+    assertEquals("BREAKDOWN", review.get("guess").asText());
+    assertTrue(review.get("unclear").asBoolean());
+
+    String confirm = "{\"tripId\":\"" + tripId + "\",\"messageId\":\"" + noisy + "\",\"situation\":\"%s\"}";
+    command(dispatcher, "ml:ConfirmSignal", null, String.format(confirm, "FLAT_EARTH"), 422);
+    command(farDispatcher, "ml:ConfirmSignal", null, String.format(confirm, "BREAKDOWN"), 403);
+    command(driver, "ml:ConfirmSignal", null, String.format(confirm, "BREAKDOWN"), 403);
+    command(dispatcher, "ml:ConfirmSignal", null, String.format(confirm, "BREAKDOWN"), 200);
+
+    JsonNode after = json(read(dispatcher, path, 200));
+    assertTrue(after.get("toReview").isEmpty(), after.toString());
+    assertEquals("BREAKDOWN", after.get("room").get("situation").asText(), "confirmed, it opens the room");
+    Map<String, Object> row = database.asSystemSeparately(ModuleRole.ML, () -> database.queryOne(
+        "SELECT reviewed_by, reviewed_situation FROM ml.message_situations WHERE message_id = ?", noisy));
+    assertEquals(dispatcherId, row.get("reviewed_by"), "rule 8: who");
+
+    // Confirmed as nothing, it leaves the room again.
+    command(dispatcher, "ml:ConfirmSignal", null, String.format(confirm, "OTHER"), 200);
+    assertTrue(json(read(dispatcher, path, 200)).get("room").isNull());
+  }
+
+  @Test
   void aMessageReadAsABreakdownIsOnTheTripsCardUntilTheDispatcherTakesItOffWithAReason() throws Exception {
     // R-ML-35: the driver wrote, Jev read it as a breakdown; a second read was not sure enough.
     String path = "/api/ml/trip-outlook?tripId=" + tripId;

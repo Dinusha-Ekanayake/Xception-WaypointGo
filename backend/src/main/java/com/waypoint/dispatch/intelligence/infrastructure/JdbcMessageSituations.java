@@ -22,16 +22,22 @@ public class JdbcMessageSituations {
 
   /** A message read for the trip's card. */
   public record Read(UUID messageId, String situation, double confidence, String authorRole, Optional<String> outletId,
-      String source, Instant at) {}
+      String source, Instant at, boolean unclear, Optional<String> confirmed) {}
 
   /** Queued once; a retried event changes nothing. */
   public void queue(UUID messageId, String tripId, String depotCode, String authorRole, Optional<String> outletId,
       String source, String maskedText, List<String> optionOrder, Instant at) {
+    queue(messageId, tripId, depotCode, authorRole, outletId, source, maskedText, optionOrder, at, false);
+  }
+
+  /** @param unclear a voice note the engine heard unclearly (R-ML-37) */
+  public void queue(UUID messageId, String tripId, String depotCode, String authorRole, Optional<String> outletId,
+      String source, String maskedText, List<String> optionOrder, Instant at, boolean unclear) {
     database.update(
         "INSERT INTO ml.message_situations (message_id, trip_id, depot_code, author_role, outlet_id, source, masked_text,"
-            + " option_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?::text[], ?) ON CONFLICT (message_id) DO NOTHING",
+            + " option_order, created_at, unclear) VALUES (?, ?, ?, ?, ?, ?, ?, ?::text[], ?, ?) ON CONFLICT (message_id) DO NOTHING",
         messageId, tripId, depotCode, authorRole, outletId.orElse(null), source, maskedText,
-        "{" + String.join(",", optionOrder) + "}", Timestamp.from(at));
+        "{" + String.join(",", optionOrder) + "}", Timestamp.from(at), unclear);
   }
 
   public List<Pending> pending(int limit) {
@@ -68,7 +74,7 @@ public class JdbcMessageSituations {
   /** A trip's messages Jev has read and nobody dismissed, oldest first; row-level security keeps it to the reader's depots. */
   public List<Read> forTrip(String tripId) {
     return database.query(
-            "SELECT message_id, situation, confidence, author_role, outlet_id, source, created_at"
+            "SELECT message_id, situation, confidence, author_role, outlet_id, source, created_at, unclear, reviewed_situation"
                 + " FROM ml.message_situations WHERE trip_id = ? AND status = 'answered' AND dismissed_at IS NULL"
                 + " ORDER BY created_at, message_id",
             tripId)
@@ -76,7 +82,8 @@ public class JdbcMessageSituations {
         .map(r -> new Read((UUID) r.get("message_id"), (String) r.get("situation"),
             ((Number) r.get("confidence")).doubleValue(), (String) r.get("author_role"),
             Optional.ofNullable((String) r.get("outlet_id")), (String) r.get("source"),
-            ((Timestamp) r.get("created_at")).toInstant()))
+            ((Timestamp) r.get("created_at")).toInstant(), Boolean.TRUE.equals(r.get("unclear")),
+            Optional.ofNullable((String) r.get("reviewed_situation"))))
         .toList();
   }
 
@@ -94,6 +101,14 @@ public class JdbcMessageSituations {
         "UPDATE ml.message_situations SET dismissed_at = ?, dismissed_by = ?, dismiss_reason = ?"
             + " WHERE message_id = ? AND trip_id = ? AND dismissed_at IS NULL",
         Timestamp.from(at), by, reason, messageId, tripId) == 1;
+  }
+
+  /** Rule 8: what the dispatcher confirmed a message reports, by whom and when; the latest confirmation stands. */
+  public boolean confirm(UUID messageId, String tripId, String situation, UUID by, Instant at) {
+    return database.update(
+        "UPDATE ml.message_situations SET reviewed_situation = ?, reviewed_by = ?, reviewed_at = ?"
+            + " WHERE message_id = ? AND trip_id = ? AND status = 'answered'",
+        situation, by, Timestamp.from(at), messageId, tripId) == 1;
   }
 
   public Optional<Map<String, Object>> row(UUID messageId) {

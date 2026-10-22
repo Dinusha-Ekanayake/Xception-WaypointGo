@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-23 - feat: a reading in doubt is confirmed by the dispatcher before it counts
+
+`dev` · @Oxshadha
+
+- The speech engine now says whether it heard a voice note clearly. A reading Jev is unsure of, or of words heard over noise, opens nothing: it waits as "Check this" with Jev's guess as one tap; what the dispatcher confirms counts and becomes Jev's label (R-ML-37).
+- The driver is never asked to say it again while driving.
+
+---
+
 ## 2026-10-23 - feat: the trip's problem room, one next step from the stores' answers
 
 `dev` · @Oxshadha

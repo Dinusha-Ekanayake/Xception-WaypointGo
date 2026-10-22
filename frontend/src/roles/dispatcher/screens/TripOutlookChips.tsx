@@ -3,7 +3,7 @@
 import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import type { DecisionView, RunSheetStopView, TripOutlookView } from "@shared/domain/types";
-import { ReadMessage } from "./NextStepParts.tsx";
+import { ReadMessage, ReviewMessage } from "./NextStepParts.tsx";
 import ProblemRoom from "./ProblemRoom.tsx";
 
 // Decision suggestions part 3 (R-ML-36, docs/issues/decision-suggestions/PLAN.md):
@@ -49,6 +49,7 @@ export default function TripOutlookChips({
   decisions,
   online,
   onExtra,
+  onShow,
 }: {
   view: TripOutlookView | null;
   threadId: string;
@@ -59,6 +60,8 @@ export default function TripOutlookChips({
   decisions: DecisionView[];
   online: boolean;
   onExtra: (minutes: number) => void;
+  /** Opens a message in the thread, to read or listen before confirming it. */
+  onShow: (messageId: string) => void;
 }): React.JSX.Element | null {
   if (!view) return null;
   // Rule 9: words Jev could not read are said even when nothing else is open, so a problem only they raised is not missed.
@@ -67,10 +70,15 @@ export default function TripOutlookChips({
       {`${view.unreadMessages === 1 ? "1 message" : `${view.unreadMessages} messages`} could not be read automatically. Read ${view.unreadMessages === 1 ? "it" : "them"} yourself.`}
     </p>
   ) : null;
-  if (!view.room) return unread;
+  // R-ML-37: what waits for the dispatcher to confirm comes first, room or not: it may be the problem itself.
+  const reviews = (view.toReview ?? []).map((x) => (
+    <ReviewMessage key={x.messageId} tripId={tripId} item={x} online={online} onShow={onShow} />
+  ));
+  if (!view.room) return reviews.length > 0 || unread ? <div className="flex flex-col gap-2">{reviews}{unread}</div> : null;
   const read = view.signals.filter((x) => x.source === "message");
   return (
     <div className="flex flex-col gap-2">
+      {reviews}
       <ProblemRoom
         room={view.room}
         threadId={threadId}

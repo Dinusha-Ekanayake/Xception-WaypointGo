@@ -81,3 +81,66 @@ export function ReadMessage({
     </div>
   );
 }
+
+/** The report situations a message may be confirmed as, in the order a dispatcher meets them. */
+const CHOICES = ["BREAKDOWN", "ROAD_BLOCKED", "RUNNING_LATE", "STORE_CLOSED", "CANNOT_UNLOAD", "GOODS_PROBLEM"];
+
+/**
+ * R-ML-37: a message read unsure, or a voice note heard over noise, is put to the
+ * dispatcher in one line: what it looks like, confirmed in one tap, any other
+ * situation, or not a problem. "Show it" opens the message to read or listen.
+ */
+export function ReviewMessage({
+  tripId,
+  item,
+  online,
+  onShow,
+}: {
+  tripId: string;
+  item: TripOutlookView["toReview"][number];
+  online: boolean;
+  onShow: (messageId: string) => void;
+}): React.JSX.Element {
+  const { run, busy } = useCommand();
+  const [error, setError] = useState<string | null>(null);
+  const [more, setMore] = useState(false);
+  const who = item.authorRole === "store_manager" ? (item.outletId ? `${item.outletId}'s` : "a store's") : "the driver's";
+  const what = item.source === "voice" ? "voice note" : "message";
+  const said = item.unclear ? `${who} ${what} was hard to hear` : `${who} ${what} was read unsure`;
+  const confirm = async (situation: string) => {
+    setError(null);
+    const sent = await run(SuggestionCommandKind.confirmSignal, { tripId, messageId: item.messageId, situation }, null);
+    if (!sent.ok) return setError(friendlyError(sent.error));
+    announceChange({ topic: "message" });
+  };
+  const chip = "min-h-8 rounded-full bg-go-card px-3 text-[13px] font-medium text-go-teal shadow-[inset_0_0_0_1px_rgb(0_0_0/0.08)] disabled:opacity-40";
+  const others = CHOICES.filter((c) => c !== item.guess);
+  return (
+    <div role="group" aria-label="Check this message" className="flex flex-col gap-1.5 rounded-go-card-s bg-go-warning-tint px-3.5 py-2.5 text-[13px] text-go-ink">
+      <span>
+        <span className="font-medium">Check this: </span>
+        {said}
+        {item.guess ? `. Looks like: ${(SITUATION[item.guess] ?? item.guess).toLowerCase()}.` : "."}
+        <button type="button" onClick={() => onShow(item.messageId)} className="ml-2 font-medium text-go-teal">Show it</button>
+      </span>
+      <span className="flex flex-wrap gap-1.5">
+        {item.guess && (
+          <button type="button" disabled={!online || busy} onClick={() => void confirm(item.guess!)}
+            className="min-h-8 rounded-full bg-go-ink px-3 text-[13px] font-medium text-go-card disabled:opacity-40">
+            {`Yes, ${(SITUATION[item.guess] ?? item.guess).toLowerCase()}`}
+          </button>
+        )}
+        {(more || !item.guess) && others.map((c) => (
+          <button key={c} type="button" disabled={!online || busy} onClick={() => void confirm(c)} className={chip}>
+            {SITUATION[c]}
+          </button>
+        ))}
+        {item.guess && !more && (
+          <button type="button" onClick={() => setMore(true)} className={chip}>Something else</button>
+        )}
+        <button type="button" disabled={!online || busy} onClick={() => void confirm("OTHER")} className={chip}>Not a problem</button>
+      </span>
+      {error && <p role="alert" className="text-[12px] text-go-danger">{error}</p>}
+    </div>
+  );
+}

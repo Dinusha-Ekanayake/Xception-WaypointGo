@@ -29,6 +29,33 @@ public final class MessageTriage {
     return ReportTriage.shuffled(seed);
   }
 
+  /** How a message read stands (R-ML-37). */
+  public enum Reading { SIGNAL, REVIEW, NOTHING }
+
+  /** Above this, Jev saying "none of these" about a noisy voice note is trusted without a review. */
+  public static final double SURE_NOTHING = 0.9;
+
+  /**
+   * What a reading does: counts on the room, goes to the dispatcher to confirm, or
+   * adds nothing. Words heard unclearly are always confirmed, unless Jev is very
+   * sure they report nothing; a situation read below the confidence is confirmed
+   * rather than dropped, so a real problem said unsurely is not lost. What the
+   * dispatcher confirmed is what counts.
+   */
+  public static Reading reading(String situation, double confidence, double minConfidence, boolean unclear,
+      Optional<String> confirmed) {
+    if (confirmed.isPresent()) {
+      return NONE.equals(confirmed.get()) ? Reading.NOTHING : Reading.SIGNAL;
+    }
+    if (situation == null) return Reading.NOTHING;
+    if (unclear) {
+      return NONE.equals(situation) && confidence >= SURE_NOTHING ? Reading.NOTHING : Reading.REVIEW;
+    }
+    if (NONE.equals(situation)) return Reading.NOTHING;
+    if (signal(situation, confidence, minConfidence).isPresent()) return Reading.SIGNAL;
+    return signal(situation, 1.0, 0.0).isPresent() ? Reading.REVIEW : Reading.NOTHING;
+  }
+
   /** The situation a class gives the card: one of the playbooks', at or above the confidence; else none. */
   public static Optional<Playbooks.Situation> signal(String situation, double confidence, double minConfidence) {
     if (situation == null || NONE.equals(situation) || confidence < minConfidence) {

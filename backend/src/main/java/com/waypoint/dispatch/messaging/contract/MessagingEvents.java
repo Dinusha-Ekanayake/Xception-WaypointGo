@@ -97,9 +97,20 @@ public final class MessagingEvents {
       Optional<String> aboutOutletId,
       String excerpt,
       Optional<String> language,
-      Instant at)
+      Instant at,
+      /** The engine said noise or cut-off words leave part of it uncertain (R-ML-37). */
+      boolean unclear)
       implements DomainEvent {
     public static final String TYPE = "message.transcribed";
+
+    /** As first written, before the engine said how clearly it heard. */
+    public MessageTranscribed(
+        UUID threadId, UUID messageId, String subjectType, String subjectId, String depotCode, String authorRole,
+        String kind, Optional<String> reportType, Optional<String> aboutOutletId, String excerpt,
+        Optional<String> language, Instant at) {
+      this(threadId, messageId, subjectType, subjectId, depotCode, authorRole, kind, reportType, aboutOutletId, excerpt,
+          language, at, false);
+    }
 
     @Override
     public String type() {

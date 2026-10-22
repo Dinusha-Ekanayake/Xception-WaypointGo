@@ -54,12 +54,17 @@ final class MessageSituations {
 
   static void queue(JdbcMessageSituations store, KnownNames knownNames, UUID messageId, String tripId, String depot,
       String authorRole, Optional<String> outletId, String source, String excerpt, Instant at) {
+    queue(store, knownNames, messageId, tripId, depot, authorRole, outletId, source, excerpt, at, false);
+  }
+
+  static void queue(JdbcMessageSituations store, KnownNames knownNames, UUID messageId, String tripId, String depot,
+      String authorRole, Optional<String> outletId, String source, String excerpt, Instant at, boolean unclear) {
     Optional<String> words = IssueTriage.state(excerpt);
     if (words.isEmpty()) return;
     PromptNames names = knownNames.current()
         .orElseThrow(() -> new IllegalStateException("account names not read yet; retried"));
     store.queue(messageId, tripId, depot, authorRole, outletId, source, names.session().mask(words.get()),
-        List.copyOf(MessageTriage.shuffled(messageId.getMostSignificantBits()).keySet()), at);
+        List.copyOf(MessageTriage.shuffled(messageId.getMostSignificantBits()).keySet()), at, unclear);
   }
 
   /** A typed post; a voice note waits for its words ({@link OnTranscribed}). */
@@ -141,7 +146,7 @@ final class MessageSituations {
         return;
       }
       queue(store, knownNames, e.messageId(), e.subjectId(), e.depotCode(), e.authorRole(), e.aboutOutletId(),
-          "voice", e.excerpt(), clock.now());
+          "voice", e.excerpt(), clock.now(), e.unclear());
     }
   }
 

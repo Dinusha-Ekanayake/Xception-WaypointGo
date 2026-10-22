@@ -206,7 +206,7 @@ test("a report about the vehicle gets its chips too, asked about the next stop, 
 
 /** A trip outlook whose problem room is the one given (R-ML-36). */
 function withRoom(room: unknown, signals: unknown[] = [{ messageId: "r1", situation: "BREAKDOWN", source: "report", outletId: null, authorRole: null }]) {
-  return { tripId: "t-VEH020", version: 1, situation: "BREAKDOWN", trip: [], signals, stops: [], messagesRead: true, unreadMessages: 0, room };
+  return { tripId: "t-VEH020", version: 1, situation: "BREAKDOWN", trip: [], signals, stops: [], messagesRead: true, unreadMessages: 0, room, toReview: [] };
 }
 
 const ROWS = [
@@ -373,4 +373,35 @@ test("messages that could not be read automatically are said, even with nothing 
   const chat = page.getByRole("dialog", { name: "Trip messages" });
   await expect(chat.getByRole("status").filter({ hasText: "2 messages could not be read automatically. Read them yourself." })).toBeVisible();
   await expect(chat.getByRole("region", { name: "Next step" })).toHaveCount(0);
+});
+
+test("a voice note heard over noise is put to the dispatcher to confirm in one tap, before it counts (R-ML-37)", async ({ page }) => {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
+    said("m1", "2027-03-01T10:05:00Z", { authorName: "Dilan R.", authorRole: "driver", audience: "dispatch", body: "Voice note" }),
+  ]);
+  const desk = await serve(page, { ...liveDay(), threads: [thread] });
+  await page.route("**/api/ml/trip-outlook**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      tripId: "t-VEH020", version: 1, situation: null, trip: [], signals: [], stops: [], messagesRead: true, unreadMessages: 0, room: null,
+      toReview: [{ messageId: "m1", guess: "BREAKDOWN", unclear: true, source: "voice", authorRole: "driver", outletId: null }],
+    }),
+  }));
+  await page.goto("/#/live");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("region", { name: "Timeline" }).getByRole("button", { name: /^VEH020/ }).first().click();
+  await page.getByRole("button", { name: /Messages|All messages/ }).first().click();
+
+  const check = page.getByRole("dialog", { name: "Trip messages" }).getByRole("group", { name: "Check this message" });
+  await expect(check).toContainText("Check this: the driver's voice note was hard to hear. Looks like: breakdown.");
+  await expect(check.getByRole("button", { name: "Store closed" })).toHaveCount(0);
+  await check.getByRole("button", { name: "Something else" }).click();
+  await expect(check.getByRole("button", { name: "Store closed" })).toBeVisible();
+  if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/26-check-this.png` });
+  await check.getByRole("button", { name: "Yes, breakdown" }).click();
+  await expect.poll(() => desk.commands.find((c) => c.kind === "ml:ConfirmSignal")?.payload).toEqual({
+    tripId: "t-VEH020", messageId: "m1", situation: "BREAKDOWN",
+  });
 });

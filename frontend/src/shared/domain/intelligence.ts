@@ -419,6 +419,8 @@ export type TripOutlookView = {
   unreadMessages: number;
   /** The trip's problem room (R-ML-36): each store's row and the one next step; null with no problem open. */
   room: RoomView | null;
+  /** R-ML-37: messages read unsure, or from voice notes heard unclearly, for the dispatcher to confirm. */
+  toReview: { messageId: string; guess: string | null; unclear: boolean; source: string; authorRole: string; outletId: string | null }[];
 };
 
 export type RoomState =
@@ -452,6 +454,8 @@ export const SuggestionCommandKind = {
   record: "ml:RecordSuggestion",
   /** A message read automatically taken off the trip's Next step card, with a reason (R-ML-35). */
   dismissSignal: "ml:DismissSignal",
+  /** What a message read unsure or unclearly reports, confirmed by the dispatcher (R-ML-37). */
+  confirmSignal: "ml:ConfirmSignal",
 } as const;
 
 export type RecordSuggestionPayload = { deliveryId: string; situation: string; shown: DecisionAction[]; chosen?: DecisionAction };

@@ -21,6 +21,21 @@ class GeminiTranscriptionTest {
   }
 
   @Test
+  void theEngineSaysWhetherItHeardClearlyAndAnAnswerThatDoesNotSayIsTakenAsUnclear() throws Exception {
+    // R-ML-37: a word in doubt is reviewed, never trusted by default.
+    String clear = """
+        {"candidates":[{"content":{"parts":[{"text":"{\\"language\\":\\"en\\",\\"text\\":\\"Tyre burst\\",\\"clear\\":true}"}]}}]}
+        """;
+    String noisy = clear.replace("true", "false");
+    String silent = """
+        {"candidates":[{"content":{"parts":[{"text":"{\\"language\\":\\"en\\",\\"text\\":\\"Tyre burst\\"}"}]}}]}
+        """;
+    assertTrue(!GeminiTranscription.parse(json, clear).orElseThrow().unclear());
+    assertTrue(GeminiTranscription.parse(json, noisy).orElseThrow().unclear());
+    assertTrue(GeminiTranscription.parse(json, silent).orElseThrow().unclear());
+  }
+
+  @Test
   void noCandidateOrNoSpeechIsNothing() throws Exception {
     assertTrue(GeminiTranscription.parse(json, "{\"candidates\":[]}").isEmpty());
     assertTrue(GeminiTranscription.parse(json,

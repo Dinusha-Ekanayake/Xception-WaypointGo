@@ -143,14 +143,14 @@ public final class VoiceTranscripts {
         if (heard.isPresent()) {
           Heard h = heard.get();
           database.asSystem(ModuleRole.MESSAGING, () -> {
-            transcripts.done(p.voiceNoteId(), h.text(), h.language(), engine.engine(), clock.now());
+            transcripts.done(p.voiceNoteId(), h.text(), h.language(), h.unclear(), engine.engine(), clock.now());
             // What was said can now be read like a typed post (R-ML-35): said in the same transaction.
             threads.postOfVoice(p.voiceNoteId()).ifPresent(m -> events.publish(Actor.SYSTEM, new MessageTranscribed(
                 (UUID) m.get("thread_id"), (UUID) m.get("message_id"), (String) m.get("subject_type"),
                 (String) m.get("subject_id"), (String) m.get("depot_code"), (String) m.get("author_role"),
                 (String) m.get("kind"), Optional.ofNullable((String) m.get("report_type")),
                 Optional.ofNullable((String) m.get("about_outlet")), MessagePolicy.excerpt(h.text()), h.language(),
-                clock.now())));
+                clock.now(), h.unclear())));
             return null;
           });
           metrics.increment("waypoint.transcribe.made", "lang", h.language().orElse("unknown"));

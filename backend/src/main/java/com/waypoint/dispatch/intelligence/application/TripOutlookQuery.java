@@ -118,13 +118,24 @@ public class TripOutlookQuery {
     // R-ML-35: what a driver or a store wrote, read by Jev at or above the live confidence; nothing while it is off.
     Map<java.util.UUID, String> authors = new HashMap<>();
     int unread = ai.jevLive() ? read.unread(tripId, now.minusSeconds(60)) : 0;
+    List<com.waypoint.dispatch.intelligence.contract.PlaybookViews.ReviewView> toReview = new ArrayList<>();
     if (ai.jevLive()) {
       for (var m : read.forTrip(tripId)) {
-        com.waypoint.dispatch.intelligence.domain.MessageTriage.signal(m.situation(), m.confidence(), ai.jevLiveMinConfidence())
-            .ifPresent(s -> {
-              signals.add(new Signal(m.messageId(), s, m.outletId(), m.at(), Source.MESSAGE));
-              authors.put(m.messageId(), m.authorRole());
-            });
+        var reading = com.waypoint.dispatch.intelligence.domain.MessageTriage.reading(
+            m.situation(), m.confidence(), ai.jevLiveMinConfidence(), m.unclear(), m.confirmed());
+        // R-ML-37: what the dispatcher confirmed counts as sure; an unsure or unclear reading waits for them.
+        String situation = m.confirmed().orElse(m.situation());
+        if (reading == com.waypoint.dispatch.intelligence.domain.MessageTriage.Reading.SIGNAL) {
+          com.waypoint.dispatch.intelligence.domain.MessageTriage.signal(situation, 1.0, 0.0).ifPresent(s -> {
+            signals.add(new Signal(m.messageId(), s, m.outletId(), m.at(), Source.MESSAGE));
+            authors.put(m.messageId(), m.authorRole());
+          });
+        } else if (reading == com.waypoint.dispatch.intelligence.domain.MessageTriage.Reading.REVIEW) {
+          Optional<String> guess = com.waypoint.dispatch.intelligence.domain.MessageTriage.signal(m.situation(), 1.0, 0.0)
+              .map(Situation::name);
+          toReview.add(new com.waypoint.dispatch.intelligence.contract.PlaybookViews.ReviewView(
+              m.messageId().toString(), guess, m.unclear(), m.source(), m.authorRole(), m.outletId()));
+        }
       }
     }
     Map<Situation, Playbooks.Tally> tallies = new HashMap<>();
@@ -149,7 +160,8 @@ public class TripOutlookQuery {
             .toList(),
         ai.jevLive(),
         unread,
-        room(tripId, trip, onTrip, signals, now, extraMinutes));
+        room(tripId, trip, onTrip, signals, now, extraMinutes),
+        toReview);
   }
 
   /**

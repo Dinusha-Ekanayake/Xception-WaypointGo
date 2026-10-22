@@ -13,6 +13,9 @@ public final class PlaybookViews {
   /** The dispatcher records which suggestions were shown and which, if any, was taken. */
   public static final String RECORD = "ml:RecordSuggestion";
 
+  /** The dispatcher confirms what a message read unsure or unclearly reports (R-ML-37). */
+  public static final String CONFIRM_SIGNAL = "ml:ConfirmSignal";
+
   /** The dispatcher takes a message read automatically off the trip's Next step card, with a reason (R-ML-35). */
   public static final String DISMISS_SIGNAL = "ml:DismissSignal";
 
@@ -52,7 +55,16 @@ public final class PlaybookViews {
    */
   public record TripOutlookView(
       String tripId, int version, Optional<String> situation, List<ChanceView> trip, List<SignalView> signals,
-      List<StopOutlookView> stops, boolean messagesRead, int unreadMessages, Optional<RoomView> room) {}
+      List<StopOutlookView> stops, boolean messagesRead, int unreadMessages, Optional<RoomView> room,
+      List<ReviewView> toReview) {}
+
+  /**
+   * R-ML-37: a message read unsure, or from a voice note heard unclearly, for the dispatcher to confirm.
+   *
+   * @param guess what Jev read, when it read a situation; empty when it read nothing or the words were too unclear
+   */
+  public record ReviewView(String messageId, Optional<String> guess, boolean unclear, String source, String authorRole,
+      Optional<String> outletId) {}
 
   /** R-ML-36: the problem, each store's row and the one next step. */
   public record RoomView(String situation, List<RowView> rows, StepView next) {}

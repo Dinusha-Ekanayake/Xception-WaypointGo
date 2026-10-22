@@ -33,7 +33,9 @@ public class GeminiTranscription implements Transcription {
       "This is a voice note from a delivery driver, loader or store in Sri Lanka. Write down exactly what is said,"
           + " in the language and script it is spoken in (Sinhala, Tamil or English; keep English words said inside"
           + " Sinhala or Tamil as they are). Do not translate, summarise or add anything. Answer as JSON:"
-          + " {\"language\": \"si\" | \"ta\" | \"en\", \"text\": \"...\"}. If there is no speech, text is empty.";
+          + " {\"language\": \"si\" | \"ta\" | \"en\", \"text\": \"...\", \"clear\": true | false}. If there is no speech,"
+          + " text is empty. clear is false when noise, wind, engine sound, cross-talk or cut-off words leave any part of"
+          + " what is said uncertain.";
 
   private final TranscribeProperties properties;
   private final ObjectMapper json;
@@ -107,7 +109,9 @@ public class GeminiTranscription implements Transcription {
     JsonNode text = parts.path(Math.max(0, parts.size() - 1)).path("text");
     if (!text.isTextual()) return Optional.empty();
     JsonNode answer = json.readTree(text.asText());
-    return TranscriptText.heard(answer.path("text").asText(""), answer.path("language").asText(""));
+    // An answer without "clear" is taken as unclear: a word in doubt is reviewed, never trusted by default.
+    return TranscriptText.heard(answer.path("text").asText(""), answer.path("language").asText(""),
+        !answer.path("clear").asBoolean(false));
   }
 
   /** Gemini names Opus in WebM as audio/webm and AAC in MP4 as audio/mp4; the rest pass as they are. */
