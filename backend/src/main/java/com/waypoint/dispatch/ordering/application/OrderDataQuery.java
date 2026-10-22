@@ -69,6 +69,16 @@ public class OrderDataQuery implements OrderQuery {
   }
 
   @Override
+  public boolean orderingClosed(String depotCode, LocalDate serviceDate) {
+    return read(ambient(), () -> orders.isClosed(depotCode, serviceDate));
+  }
+
+  @Override
+  public java.time.Instant orderingClosesAt(LocalDate serviceDate) {
+    return com.waypoint.dispatch.ordering.domain.Cutoff.closesAt(serviceDate);
+  }
+
+  @Override
   public Optional<OrderView> order(UUID orderId) {
     return read(ambient(), () -> orders.findStored(orderId).map(OrderDataQuery::toView).map(v -> withStops(List.of(v)).get(0)));
   }

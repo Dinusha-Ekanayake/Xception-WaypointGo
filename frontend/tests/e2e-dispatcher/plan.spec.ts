@@ -1,7 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { DEPOT, draftPlan, serve } from "./mocks.ts";
 
+// Tomorrow is planned once its ordering closes at 16:00 today (R-PLN-49), so these run at 16:30 depot time.
+const afterCutoff = async (page: import("@playwright/test").Page) => {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo" }).format(new Date());
+  await page.clock.install({ time: new Date(`${today}T16:30:00+05:30`) });
+};
+
 test("generate, see why an order was deferred, place it by hand, publish", async ({ page }) => {
+  await afterCutoff(page);
   const desk = await serve(page);
   await page.goto("/#/plan");
   await expect(page.getByRole("heading", { name: new RegExp(`^No plan yet for ${DEPOT} on `) })).toBeVisible();
@@ -122,6 +129,7 @@ test("offline, the plan can be read and nothing can be changed", async ({ page, 
 
 test("with nothing waiting today, the plan points to the next day that has orders and switches to it", async ({ page }) => {
   // Issue #114: a fresh install seeds the next operating day, while the screen opens on today.
+  await afterCutoff(page);
   const desk = await serve(page);
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo" }).format(new Date());
   const later = new Date(`${today}T00:00:00Z`);
@@ -140,6 +148,17 @@ test("with nothing waiting today, the plan points to the next day that has order
 
   await page.getByRole("button", { name: /^Plan \w{3} \d{1,2} \w{3} · 3 waiting$/ }).click();
   await expect(page.getByText(`${DEPOT}: 3 orders wait`)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Generate draft" })).toBeVisible();
+  // Two days ahead, stores may still order for it, so it is not planned yet (R-PLN-49).
+  await expect(page.getByRole("status").filter({ hasText: /^Stores can order until 16:00 .+\. The draft is made then\.$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Generate draft" })).toHaveCount(0);
   expect(asked).toContain(seeded);
+});
+
+test("before 16:00 tomorrow is not planned yet: the screen says when stores stop ordering", async ({ page }) => {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo" }).format(new Date());
+  await page.clock.install({ time: new Date(`${today}T11:00:00+05:30`) });
+  await serve(page);
+  await page.goto("/#/plan");
+  await expect(page.getByRole("status").filter({ hasText: /^Stores can order until 16:00 .+\. The draft is made then\.$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Generate draft" })).toHaveCount(0);
 });

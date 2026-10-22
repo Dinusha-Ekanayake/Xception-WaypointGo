@@ -22,6 +22,16 @@ public interface OrderQuery {
    */
   List<DemandView> confirmedDemand(String depotCode, LocalDate serviceDate);
 
+  /**
+   * Whether ordering for a depot's day has closed (R-ORD-01, R-ORD-15): by itself
+   * at the cutoff, or by the dispatcher once the cutoff passed. Until then stores
+   * may still order for it, so it is not planned (R-PLN-49).
+   */
+  boolean orderingClosed(String depotCode, LocalDate serviceDate);
+
+  /** When ordering for a service day closes: 16:00 depot time the calendar day before (R-ORD-01). */
+  java.time.Instant orderingClosesAt(LocalDate serviceDate);
+
   Optional<OrderView> order(UUID orderId);
 
   /** Oldest first. */

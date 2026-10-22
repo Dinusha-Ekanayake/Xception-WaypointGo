@@ -244,4 +244,15 @@ class PlanningCommandIntegrationTest extends PlanningIntegrationSupport {
     throw new AssertionError("order " + orderId + " is not in the plan");
   }
 
+
+  @Test
+  void aDayStoresMayStillOrderForIsNotPlannedUntilOrderingCloses() throws Exception {
+    java.time.LocalDate open = com.waypoint.dispatch.support.TestDates.unusedDay(reference::nextOperatingDay);
+    String payload = "{\"depotCode\":\"" + depot + "\",\"serviceDate\":\"" + open + "\"}";
+    String refused = send(dispatcher, envelope("plan:Generate", null, payload), 409);
+    assertTrue(refused.contains("R-PLN-49"), refused);
+    assertTrue(refused.contains("still open until 16:00 on " + open.minusDays(1)), refused);
+    closeOrdering(open);
+    send(dispatcher, envelope("plan:Generate", null, payload), 200);
+  }
 }

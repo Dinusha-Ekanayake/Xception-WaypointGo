@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.planning.application;
 
+import com.waypoint.dispatch.ordering.contract.OrderQuery;
 import com.waypoint.dispatch.planning.application.PlanningProblems.Built;
 import com.waypoint.dispatch.planning.contract.PlanCommands;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlanView;
@@ -58,6 +59,7 @@ public class GeneratePlanHandler implements CommandHandler {
   private final PlanDataQuery view;
   private final JdbcGenerationJobs jobs;
   private final GenerationSignal signal;
+  private final OrderQuery orders;
 
   public GeneratePlanHandler(
       Database database,
@@ -71,7 +73,8 @@ public class GeneratePlanHandler implements CommandHandler {
       SnapshotRecords snapshots,
       PlanDataQuery view,
       JdbcGenerationJobs jobs,
-      GenerationSignal signal) {
+      GenerationSignal signal,
+      OrderQuery orders) {
     this.database = database;
     this.plans = plans;
     this.problems = problems;
@@ -84,6 +87,7 @@ public class GeneratePlanHandler implements CommandHandler {
     this.view = view;
     this.jobs = jobs;
     this.signal = signal;
+    this.orders = orders;
   }
 
   @Override
@@ -121,6 +125,7 @@ public class GeneratePlanHandler implements CommandHandler {
     }
     boolean keep = payload.flag("keepDecisions", false);
     refuseClosedDay(depot, serviceDate);
+    refuseOpenOrdering(depot, serviceDate);
     // The engine runs in the queue, not in this transaction (R-PLN-41): a second Generate finds the same job.
     JobRow job = jobs.enqueue(drafts.newId(now), depot, serviceDate, keep, actor.userId(), command.commandId(), now);
     database.afterCommit(signal::wake);
@@ -136,6 +141,26 @@ public class GeneratePlanHandler implements CommandHandler {
     body.put("depotCode", job.depotCode());
     body.put("serviceDate", job.serviceDate().toString());
     return body;
+  }
+
+  /**
+   * A day stores may still order for is not planned yet (R-PLN-49): a plan drafted
+   * before the 16:00 cutoff misses the orders placed after it. Ordering closes the
+   * day by itself at the cutoff (R-ORD-15); only the draft that follows is planned.
+   */
+  void refuseOpenOrdering(String depot, LocalDate serviceDate) {
+    if (!orders.orderingClosed(depot, serviceDate)) {
+      throw new DomainException(
+          ErrorCode.CONSTRAINT_VIOLATED,
+          "orders for " + serviceDate + " are still open until "
+              + closes(orders.orderingClosesAt(serviceDate)) + "; it is planned once they close",
+          List.of("R-PLN-49"));
+    }
+  }
+
+  private static String closes(Instant at) {
+    java.time.ZonedDateTime local = at.atZone(Clock.OPERATING_ZONE);
+    return local.toLocalTime() + " on " + local.toLocalDate();
   }
 
   /** A day that is not operating, or already published, is refused at once rather than queued. */

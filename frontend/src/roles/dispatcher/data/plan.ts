@@ -1,4 +1,5 @@
 import type { AllocationView, CostView, ImprovementView, OrderView, PlanView, TripView, VehicleView } from "@shared/domain/types";
+import { ORDER_CUTOFF } from "../../../shared/domain/ordering.ts";
 import { PUBLISHED_EDIT_CLOSES } from "../../../shared/domain/planning.ts";
 import { businessNow } from "../../../shared/wording/index.ts";
 export { hhmm } from "../../../shared/wording/index.ts";
@@ -122,6 +123,15 @@ export function after(time: string, minutes: string | number): string {
 }
 
 /** The plan the screen works on: the open draft when there is one, else what is published. */
+/**
+ * Whether stores may still order for this service day: until 16:00 depot time
+ * the day before (R-ORD-01). Until then the day is not planned (R-PLN-49); the
+ * server refuses it too, and drafts it by itself once ordering closes.
+ */
+export function orderingOpen(serviceDate: string, now: Date = businessNow()): boolean {
+  return now.getTime() < Date.parse(`${serviceDate}T${ORDER_CUTOFF}:00+05:30`) - 24 * 60 * 60 * 1000;
+}
+
 /**
  * Whether a published plan for this service day still takes changes: until
  * 16:00 depot time that day (R-PLN-48). Depot time is Asia/Colombo, which has

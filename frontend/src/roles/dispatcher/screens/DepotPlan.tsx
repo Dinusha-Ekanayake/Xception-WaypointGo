@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import PlanVehicleLost from "./PlanVehicleLost.tsx";
-import { PlanCommandKind, type GenerationJobView, type OrderView } from "@shared/domain/types";
+import { ORDER_CUTOFF, PlanCommandKind, type GenerationJobView, type OrderView } from "@shared/domain/types";
 import { Notice, PrimaryButton, SecondaryButton, useToast } from "@shared/ui";
-import { clock, clockOn, dayLabel } from "@shared/wording";
+import { addDays, clock, clockOn, dayLabel } from "@shared/wording";
 import { useFleet } from "../data/fleet.ts";
-import { costNote, improvementNote, publishedEditOpen, summarise } from "../data/plan.ts";
+import { costNote, improvementNote, orderingOpen, publishedEditOpen, summarise } from "../data/plan.ts";
 import { depotHolding, depotStates, idsIn, mergeWorking, type DepotWorking } from "../data/planRouting.ts";
 import { decidedCount, decisionRows } from "../data/planViews.ts";
 import { depotToday } from "../data/scope.ts";
@@ -306,7 +306,11 @@ export default function DepotPlan({
               order it can and names the rule that stopped each one it could not.
             </p>
           </div>
-          {state.stage === "none" && toPlan === 0 && nextDay.data ? (
+          {orderingOpen(date) ? (
+            <p role="status" className="text-[13px] text-go-secondary">
+              {`Stores can order until ${ORDER_CUTOFF} ${dayLabel(addDays(date, -1))}. The draft is made then.`}
+            </p>
+          ) : state.stage === "none" && toPlan === 0 && nextDay.data ? (
             <PrimaryButton onClick={() => onDate(nextDay.data!.date)}>{`Plan ${dayLabel(nextDay.data.date)} · ${nextDay.data.waiting} waiting`}</PrimaryButton>
           ) : (
             <PrimaryButton disabled={!online || planning !== null} busy={busy} onClick={() => void generate(false, unplanned)}>

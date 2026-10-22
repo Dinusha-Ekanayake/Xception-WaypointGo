@@ -118,6 +118,8 @@ abstract class PlanningIntegrationSupport {
             .orElseThrow();
     serviceDate =
         TestDates.unusedDay(reference::nextOperatingDay);
+    // A run is planned once its ordering has closed (R-PLN-49); the day is in 2100, so it is closed here.
+    closeOrdering(serviceDate);
 
     String run = UUID.randomUUID().toString().substring(0, 8);
     String here = "pcd-" + run + "@planning.test";
@@ -132,6 +134,14 @@ abstract class PlanningIntegrationSupport {
   }
 
   // ---- fixtures ------------------------------------------------------------
+
+  /** Ordering for the test depot's day closed, as the 16:00 cutoff would (R-ORD-15). */
+  void closeOrdering(java.time.LocalDate day) {
+    database.asSystem(ModuleRole.ORDERING, () -> {
+      if (!orders.isClosed(depot, day)) orders.close(depot, day, null, 0, Instant.now());
+      return null;
+    });
+  }
 
   /** A confirmed, reserved order for the test outlet on the service date. */
   UUID demand(String temperature) {
