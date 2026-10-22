@@ -42,7 +42,9 @@ export type View =
   | { name: "report"; deliveryId: string; failed: FailureReason | null }
   | { name: "stop"; deliveryId: string }
   | { name: "complete" }
-  | { name: "map" };
+  | { name: "map" }
+  /** The driver's own past trips, from the profile sheet. */
+  | { name: "history" };
 
 export type Saved = {
   title: string;
@@ -545,9 +547,10 @@ export function useDriver(userId: string, depot: string | null = null) {
   const detail = view.name === "stop" ? byId(view.deliveryId) : settled ? reported : null;
   // A screen whose stop is no longer on the run falls back to Home.
   const lost = (view.name === "route" && !shown && nextStop(stops) !== null) || (view.name === "report" && !reported) || (view.name === "stop" && !detail);
-  const screen = lost ? "home" : view.name === "route" && !shown ? "complete" : settled ? "stop" : view.name;
+  const screen = view.name === "history" ? "history" : lost ? "home" : view.name === "route" && !shown ? "complete" : settled ? "stop" : view.name;
 
   return {
+    pastTrips: (dates: string[], signal: AbortSignal) => gateway.pastTrips(dates, signal),
     online,
     location,
     fuelPass,

@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-23 - feat: the driver's "My trips", the last 7 days of their own trips
+
+`dev` · @Oxshadha
+
+- Drivers had no way to look back at a trip. A "My trips" row in the profile sheet opens their trips of the last 7 days: per trip the stops, what was delivered, skipped or not delivered, the times and the units handed over; a tap shows each store. Read from their own run sheets, online only, and it says so with no signal.
+- A change to the driver UI, which is otherwise frozen: agreed by @jv-ransika on 2026-10-23. The Sinhala and Tamil rows await review.
+
+---
+
 ## 2026-10-23 - fix: a store manager's notification stays after it is read
 
 `dev` · @Oxshadha

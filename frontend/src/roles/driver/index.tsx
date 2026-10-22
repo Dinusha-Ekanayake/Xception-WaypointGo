@@ -17,6 +17,7 @@ import { metres } from "@shared/ui/map/geo";
 import { chime, unlockSoundOnFirstTap } from "./data/chime.ts";
 import { mayChime, OFF, onMotion, openByHand, remindDue, slideOut, type DrivingState } from "./data/drivingMode.ts";
 import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
+import TripHistory from "./screens/TripHistory.tsx";
 import { unreadMessages } from "./data/messages.ts";
 import { useKeptTripAudio } from "@shared/messaging/audioCache";
 import RefusedUploads from "./screens/RefusedUploads.tsx";
@@ -236,6 +237,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
                 onToggleLang={setLang}
                 displayName={displayName}
                 onSignOut={d.askSignOut}
+                onHistory={() => d.go({ name: "history" })}
                 onToggleTheme={d.theme}
                 isNight={d.dark}
                 onMessages={openNotifications}
@@ -344,6 +346,11 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
                     error={error && tr(error)}
                     onConfirm={(result) => void d.confirm(reporting, result)}
                   />
+                </GoLayer>
+              )}
+              {screen === "history" && (
+                <GoLayer dark={d.dark} sync={sync} onBack={() => d.go({ name: "home" })}>
+                  <TripHistory load={d.pastTrips} online={online} />
                 </GoLayer>
               )}
               {screen === "stop" && detail && (

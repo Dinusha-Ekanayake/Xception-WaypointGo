@@ -41,6 +41,8 @@ export type DriverGateway = {
    * loader has not released yet (plan:Read on the depot).
    */
   probeDay: (date: string, depot: string | null, signal: AbortSignal) => Promise<DayProbe>;
+  /** The driver's own run sheets of these days, for "My trips"; read when online, never kept. */
+  pastTrips: (dates: string[], signal: AbortSignal) => Promise<RunSheetView[]>;
   /** The vehicle's Fuel Pass (FF-06b): from the server and kept on this phone, or the kept copy with no signal. */
   fuelPass: (vehicleId: string) => Promise<FuelPassState>;
   /** The outlets of this driver's trips on a day's published plan, for its map ahead of time (F-06). */
@@ -59,6 +61,10 @@ export function createGateway(accountId: string): DriverGateway {
   const key = (date: string) => `driver-run:${date}`;
   const cache = readCache();
   return {
+    pastTrips: async (dates, signal) =>
+      (await Promise.all(dates.map((date) => request<RunSheetView[]>(`/api/execution/run-sheets?date=${date}`, { signal }))))
+        .flat()
+        .filter((sheet) => sheet.stops.length > 0),
     probeDay: async (date, depot, signal) => {
       const sheets = await request<RunSheetView[]>(`/api/execution/run-sheets?date=${date}`, { signal });
       if (sheets.some((sheet) => sheet.stops.length > 0)) return { released: true, waiting: null };

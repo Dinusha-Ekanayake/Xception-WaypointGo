@@ -19,12 +19,15 @@ function DriverProfileButton({
   lang,
   onLang,
   onSignOut,
+  onHistory,
   isNight,
 }: {
   displayName: string;
   lang: SupportedLang;
   onLang?: (l: SupportedLang) => void;
   onSignOut?: () => void;
+  /** Opens the driver's own past trips. */
+  onHistory?: () => void;
   isNight: boolean;
 }): React.JSX.Element {
   const t = useT();
@@ -56,6 +59,18 @@ function DriverProfileButton({
             installT={t}
             rows={
               <>
+                {onHistory && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      onHistory();
+                    }}
+                    className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink active:scale-95"
+                  >
+                    {t("My trips")}
+                  </button>
+                )}
                 <McpSettingsRow className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink" />
                 {onSignOut && (
                   <button
@@ -90,6 +105,7 @@ export function DriverHeader({
   onToggleLang,
   displayName,
   onSignOut,
+  onHistory,
   onToggleTheme,
   isNight = false,
 }: {
@@ -98,6 +114,7 @@ export function DriverHeader({
   /** The signed-in driver; their picture opens Settings. */
   displayName?: string;
   onSignOut?: () => void;
+  onHistory?: () => void;
   onToggleTheme?: () => void;
   isNight?: boolean;
 }): React.JSX.Element {
@@ -119,7 +136,7 @@ export function DriverHeader({
       {/* Right controls */}
       <div className="flex items-center gap-2">
         {/* The driver's picture opens Settings: language and the assistant connection. */}
-        {displayName && <DriverProfileButton displayName={displayName} lang={lang} onLang={onToggleLang} onSignOut={onSignOut} isNight={isNight} />}
+        {displayName && <DriverProfileButton displayName={displayName} lang={lang} onLang={onToggleLang} onSignOut={onSignOut} onHistory={onHistory} isNight={isNight} />}
 
         {/* Theme toggle button */}
         <button
@@ -174,6 +191,7 @@ export function DriverMorphHeader({
   onToggleLang,
   displayName,
   onSignOut,
+  onHistory,
   onToggleTheme,
   isNight = false,
   onMessages,
@@ -188,6 +206,8 @@ export function DriverMorphHeader({
   /** The signed-in driver; their picture opens Settings. */
   displayName?: string;
   onSignOut?: () => void;
+  /** Opens the driver's own past trips. */
+  onHistory?: () => void;
   onToggleTheme?: () => void;
   isNight?: boolean;
   /** The trip's thread (issue #136): an icon beside the theme, on every screen with a trip. */
@@ -260,7 +280,7 @@ export function DriverMorphHeader({
             )}
           >
             {/* The driver's picture opens Settings: language and the assistant connection. */}
-            {displayName && <DriverProfileButton displayName={displayName} lang={lang} onLang={onToggleLang} onSignOut={onSignOut} isNight={isNight} />}
+            {displayName && <DriverProfileButton displayName={displayName} lang={lang} onLang={onToggleLang} onSignOut={onSignOut} onHistory={onHistory} isNight={isNight} />}
           </div>
 
           {/* Route & Map Controls: sync pill */}
